@@ -1,0 +1,22 @@
+# Godot 4
+.godot/
+/android/
+
+# Exports
+*.exe
+*.pck
+*.zip
+export/
+builds/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# IDE
+.vscode/
+*.code-workspace
+
+# Claude
+TODO.txt
