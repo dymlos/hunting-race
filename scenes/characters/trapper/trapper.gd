@@ -22,7 +22,7 @@ func _handle_ability_input(delta: float) -> void:
 func _place_trap() -> void:
 	var trap := Trap.new()
 	trap.setup(team, global_position)
-	trap.destroyed.connect(_on_trap_destroyed.bind(trap))
+	trap.destroyed.connect(_on_trap_destroyed)
 	# Add to arena (parent of characters' parent)
 	get_parent().get_parent().add_child(trap)
 	_active_traps.append(trap)
