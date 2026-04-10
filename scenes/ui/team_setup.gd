@@ -77,15 +77,10 @@ func _process(delta: float) -> void:
 
 
 func _has_valid_teams() -> bool:
-	var t1 := 0
-	var t2 := 0
 	for device_id: int in _player_joined:
 		if _player_joined[device_id]:
-			if _player_teams.get(device_id) == Enums.Team.TEAM_1:
-				t1 += 1
-			else:
-				t2 += 1
-	return t1 >= 1 and t2 >= 1
+			return true
+	return false
 
 
 func _get_team_count(team: Enums.Team) -> int:
@@ -205,7 +200,7 @@ func _draw() -> void:
 		draw_string(font, Vector2(cx - 90, screen.y - 40), "Press START to begin",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 18, Color.YELLOW)
 	else:
-		draw_string(font, Vector2(cx - 120, screen.y - 40), "Need at least 1 player per team",
+		draw_string(font, Vector2(cx - 100, screen.y - 40), "Need at least 1 player",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(0.5, 0.5, 0.5))
 
 

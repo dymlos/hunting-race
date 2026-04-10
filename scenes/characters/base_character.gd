@@ -40,7 +40,7 @@ func _setup_role() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if input_locked:
+	if input_locked or player_index >= 100:
 		return
 
 	# Movement input
