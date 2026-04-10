@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://trapper01"]
+
+[ext_resource type="Script" path="res://scenes/characters/trapper/trapper.gd" id="1_trap"]
+
+[node name="Trapper" type="CharacterBody2D"]
+script = ExtResource("1_trap")

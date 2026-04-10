@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3 uid="uid://b1main"]
+
+[ext_resource type="Script" path="res://scenes/main/main.gd" id="1_main"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="ArenaContainer" type="Node2D" parent="."]
+
+[node name="Characters" type="Node2D" parent="."]
+
+[node name="Camera2D" type="Camera2D" parent="."]
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 10
