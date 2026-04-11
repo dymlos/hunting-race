@@ -204,9 +204,30 @@ func _process(_delta: float) -> void:
 
 	if state == Enums.GameState.HUNT:
 		_check_pause_input()
+		_check_debug_input()
 
 	if state == Enums.GameState.MATCH_END:
 		_check_restart_input()
+
+
+# --- Debug ---
+
+func _check_debug_input() -> void:
+	for pi in _active_player_indices:
+		var device_id := InputManager.get_device_id(pi)
+		if device_id < 0:
+			continue
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
+			_kill_all_escapists()
+			return
+
+
+func _kill_all_escapists() -> void:
+	for c in characters:
+		if c is Escapist:
+			var esc := c as Escapist
+			if not esc.is_dead and not esc.has_scored:
+				esc.kill()
 
 
 # --- Freeze/Unfreeze ---
