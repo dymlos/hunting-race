@@ -101,11 +101,10 @@ func _create_goal_zone(rect: Rect2, team: Enums.Team) -> Area2D:
 func _on_goal_body_entered(body: Node2D, goal_team: Enums.Team) -> void:
 	if not GameManager.hunt_active:
 		return
-	# Only the Escapist of the matching team can score
-	if body.has_method("get_role") and body.has_method("get_team"):
-		var role: Enums.Role = body.get_role()
-		var team: Enums.Team = body.get_team()
-		if role == Enums.Role.ESCAPIST and team == goal_team:
+	if body is Escapist:
+		var esc := body as Escapist
+		if esc.team == goal_team and not esc.has_scored and not esc.is_dead:
+			esc.score()
 			goal_entered.emit(goal_team)
 
 

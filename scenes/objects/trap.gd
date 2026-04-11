@@ -1,11 +1,12 @@
 class_name Trap
 extends Area2D
 
-## Placed by Trapper. Slows enemies on contact. Has a lifetime and can be destroyed by Predator dash.
+## Placed by Trapper. Can be slow (reduces speed) or lethal (kills on contact).
 
 signal destroyed(trap: Trap)
 
 var owner_team: Enums.Team = Enums.Team.NONE
+var is_lethal: bool = false
 var _lifetime: float = Constants.TRAP_LIFETIME
 var _triggered_targets: Dictionary = {}  # {Node: cooldown_remaining}
 var _color: Color = Color.WHITE
@@ -13,21 +14,27 @@ var _color: Color = Color.WHITE
 const RETRIGGER_COOLDOWN: float = 2.0
 
 
-func setup(team: Enums.Team, pos: Vector2) -> void:
+func setup(team: Enums.Team, pos: Vector2, lethal: bool = false) -> void:
 	owner_team = team
+	is_lethal = lethal
 	position = pos
 	add_to_group("traps")
-	_color = Enums.team_color(team)
-	_color.a = 0.6
+
+	if lethal:
+		_color = Color(1.0, 0.2, 0.2, 0.8)  # Red for lethal
+	else:
+		_color = Enums.team_color(team)
+		_color.a = 0.6
 
 	collision_layer = Constants.LAYER_TRAPS
 	collision_mask = Constants.LAYER_CHARACTERS
 	monitoring = true
 	monitorable = true
 
+	var radius := Constants.TRAP_LETHAL_RADIUS if lethal else Constants.TRAP_RADIUS
 	if get_child_count() == 0:
 		var shape := CircleShape2D.new()
-		shape.radius = Constants.TRAP_RADIUS
+		shape.radius = radius
 		var col := CollisionShape2D.new()
 		col.shape = shape
 		add_child(col)
@@ -64,21 +71,21 @@ func _on_body_entered(body: Node2D) -> void:
 		if character.team == owner_team:
 			return  # No friendly fire
 
-		# Apply slow
-		character.movement.set_speed_modifier(&"trap_slow", Constants.TRAP_SLOW_MULTIPLIER)
-		# Remove slow after duration
-		get_tree().create_timer(Constants.TRAP_SLOW_DURATION).timeout.connect(
-			func():
-				if is_instance_valid(character):
-					character.movement.remove_speed_modifier(&"trap_slow")
-		)
-		_triggered_targets[body] = RETRIGGER_COOLDOWN
-
-		# Predator dash destroys traps
-		if character is Predator:
-			var pred := character as Predator
-			if pred.movement.is_dashing:
-				_destroy()
+		if is_lethal:
+			# Kill the escapist
+			if character is Escapist:
+				var esc := character as Escapist
+				esc.kill()
+			_destroy()  # Lethal traps are single-use
+		else:
+			# Apply slow
+			character.movement.set_speed_modifier(&"trap_slow", Constants.TRAP_SLOW_MULTIPLIER)
+			get_tree().create_timer(Constants.TRAP_SLOW_DURATION).timeout.connect(
+				func():
+					if is_instance_valid(character):
+						character.movement.remove_speed_modifier(&"trap_slow")
+			)
+			_triggered_targets[body] = RETRIGGER_COOLDOWN
 
 
 func _destroy() -> void:
@@ -87,13 +94,19 @@ func _destroy() -> void:
 
 
 func _draw() -> void:
-	# Trap visual — pulsing circle
 	var pulse := 0.8 + 0.2 * sin(Time.get_ticks_msec() / 300.0)
-	var r := Constants.TRAP_RADIUS * pulse
+	var radius := Constants.TRAP_LETHAL_RADIUS if is_lethal else Constants.TRAP_RADIUS
+	var r := radius * pulse
 	draw_circle(Vector2.ZERO, r, Color(_color, 0.3))
 	draw_arc(Vector2.ZERO, r, 0, TAU, 12, _color, 2.0)
 
-	# X pattern
-	var s := Constants.TRAP_RADIUS * 0.5
-	draw_line(Vector2(-s, -s), Vector2(s, s), _color, 1.5)
-	draw_line(Vector2(s, -s), Vector2(-s, s), _color, 1.5)
+	if is_lethal:
+		# Skull/danger pattern — thick X
+		var s := radius * 0.6
+		draw_line(Vector2(-s, -s), Vector2(s, s), _color, 3.0)
+		draw_line(Vector2(s, -s), Vector2(-s, s), _color, 3.0)
+	else:
+		# Slow pattern — thin X
+		var s := radius * 0.5
+		draw_line(Vector2(-s, -s), Vector2(s, s), _color, 1.5)
+		draw_line(Vector2(s, -s), Vector2(-s, s), _color, 1.5)

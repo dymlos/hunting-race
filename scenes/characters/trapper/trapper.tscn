@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://scenes/characters/trapper/trapper.gd" id="1_trap"]
 
-[node name="Trapper" type="CharacterBody2D"]
+[node name="Trapper" type="Node2D"]
 script = ExtResource("1_trap")
