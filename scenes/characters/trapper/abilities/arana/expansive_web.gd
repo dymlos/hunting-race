@@ -9,6 +9,7 @@ func setup(p_trapper: Trapper) -> void:
 	cooldown = Constants.ARANA_WEB_COOLDOWN
 	max_active = Constants.ARANA_WEB_MAX
 	points_required = 3
+	max_point_distance = Constants.ARANA_WEB_MAX_DIST
 
 
 func _spawn_from_points(points: Array[Vector2]) -> void:
@@ -28,17 +29,25 @@ func get_display_color() -> Color:
 func draw_preview(trapper_node: Trapper) -> void:
 	if not is_placing or _placement_points.is_empty():
 		return
-	var color := Color(get_display_color(), 0.4)
+	var base_color := get_display_color()
+	var valid := is_placement_valid(trapper_node.global_position)
+	var cursor_color := Color(base_color, 0.7) if valid else Color(base_color, 0.15)
+
 	# Draw placed points and lines between them
 	var prev := Vector2.ZERO
 	for i in _placement_points.size():
 		var local := _placement_points[i] - trapper_node.global_position
-		trapper_node.draw_circle(local, 5.0, color)
+		trapper_node.draw_circle(local, 5.0, Color(base_color, 0.5))
 		if i > 0:
-			trapper_node.draw_line(prev, local, color, 1.5)
+			trapper_node.draw_line(prev, local, Color(base_color, 0.4), 1.5)
 		prev = local
-	# Draw line from last point to cursor
-	trapper_node.draw_line(prev, Vector2.ZERO, Color(color, 0.2), 1.0)
+
+	# Line from last point to cursor
+	trapper_node.draw_line(prev, Vector2.ZERO, cursor_color, 1.5)
+
+	# Range circle around last placed point
+	trapper_node.draw_arc(prev, Constants.ARANA_WEB_MAX_DIST, 0, TAU, 24,
+		Color(base_color, 0.12), 1.0)
 
 
 ## --- WebZone inner node ---

@@ -52,12 +52,14 @@ const ARANA_WEB_SLOW: float = 0.3
 const ARANA_WEB_LIFETIME: float = 25.0
 const ARANA_WEB_COOLDOWN: float = 12.0
 const ARANA_WEB_MAX: int = 1
+const ARANA_WEB_MAX_DIST: float = 120.0
 
 const ARANA_ELASTIC_LIFETIME: float = 20.0
 const ARANA_ELASTIC_COOLDOWN: float = 6.0
 const ARANA_ELASTIC_MAX: int = 2
 const ARANA_ELASTIC_BOUNCE_DIST: float = 120.0
 const ARANA_ELASTIC_WIDTH: float = 20.0
+const ARANA_ELASTIC_MAX_DIST: float = 150.0
 
 const ARANA_VENOM_RADIUS: float = 25.0
 const ARANA_VENOM_LIFETIME: float = 30.0

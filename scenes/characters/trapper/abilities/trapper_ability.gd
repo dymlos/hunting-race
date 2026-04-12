@@ -12,6 +12,7 @@ var _active_objects: Array[Node2D] = []
 
 # Multi-point placement
 var points_required: int = 1
+var max_point_distance: float = 0.0  # 0 = unlimited
 var _placement_points: Array[Vector2] = []
 var is_placing: bool = false
 
@@ -42,7 +43,16 @@ func activate() -> void:
 		if not is_placing:
 			is_placing = true
 			_placement_points.clear()
-		_placement_points.append(trapper.global_position)
+
+		var pos := trapper.global_position
+
+		# Enforce max distance from previous point
+		if max_point_distance > 0.0 and not _placement_points.is_empty():
+			var prev: Vector2 = _placement_points.back()
+			if pos.distance_to(prev) > max_point_distance:
+				return  # Too far — don't place this point
+
+		_placement_points.append(pos)
 		if _placement_points.size() >= points_required:
 			_spawn_from_points(_placement_points.duplicate())
 			_placement_points.clear()
@@ -102,11 +112,29 @@ func get_active_count() -> int:
 	return _active_objects.size()
 
 
+func is_placement_valid(cursor_pos: Vector2) -> bool:
+	## Whether the cursor is within valid distance of the last placed point.
+	if max_point_distance <= 0.0:
+		return true
+	if _placement_points.is_empty():
+		return true
+	return cursor_pos.distance_to(_placement_points.back() as Vector2) <= max_point_distance
+
+
 func draw_preview(trapper_node: Trapper) -> void:
 	## Draw placement preview on the trapper's canvas. Called from trapper._draw().
 	if not is_placing or _placement_points.is_empty():
 		return
+	var valid := is_placement_valid(trapper_node.global_position)
+	var color := get_display_color() if valid else Color(get_display_color(), 0.2)
 	# Draw placed points
 	for pt: Vector2 in _placement_points:
 		var local := pt - trapper_node.global_position
 		trapper_node.draw_circle(local, 4.0, get_display_color())
+	# Draw line from last point to cursor with validity color
+	var last_local: Vector2 = (_placement_points.back() as Vector2) - trapper_node.global_position
+	trapper_node.draw_line(last_local, Vector2.ZERO, color, 1.5)
+	# Draw max range circle around last point
+	if max_point_distance > 0.0:
+		trapper_node.draw_arc(last_local, max_point_distance, 0, TAU, 24,
+			Color(color, 0.15), 1.0)
