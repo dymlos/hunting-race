@@ -6,11 +6,18 @@ signal scored(escapist: Escapist)
 
 var is_dead: bool = false
 var has_scored: bool = false
+var spawn_position: Vector2 = Vector2.ZERO
 
 
 func _setup_role() -> void:
 	role = Enums.Role.ESCAPIST
 	movement.move_speed = Constants.SPEED_ESCAPIST
+	movement.crushed.connect(_on_crushed)
+
+
+func _ready() -> void:
+	super._ready()
+	spawn_position = position
 
 
 func kill() -> void:
@@ -21,6 +28,15 @@ func kill() -> void:
 	movement.freeze()
 	visible = false
 	died.emit(self)
+
+
+func _on_crushed() -> void:
+	if is_dead or has_scored:
+		return
+	position = spawn_position
+	movement.velocity = Vector2.ZERO
+	movement.slippery = false
+	movement.clear_speed_modifiers()
 
 
 func score() -> void:

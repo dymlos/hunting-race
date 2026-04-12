@@ -136,7 +136,8 @@ func _build_moving_wall(def: Dictionary) -> void:
 	var end_pos: Vector2 = def["end_pos"]
 	var period: float = def.get("period", 4.0)
 
-	var body := StaticBody2D.new()
+	# AnimatableBody2D pushes characters when moving (unlike StaticBody2D)
+	var body := AnimatableBody2D.new()
 	body.collision_layer = Constants.LAYER_WALLS
 	body.collision_mask = 0
 
@@ -147,18 +148,40 @@ func _build_moving_wall(def: Dictionary) -> void:
 	col.shape = shape
 	col.position = wall_size / 2.0
 
+	# Crush detection — Area2D that detects characters overlapping with the wall
+	var crush_area := Area2D.new()
+	crush_area.collision_layer = 0
+	crush_area.collision_mask = Constants.LAYER_CHARACTERS
+	crush_area.monitoring = true
+	crush_area.monitorable = false
+	var crush_shape := RectangleShape2D.new()
+	# Very small — only triggers when character center is deep inside the wall
+	crush_shape.size = wall_size * 0.3
+	var crush_col := CollisionShape2D.new()
+	crush_col.shape = crush_shape
+	crush_col.position = wall_size / 2.0
+	crush_area.add_child(crush_col)
+	body.add_child(crush_area)
+	crush_area.body_entered.connect(_on_moving_wall_crush)
+
 	body.position = pos
 	body.add_child(col)
 	add_child(body)
 	_hazard_nodes.append(body)
 
-	# Store for rendering
 	_moving_wall_data.append({"body": body, "size": wall_size})
 
 	# Ping-pong tween
 	var tween := create_tween().set_loops()
 	tween.tween_property(body, "position", end_pos, period / 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(body, "position", pos, period / 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _on_moving_wall_crush(body: Node2D) -> void:
+	if body is Escapist:
+		var esc := body as Escapist
+		if not esc.is_dead and not esc.has_scored:
+			esc.movement.crushed.emit()
 
 
 func _build_one_way_gate(def: Dictionary) -> void:

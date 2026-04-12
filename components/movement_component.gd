@@ -3,6 +3,8 @@ extends Node
 
 ## Handles character movement, dashing, and soft character separation.
 
+signal crushed  # Emitted when pinched between two walls
+
 @export var move_speed: float = 180.0
 
 var velocity: Vector2 = Vector2.ZERO
@@ -97,6 +99,7 @@ func _check_sticky_walls() -> void:
 			can_move = false
 			velocity = Vector2.ZERO
 			return
+
 
 
 func apply_movement(input_vector: Vector2) -> void:
