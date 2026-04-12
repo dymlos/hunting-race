@@ -31,6 +31,9 @@ const SEPARATION_RADIUS: float = 32.0
 const SEPARATION_FORCE: float = 800.0
 
 # --- Map Hazards ---
+const STICKY_WALL_STUN: float = 0.8          # Seconds frozen on contact
+const STICKY_WALL_COOLDOWN: float = 0.5       # Can't get re-stuck for this long after
+const STICKY_WALL_COLOR := Color(0.9, 0.3, 0.6)  # Pink/magenta
 const MOVING_WALL_COLOR := Color(0.9, 0.6, 0.1)
 const SLIPPERY_ZONE_COLOR := Color(0.3, 0.8, 1.0, 0.15)
 const ONE_WAY_COLOR := Color(0.2, 1.0, 0.4, 0.4)

@@ -29,9 +29,8 @@ func get_map_center() -> Vector2:
 	return get_map_size() / 2.0
 
 
-func get_team_spawn(team: Enums.Team, index: int) -> Vector2:
-	var key := "spawn_team1" if team == Enums.Team.TEAM_1 else "spawn_team2"
-	var spawns: Array = _map_data.get(key, [])
+func get_spawn(index: int) -> Vector2:
+	var spawns: Array = _map_data.get("spawns", [])
 	if index < spawns.size():
 		return spawns[index] as Vector2
 	return get_map_center()
@@ -78,13 +77,11 @@ func _create_static_wall(pos: Vector2, wall_size: Vector2) -> StaticBody2D:
 
 
 func _build_goals() -> void:
-	var goal1_rect: Rect2 = _map_data.get("goal_team1", Rect2())
-	_goal_zones.append(_create_goal_zone(goal1_rect, Enums.Team.TEAM_1))
-	var goal2_rect: Rect2 = _map_data.get("goal_team2", Rect2())
-	_goal_zones.append(_create_goal_zone(goal2_rect, Enums.Team.TEAM_2))
+	var goal_rect: Rect2 = _map_data.get("goal", Rect2())
+	_goal_zones.append(_create_goal_zone(goal_rect))
 
 
-func _create_goal_zone(rect: Rect2, team: Enums.Team) -> Area2D:
+func _create_goal_zone(rect: Rect2) -> Area2D:
 	var area := Area2D.new()
 	area.collision_layer = Constants.LAYER_GOAL_ZONES
 	area.collision_mask = Constants.LAYER_CHARACTERS
@@ -102,18 +99,18 @@ func _create_goal_zone(rect: Rect2, team: Enums.Team) -> Area2D:
 	area.add_child(col)
 	add_child(area)
 
-	area.body_entered.connect(_on_goal_body_entered.bind(team))
+	area.body_entered.connect(_on_goal_body_entered)
 	return area
 
 
-func _on_goal_body_entered(body: Node2D, goal_team: Enums.Team) -> void:
+func _on_goal_body_entered(body: Node2D) -> void:
 	if not GameManager.hunt_active:
 		return
 	if body is Escapist:
 		var esc := body as Escapist
-		if esc.team == goal_team and not esc.has_scored and not esc.is_dead:
+		if not esc.has_scored and not esc.is_dead:
 			esc.score()
-			goal_entered.emit(goal_team)
+			goal_entered.emit(esc.team)
 
 
 # --- Hazards ---
@@ -129,6 +126,8 @@ func _build_hazards() -> void:
 				_build_one_way_gate(hazard_def)
 			"slippery_zone":
 				_build_slippery_zone(hazard_def)
+			"sticky_wall":
+				_build_sticky_wall(hazard_def)
 
 
 func _build_moving_wall(def: Dictionary) -> void:
@@ -245,6 +244,28 @@ func _on_slippery_exited(body: Node2D) -> void:
 		character.movement.slippery = false
 
 
+func _build_sticky_wall(def: Dictionary) -> void:
+	var pos: Vector2 = def["pos"]
+	var wall_size: Vector2 = def["size"]
+
+	var body := StaticBody2D.new()
+	body.collision_layer = Constants.LAYER_WALLS
+	body.collision_mask = 0
+	body.add_to_group("sticky_walls")
+
+	var shape := RectangleShape2D.new()
+	shape.size = wall_size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = wall_size / 2.0
+
+	body.position = pos
+	body.add_child(col)
+	add_child(body)
+	_hazard_nodes.append(body)
+
+
 # --- Drawing ---
 
 func _draw() -> void:
@@ -276,15 +297,11 @@ func _draw() -> void:
 		var size: Vector2 = wall_def["size"]
 		draw_rect(Rect2(pos, size), wall_color)
 
-	# Goal zones
-	var goal1_rect: Rect2 = _map_data.get("goal_team1", Rect2())
-	var goal2_rect: Rect2 = _map_data.get("goal_team2", Rect2())
-	var t1c := Enums.team_color(Enums.Team.TEAM_1)
-	var t2c := Enums.team_color(Enums.Team.TEAM_2)
-	draw_rect(goal1_rect, Color(t1c, 0.2))
-	draw_rect(goal1_rect, t1c, false, 2.0)
-	draw_rect(goal2_rect, Color(t2c, 0.2))
-	draw_rect(goal2_rect, t2c, false, 2.0)
+	# Goal zone
+	var goal_rect: Rect2 = _map_data.get("goal", Rect2())
+	var goal_color := Color(0.2, 1.0, 0.5)  # Green — matches escapist color
+	draw_rect(goal_rect, Color(goal_color, 0.2))
+	draw_rect(goal_rect, goal_color, false, 2.0)
 
 	# Hazards
 	_draw_hazards()
@@ -329,6 +346,22 @@ func _draw_hazards() -> void:
 				var perp := Vector2(-dir.y, dir.x).normalized() * 6.0
 				draw_line(tip, tip - dir.normalized() * 10.0 + perp, Color(0.2, 1.0, 0.4, 0.8), 2.0)
 				draw_line(tip, tip - dir.normalized() * 10.0 - perp, Color(0.2, 1.0, 0.4, 0.8), 2.0)
+			"sticky_wall":
+				var pos: Vector2 = hazard_def["pos"]
+				var size: Vector2 = hazard_def["size"]
+				draw_rect(Rect2(pos, size), Constants.STICKY_WALL_COLOR)
+				# Hatching pattern to indicate danger
+				var step := 12.0
+				var hatch_color := Color(Constants.STICKY_WALL_COLOR, 0.5)
+				var hx := pos.x
+				while hx < pos.x + size.x + size.y:
+					var x0 := maxf(hx, pos.x)
+					var x1 := minf(hx + size.y, pos.x + size.x)
+					if x0 < pos.x + size.x and x1 > pos.x:
+						var y0 := pos.y + (x0 - hx)
+						var y1 := pos.y + (x1 - hx)
+						draw_line(Vector2(x0, y0), Vector2(x1, y1), hatch_color, 1.0)
+					hx += step
 
 
 func _process(_delta: float) -> void:

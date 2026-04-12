@@ -20,9 +20,30 @@ var _dash_remaining: float = 0.0
 var _dash_speed: float = 0.0
 var _dash_callback: Callable
 
+# Sticky wall stun
+var _sticky_stun_timer: float = 0.0
+var _sticky_cooldowns: Dictionary = {}  # {wall_node_id: remaining_cooldown}
+
 
 func _physics_process(delta: float) -> void:
 	if not body:
+		return
+
+	# Tick per-wall sticky cooldowns
+	var expired_walls: Array[int] = []
+	for wall_id: int in _sticky_cooldowns:
+		_sticky_cooldowns[wall_id] -= delta
+		if _sticky_cooldowns[wall_id] <= 0.0:
+			expired_walls.append(wall_id)
+	for wall_id in expired_walls:
+		_sticky_cooldowns.erase(wall_id)
+
+	if _sticky_stun_timer > 0.0:
+		_sticky_stun_timer -= delta
+		body.velocity = Vector2.ZERO
+		body.move_and_slide()
+		if _sticky_stun_timer <= 0.0:
+			can_move = true
 		return
 
 	if is_dashing:
@@ -39,6 +60,7 @@ func _physics_process(delta: float) -> void:
 	var separation := _compute_separation()
 	body.velocity = velocity + separation
 	body.move_and_slide()
+	_check_sticky_walls()
 
 
 func _compute_separation() -> Vector2:
@@ -60,6 +82,21 @@ func _compute_separation() -> Vector2:
 			push += Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized() * Constants.SEPARATION_FORCE
 
 	return push
+
+
+func _check_sticky_walls() -> void:
+	for i in body.get_slide_collision_count():
+		var collision := body.get_slide_collision(i)
+		var collider := collision.get_collider()
+		if collider is Node and (collider as Node).is_in_group("sticky_walls"):
+			var wall_id := (collider as Node).get_instance_id()
+			if wall_id in _sticky_cooldowns:
+				continue  # This wall is still on cooldown
+			_sticky_stun_timer = Constants.STICKY_WALL_STUN
+			_sticky_cooldowns[wall_id] = Constants.STICKY_WALL_STUN + Constants.STICKY_WALL_COOLDOWN
+			can_move = false
+			velocity = Vector2.ZERO
+			return
 
 
 func apply_movement(input_vector: Vector2) -> void:

@@ -148,7 +148,7 @@ func _cleanup_round() -> void:
 func _spawn_characters() -> void:
 	_cleanup_round()
 
-	var team_spawn_idx: Dictionary = {Enums.Team.TEAM_1: 0, Enums.Team.TEAM_2: 0}
+	var escapist_idx := 0
 
 	for pi in _active_player_indices:
 		var t: Enums.Team = GameManager.get_player_team(pi)
@@ -159,11 +159,9 @@ func _spawn_characters() -> void:
 			esc.player_index = pi
 			esc.team = t
 			esc.player_color = Enums.team_color(t)
-			var spawn_idx: int = team_spawn_idx[t]
-			esc.position = arena.get_team_spawn(t, spawn_idx)
-			esc.aim_direction = (arena.get_map_center() - esc.position).normalized()
-			team_spawn_idx[t] = spawn_idx + 1
-			# Connect scoring/death via goal zone
+			esc.position = arena.get_spawn(escapist_idx)
+			esc.aim_direction = Vector2.RIGHT
+			escapist_idx += 1
 			esc.died.connect(_on_escapist_character_died)
 			character_container.add_child(esc)
 			characters.append(esc)
