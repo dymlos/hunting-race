@@ -44,11 +44,13 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 			_nav_cooldowns[pi] = 0.0
 			cursor_idx += 1
 
-	# Auto-assign bots immediately
-	_auto_assign_bots()
-
 	show()
 	queue_redraw()
+
+	# If no human trappers, assign bots and advance immediately
+	if _all_humans_confirmed():
+		_auto_assign_bots()
+		characters_ready.emit(_build_selections())
 
 
 func _is_trapper_player(pi: int) -> bool:
@@ -103,6 +105,20 @@ func _all_confirmed() -> bool:
 	return not _player_confirmed.is_empty()
 
 
+func _has_bot_trappers() -> bool:
+	for pi: int in _player_cursor:
+		if not _is_human(pi):
+			return true
+	return false
+
+
+func _all_humans_confirmed() -> bool:
+	for pi: int in _player_cursor:
+		if _is_human(pi) and not _player_confirmed.get(pi, false):
+			return false
+	return true
+
+
 func _any_human_confirmed() -> bool:
 	for pi: int in _player_confirmed:
 		if _is_human(pi) and _player_confirmed.get(pi, false):
@@ -155,8 +171,8 @@ func _process(delta: float) -> void:
 				var idx: int = _player_cursor[pi] as int
 				if not _is_character_taken(idx, pi):
 					_player_confirmed[pi] = true
-					# Re-assign bots now that a human confirmed
-					_auto_assign_bots()
+					if _all_humans_confirmed():
+						_auto_assign_bots()
 
 			# B to go back (only if no one confirmed and back is allowed)
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
@@ -164,21 +180,11 @@ func _process(delta: float) -> void:
 					back_requested.emit()
 					return
 
-		# START to advance when all confirmed
-		if _all_confirmed():
+		# START to advance when all humans confirmed (outside if/else so confirmed players can press it)
+		if _all_humans_confirmed():
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
 				characters_ready.emit(_build_selections())
 				return
-
-	# If all trappers are bots, auto-advance
-	var has_human_trapper := false
-	for pi: int in _player_cursor:
-		if _is_human(pi):
-			has_human_trapper = true
-			break
-	if not has_human_trapper and _all_confirmed():
-		characters_ready.emit(_build_selections())
-		return
 
 	queue_redraw()
 

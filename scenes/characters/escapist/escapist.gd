@@ -44,7 +44,7 @@ func kill() -> void:
 
 
 func _on_poison_expired() -> void:
-	kill()
+	respawn()
 
 
 func invert_controls(duration: float) -> void:
@@ -58,6 +58,19 @@ func _physics_process(delta: float) -> void:
 		if _inversion_timer <= 0.0:
 			controls_inverted = false
 	super._physics_process(delta)
+
+
+func respawn() -> void:
+	if is_dead or has_scored:
+		return
+	position = spawn_position
+	movement.velocity = Vector2.ZERO
+	movement.slippery = false
+	movement.clear_speed_modifiers()
+	controls_inverted = false
+	_inversion_timer = 0.0
+	if poison.is_poisoned:
+		poison.cure()
 
 
 func _on_crushed() -> void:
