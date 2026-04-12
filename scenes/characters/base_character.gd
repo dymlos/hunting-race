@@ -45,6 +45,8 @@ func _physics_process(_delta: float) -> void:
 
 	# Movement input
 	var move_vec := InputManager.get_move_vector(player_index)
+	if self is Escapist and (self as Escapist).controls_inverted:
+		move_vec *= -1.0
 	movement.apply_movement(move_vec)
 
 	# Aim input

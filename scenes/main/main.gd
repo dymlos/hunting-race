@@ -4,6 +4,7 @@ extends Node2D
 
 const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
+const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
 const ArenaScene := preload("res://scenes/arena/arena.tscn")
 const PhaseOverlayScene := preload("res://scenes/ui/phase_overlay.tscn")
 const GameHudScene := preload("res://scenes/ui/game_hud.tscn")
@@ -27,8 +28,10 @@ var _view_stack: Array[Control] = []
 # UI instances
 var team_setup: TeamSetup
 var stage_select: StageSelect
+var character_select: CharacterSelect
 var phase_overlay: PhaseOverlay
 var game_hud: GameHud
+var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
 
 
 func _ready() -> void:
@@ -43,6 +46,12 @@ func _ready() -> void:
 	stage_select.stage_selected.connect(_on_stage_selected)
 	stage_select.back_requested.connect(_on_stage_back)
 
+	character_select = CharacterSelectScene.instantiate() as CharacterSelect
+	ui_layer.add_child(character_select)
+	character_select.hide()
+	character_select.characters_ready.connect(_on_characters_ready)
+	character_select.back_requested.connect(_on_character_back)
+
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
 	phase_overlay.hide()
@@ -56,6 +65,7 @@ func _ready() -> void:
 	GameManager.match_ended.connect(_on_match_ended)
 	GameManager.escapist_scored.connect(_on_escapist_scored)
 	GameManager.escapist_died.connect(_on_escapist_died)
+	GameManager.round_advancing.connect(_on_round_advancing)
 
 	_start_team_setup()
 
@@ -90,6 +100,25 @@ func _on_teams_ready(t_assignments: Dictionary) -> void:
 
 func _on_stage_selected(stage_index: int) -> void:
 	_selected_stage_index = stage_index
+	_is_first_round = true
+	_show_character_select(true)
+
+
+func _on_stage_back() -> void:
+	_start_team_setup()
+
+
+func _show_character_select(allow_back: bool) -> void:
+	if _view_stack.is_empty():
+		push_view(character_select)
+	else:
+		replace_view(character_select)
+	character_select.setup(_active_player_indices, GameManager.team_assignments,
+		GameManager.get_trapping_team(), allow_back)
+
+
+func _on_characters_ready(selections: Dictionary) -> void:
+	GameManager.set_character_selections(selections)
 
 	while not _view_stack.is_empty():
 		pop_view()
@@ -97,13 +126,22 @@ func _on_stage_selected(stage_index: int) -> void:
 	for pi in _active_player_indices:
 		_prev_start_pressed[pi] = true
 
-	_setup_arena()
+	if _is_first_round:
+		_setup_arena()
+	_is_first_round = false
 	game_hud.show()
 	GameManager.start_observation()
 
 
-func _on_stage_back() -> void:
-	_start_team_setup()
+func _on_character_back() -> void:
+	replace_view(stage_select)
+	stage_select.setup()
+
+
+func _on_round_advancing() -> void:
+	# Between rounds: show character select for the new trapping team
+	phase_overlay.clear()
+	_show_character_select(false)
 
 
 func _setup_arena() -> void:
@@ -172,6 +210,7 @@ func _spawn_characters() -> void:
 			trapper.player_index = pi
 			trapper.team = t
 			trapper.player_color = Enums.role_color(Enums.Role.TRAPPER)
+			trapper.trapper_character = GameManager.get_player_character(pi)
 			trapper.position = arena.get_map_center()
 			trapper.setup(arena.get_map_size())
 			character_container.add_child(trapper)

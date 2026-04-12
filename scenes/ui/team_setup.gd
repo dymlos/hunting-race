@@ -10,6 +10,7 @@ var _player_joined: Dictionary = {}    # {device_id: bool}
 var _player_teams: Dictionary = {}     # {device_id: Enums.Team}
 var _nav_cooldowns: Dictionary = {}    # {device_id: float}
 var input_blocked: bool = false
+var auto_fill_bots: bool = false
 
 const NAV_COOLDOWN: float = 0.2
 
@@ -94,24 +95,24 @@ func _advance() -> void:
 		t_assignments[pi] = _player_teams[device_id]
 		pi += 1
 
-	# Auto-fill each team to 3 with bots
-	var t1 := 0
-	var t2 := 0
-	for p: int in t_assignments:
-		if t_assignments[p] == Enums.Team.TEAM_1:
-			t1 += 1
-		else:
-			t2 += 1
+	if auto_fill_bots:
+		var t1 := 0
+		var t2 := 0
+		for p: int in t_assignments:
+			if t_assignments[p] == Enums.Team.TEAM_1:
+				t1 += 1
+			else:
+				t2 += 1
 
-	var bot_id := 100
-	while t1 < 3:
-		t_assignments[bot_id] = Enums.Team.TEAM_1
-		bot_id += 1
-		t1 += 1
-	while t2 < 3:
-		t_assignments[bot_id] = Enums.Team.TEAM_2
-		bot_id += 1
-		t2 += 1
+		var bot_id := 100
+		while t1 < 3:
+			t_assignments[bot_id] = Enums.Team.TEAM_1
+			bot_id += 1
+			t1 += 1
+		while t2 < 3:
+			t_assignments[bot_id] = Enums.Team.TEAM_2
+			bot_id += 1
+			t2 += 1
 
 	teams_ready.emit(t_assignments)
 

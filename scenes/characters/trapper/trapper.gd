@@ -1,22 +1,68 @@
 class_name Trapper
 extends Node2D
 
-## Trapper cursor — non-physical entity that moves freely and places traps.
+## Trapper cursor — non-physical entity that moves freely and places abilities.
 
 var player_index: int = 0
 var team: Enums.Team = Enums.Team.NONE
 var role: Enums.Role = Enums.Role.TRAPPER
 var player_color: Color = Color.WHITE
 var input_locked: bool = true
+var trapper_character: Enums.TrapperCharacter = Enums.TrapperCharacter.NONE
 
-var _active_traps: Array[Trap] = []
-var _slow_trap_cooldown: float = 0.0
-var _lethal_trap_cooldown: float = 0.0
+var _abilities: Array[TrapperAbility] = []  # 3 abilities: [A, RB, X]
 var _map_bounds: Rect2 = Rect2()
+
+# Bot AI state
+var _bot_target: Vector2 = Vector2.ZERO
+var _bot_move_timer: float = 0.0
+var _bot_ability_timer: float = 2.0  # Delay before first ability use
+
+# Button mappings for the 3 abilities
+const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  # A, RB, X
 
 
 func setup(map_size: Vector2) -> void:
 	_map_bounds = Rect2(Vector2.ZERO, map_size)
+	_setup_abilities()
+
+
+func _setup_abilities() -> void:
+	_abilities.clear()
+	var ability_classes := _get_ability_classes()
+	for ability_class: GDScript in ability_classes:
+		var ability: TrapperAbility = ability_class.new() as TrapperAbility
+		ability.setup(self)
+		_abilities.append(ability)
+
+
+func _get_ability_classes() -> Array[GDScript]:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return [
+				preload("res://scenes/characters/trapper/abilities/arana/expansive_web.gd"),
+				preload("res://scenes/characters/trapper/abilities/arana/elastic_web.gd"),
+				preload("res://scenes/characters/trapper/abilities/arana/persistent_venom.gd"),
+			]
+		Enums.TrapperCharacter.HONGO:
+			return [
+				preload("res://scenes/characters/trapper/abilities/hongo/confusing_mushroom.gd"),
+				preload("res://scenes/characters/trapper/abilities/hongo/toxic_spore_zone.gd"),
+				preload("res://scenes/characters/trapper/abilities/hongo/fungal_teleport.gd"),
+			]
+		Enums.TrapperCharacter.ESCORPION:
+			return [
+				preload("res://scenes/characters/trapper/abilities/escorpion/buried_stinger.gd"),
+				preload("res://scenes/characters/trapper/abilities/escorpion/quicksand.gd"),
+				preload("res://scenes/characters/trapper/abilities/escorpion/crushing_pincers.gd"),
+			]
+		Enums.TrapperCharacter.PULPO:
+			return [
+				preload("res://scenes/characters/trapper/abilities/pulpo/ink_stain.gd"),
+				preload("res://scenes/characters/trapper/abilities/pulpo/binding_tentacle.gd"),
+				preload("res://scenes/characters/trapper/abilities/pulpo/water_current.gd"),
+			]
+	return []
 
 
 func get_role() -> Enums.Role:
@@ -36,7 +82,16 @@ func unfreeze_character() -> void:
 
 
 func _process(delta: float) -> void:
-	if input_locked or player_index >= 100:
+	# Update abilities even when locked (for cooldown ticking)
+	for ability: TrapperAbility in _abilities:
+		ability.update(delta)
+
+	if input_locked:
+		queue_redraw()
+		return
+
+	if player_index >= 100:
+		_process_bot(delta)
 		queue_redraw()
 		return
 
@@ -47,43 +102,66 @@ func _process(delta: float) -> void:
 	position.x = clampf(position.x, _map_bounds.position.x, _map_bounds.end.x)
 	position.y = clampf(position.y, _map_bounds.position.y, _map_bounds.end.y)
 
-	# Slow trap — RB
-	if _slow_trap_cooldown > 0.0:
-		_slow_trap_cooldown -= delta
-	if InputManager.is_action_just_pressed(player_index, &"ability") and _slow_trap_cooldown <= 0.0:
-		if _active_traps.size() < Constants.TRAP_MAX_ACTIVE:
-			_place_trap(false)
+	# Handle ability input
+	for i in _abilities.size():
+		if i >= ABILITY_BUTTONS.size():
+			break
+		var action: StringName = ABILITY_BUTTONS[i]
+		if InputManager.is_action_just_pressed(player_index, action):
+			_abilities[i].activate()
 
-	# Lethal trap — A
-	if _lethal_trap_cooldown > 0.0:
-		_lethal_trap_cooldown -= delta
-	if InputManager.is_action_just_pressed(player_index, &"dash") and _lethal_trap_cooldown <= 0.0:
-		if _active_traps.size() < Constants.TRAP_MAX_ACTIVE:
-			_place_trap(true)
+	# B to cancel multi-point placement
+	if InputManager.is_action_just_pressed(player_index, &"cancel"):
+		for ability: TrapperAbility in _abilities:
+			if ability.is_placing:
+				ability.cancel_placement()
 
 	queue_redraw()
 
 
-func _place_trap(lethal: bool) -> void:
-	var trap := Trap.new()
-	trap.setup(team, global_position, lethal)
-	trap.destroyed.connect(_on_trap_destroyed)
-	get_parent().add_child(trap)
-	_active_traps.append(trap)
-	if lethal:
-		_lethal_trap_cooldown = Constants.TRAP_LETHAL_COOLDOWN
-	else:
-		_slow_trap_cooldown = Constants.TRAP_COOLDOWN
+func _process_bot(delta: float) -> void:
+	# Move toward random target
+	_bot_move_timer -= delta
+	if _bot_move_timer <= 0.0:
+		_bot_target = Vector2(
+			randf_range(_map_bounds.position.x + 30, _map_bounds.end.x - 30),
+			randf_range(_map_bounds.position.y + 30, _map_bounds.end.y - 30)
+		)
+		_bot_move_timer = randf_range(1.5, 4.0)
 
+	var dir := (_bot_target - position).normalized()
+	var dist := position.distance_to(_bot_target)
+	if dist > 10.0:
+		position += dir * Constants.TRAPPER_CURSOR_SPEED * delta
+	position.x = clampf(position.x, _map_bounds.position.x, _map_bounds.end.x)
+	position.y = clampf(position.y, _map_bounds.position.y, _map_bounds.end.y)
 
-func _on_trap_destroyed(trap: Trap) -> void:
-	_active_traps.erase(trap)
+	# Use abilities periodically
+	_bot_ability_timer -= delta
+	if _bot_ability_timer <= 0.0:
+		# Pick a random ability that can activate
+		var available: Array[int] = []
+		for i in _abilities.size():
+			if _abilities[i].can_activate():
+				available.append(i)
+		if not available.is_empty():
+			var idx: int = available[randi() % available.size()]
+			_abilities[idx].activate()
+			# For multi-point abilities, immediately place remaining points nearby
+			if _abilities[idx].is_placing:
+				for _j in _abilities[idx].points_required:
+					_abilities[idx].activate()
+		_bot_ability_timer = randf_range(3.0, 8.0)
 
 
 func _draw() -> void:
+	var char_color := Enums.trapper_character_color(trapper_character)
+	if trapper_character == Enums.TrapperCharacter.NONE:
+		char_color = player_color
+
 	# Crosshair cursor
 	var size := 12.0
-	var color := Color(player_color, 0.8)
+	var color := Color(char_color, 0.8)
 	draw_line(Vector2(-size, 0), Vector2(size, 0), color, 2.0)
 	draw_line(Vector2(0, -size), Vector2(0, size), color, 2.0)
 	draw_arc(Vector2.ZERO, size * 0.7, 0, TAU, 12, color, 1.5)
@@ -95,17 +173,34 @@ func _draw() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(-10, -size - 4),
 		label, HORIZONTAL_ALIGNMENT_CENTER, -1, 10, color)
 
-	# Trap count
-	var trap_text := "%d/%d" % [_active_traps.size(), Constants.TRAP_MAX_ACTIVE]
-	draw_string(ThemeDB.fallback_font, Vector2(-10, size + 14),
-		trap_text, HORIZONTAL_ALIGNMENT_CENTER, -1, 8, Color(0.8, 0.8, 0.8))
+	# Character name
+	var char_name := Enums.trapper_character_name(trapper_character)
+	if char_name != "None":
+		var name_w := ThemeDB.fallback_font.get_string_size(char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		draw_string(ThemeDB.fallback_font, Vector2(-name_w / 2.0, -size - 14),
+			char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(char_color, 0.6))
 
-	# Cooldown indicators
-	if _slow_trap_cooldown > 0.0:
-		var ratio := _slow_trap_cooldown / Constants.TRAP_COOLDOWN
-		draw_arc(Vector2.ZERO, size + 4.0, -PI / 2.0, -PI / 2.0 + TAU * (1.0 - ratio),
-			12, Color(0.5, 0.5, 1.0, 0.4), 2.0)
-	if _lethal_trap_cooldown > 0.0:
-		var ratio := _lethal_trap_cooldown / Constants.TRAP_LETHAL_COOLDOWN
-		draw_arc(Vector2.ZERO, size + 8.0, -PI / 2.0, -PI / 2.0 + TAU * (1.0 - ratio),
-			12, Color(1.0, 0.3, 0.3, 0.4), 2.0)
+	# Ability indicators
+	var indicator_y := size + 14.0
+	for i in _abilities.size():
+		var ability: TrapperAbility = _abilities[i]
+		var a_color := ability.get_display_color()
+
+		# Active count
+		var count_text := "%d/%d" % [ability.get_active_count(), ability.max_active]
+		draw_string(ThemeDB.fallback_font, Vector2(-10, indicator_y),
+			count_text, HORIZONTAL_ALIGNMENT_CENTER, -1, 7, Color(a_color, 0.7))
+
+		# Cooldown arc
+		var ratio := ability.get_cooldown_ratio()
+		if ratio > 0.0:
+			var arc_radius := size + 4.0 + i * 4.0
+			draw_arc(Vector2.ZERO, arc_radius,
+				-PI / 2.0, -PI / 2.0 + TAU * (1.0 - ratio),
+				12, Color(a_color, 0.4), 2.0)
+
+		indicator_y += 10.0
+
+	# Draw ability placement previews
+	for ability: TrapperAbility in _abilities:
+		ability.draw_preview(self)

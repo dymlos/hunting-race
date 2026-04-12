@@ -28,6 +28,14 @@ enum CCType {
 	SLOW,
 }
 
+enum TrapperCharacter {
+	NONE,
+	ARANA,
+	HONGO,
+	ESCORPION,
+	PULPO,
+}
+
 
 static func team_color(team: Team) -> Color:
 	if team == Team.TEAM_1:
@@ -51,3 +59,21 @@ static func role_name(role: Role) -> String:
 		Role.ESCAPIST: return "Escapist"
 		Role.TRAPPER:  return "Trapper"
 	return "None"
+
+
+static func trapper_character_name(tc: TrapperCharacter) -> String:
+	match tc:
+		TrapperCharacter.ARANA: return "ARAÑA"
+		TrapperCharacter.HONGO: return "HONGO"
+		TrapperCharacter.ESCORPION: return "ESCORPIÓN"
+		TrapperCharacter.PULPO: return "PULPO"
+	return "None"
+
+
+static func trapper_character_color(tc: TrapperCharacter) -> Color:
+	match tc:
+		TrapperCharacter.ARANA: return Color(0.6, 0.2, 0.8)
+		TrapperCharacter.HONGO: return Color(0.2, 0.8, 0.3)
+		TrapperCharacter.ESCORPION: return Color(0.9, 0.5, 0.1)
+		TrapperCharacter.PULPO: return Color(0.2, 0.5, 0.9)
+	return Color.WHITE

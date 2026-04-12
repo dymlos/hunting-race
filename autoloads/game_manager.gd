@@ -6,11 +6,13 @@ signal round_ended(escapist_team: Enums.Team, points_scored: int)
 signal match_ended(winning_team: Enums.Team)
 signal escapist_scored(team: Enums.Team)
 signal escapist_died(team: Enums.Team)
+signal round_advancing  # Emitted when round end timer expires, before next observation
 
 var current_state: Enums.GameState = Enums.GameState.TEAM_SETUP
-var team_assignments: Dictionary = {}   # {player_index: Enums.Team}
-var role_assignments: Dictionary = {}   # {player_index: Enums.Role}
-var player_characters: Dictionary = {}  # {player_index: Node2D}
+var team_assignments: Dictionary = {}          # {player_index: Enums.Team}
+var role_assignments: Dictionary = {}          # {player_index: Enums.Role}
+var character_selections: Dictionary = {}      # {player_index: Enums.TrapperCharacter}
+var player_characters: Dictionary = {}         # {player_index: Node2D}
 
 # Which team is currently playing as escapists
 var escapist_team: Enums.Team = Enums.Team.TEAM_1
@@ -48,6 +50,22 @@ func _process(delta: float) -> void:
 
 func set_team_assignments(assignments: Dictionary) -> void:
 	team_assignments = assignments.duplicate()
+
+
+func set_character_selections(selections: Dictionary) -> void:
+	for pi: int in selections:
+		character_selections[pi] = selections[pi]
+
+
+func get_player_character(player_index: int) -> Enums.TrapperCharacter:
+	return character_selections.get(player_index, Enums.TrapperCharacter.NONE) as Enums.TrapperCharacter
+
+
+func get_trapping_team() -> Enums.Team:
+	## Returns the team that is trapping this round (opposite of escapist_team).
+	if escapist_team == Enums.Team.TEAM_1:
+		return Enums.Team.TEAM_2
+	return Enums.Team.TEAM_1
 
 
 func assign_round_roles() -> void:
@@ -162,6 +180,7 @@ func reset_match() -> void:
 	escapist_team = Enums.Team.TEAM_1
 	player_characters.clear()
 	role_assignments.clear()
+	character_selections.clear()
 	_change_state(Enums.GameState.TEAM_SETUP)
 
 
@@ -181,4 +200,4 @@ func _advance_after_round() -> void:
 	else:
 		swap_team_roles()
 		player_characters.clear()
-		start_observation()
+		round_advancing.emit()
