@@ -28,6 +28,7 @@ var hunt_active: bool = false
 
 # Phase timer
 var _phase_timer: float = 0.0
+var _hunt_timer: float = 0.0
 var _pre_pause_state: Enums.GameState = Enums.GameState.HUNT
 
 var is_unpausing: bool = false
@@ -43,6 +44,10 @@ func _process(delta: float) -> void:
 			_phase_timer -= delta
 			if _phase_timer <= 0.0:
 				activate_hunt()
+		Enums.GameState.HUNT:
+			_hunt_timer -= delta
+			if _hunt_timer <= 0.0:
+				_end_round()
 		Enums.GameState.ROUND_END:
 			if _awaiting_character_select:
 				return
@@ -120,7 +125,12 @@ func start_observation() -> void:
 
 func activate_hunt() -> void:
 	hunt_active = true
+	_hunt_timer = Constants.HUNT_DURATION
 	_change_state(Enums.GameState.HUNT)
+
+
+func get_hunt_time() -> float:
+	return _hunt_timer
 
 
 func register_escapist_scored(team: Enums.Team) -> void:

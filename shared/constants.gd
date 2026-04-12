@@ -24,6 +24,7 @@ const ROUND_END_DURATION: float = 3.0
 
 # --- Match ---
 const SCORE_TO_WIN: int = 10  # Placeholder — tune later
+const HUNT_DURATION: float = 60.0  # Round timer — hunt ends when it expires
 
 # --- Character ---
 const CHARACTER_RADIUS: float = 15.0

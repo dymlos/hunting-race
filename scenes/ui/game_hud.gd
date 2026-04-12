@@ -42,11 +42,18 @@ func _draw() -> void:
 	draw_string(font, Vector2(20, 42), role_text,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.7, 0.7, 0.7))
 
-	# Escapist count (during hunt)
+	# Hunt info (during hunt)
 	if GameManager.current_state == Enums.GameState.HUNT:
 		var alive_text := "Escapists alive: %d" % GameManager.get_living_escapists()
 		draw_string(font, Vector2(screen.x - 180, 42), alive_text,
 			HORIZONTAL_ALIGNMENT_RIGHT, -1, 12, Enums.role_color(Enums.Role.ESCAPIST))
+
+		# Round timer
+		var time_left := GameManager.get_hunt_time()
+		var timer_text := "%d" % ceili(time_left)
+		var timer_color := Color.WHITE if time_left > 10.0 else Color(1.0, 0.3, 0.2)
+		draw_string(font, Vector2(cx - 10, bar_h + 30), timer_text,
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 28, timer_color)
 
 	# Phase indicator
 	var phase := ""

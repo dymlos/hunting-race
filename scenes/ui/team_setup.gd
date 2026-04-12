@@ -10,7 +10,7 @@ var _player_joined: Dictionary = {}    # {device_id: bool}
 var _player_teams: Dictionary = {}     # {device_id: Enums.Team}
 var _nav_cooldowns: Dictionary = {}    # {device_id: float}
 var input_blocked: bool = false
-var auto_fill_bots: bool = false
+var auto_fill_bots: bool = true
 
 const NAV_COOLDOWN: float = 0.2
 

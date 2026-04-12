@@ -9,6 +9,7 @@ var role: Enums.Role = Enums.Role.TRAPPER
 var player_color: Color = Color.WHITE
 var input_locked: bool = true
 var trapper_character: Enums.TrapperCharacter = Enums.TrapperCharacter.NONE
+var bot_ai_enabled: bool = false
 
 var _abilities: Array[TrapperAbility] = []  # 3 abilities: [A, RB, X]
 var _map_bounds: Rect2 = Rect2()
@@ -91,7 +92,8 @@ func _process(delta: float) -> void:
 		return
 
 	if player_index >= 100:
-		_process_bot(delta)
+		if bot_ai_enabled:
+			_process_bot(delta)
 		queue_redraw()
 		return
 
