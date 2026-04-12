@@ -7,6 +7,7 @@ extends Node
 
 var velocity: Vector2 = Vector2.ZERO
 var can_move: bool = true
+var slippery: bool = false  # Ice zone — lerp toward target velocity instead of snapping
 var _speed_modifiers: Dictionary = {}  # {StringName: float}
 
 # Reference to parent CharacterBody2D — set by parent on ready
@@ -65,7 +66,13 @@ func apply_movement(input_vector: Vector2) -> void:
 	if not can_move:
 		velocity = Vector2.ZERO
 		return
-	velocity = input_vector * move_speed * get_speed_multiplier()
+	var target := input_vector * move_speed * get_speed_multiplier()
+	if slippery:
+		# Ice: lerp toward target velocity — high speed, low control
+		target *= Constants.SLIPPERY_MULTIPLIER
+		velocity = velocity.lerp(target, Constants.SLIPPERY_LERP_WEIGHT)
+	else:
+		velocity = target
 
 
 func set_speed_modifier(key: StringName, value: float) -> void:

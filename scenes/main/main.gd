@@ -3,6 +3,7 @@ extends Node2D
 ## Main scene — orchestrates arena, characters, UI, and game state.
 
 const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
+const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const ArenaScene := preload("res://scenes/arena/arena.tscn")
 const PhaseOverlayScene := preload("res://scenes/ui/phase_overlay.tscn")
 const GameHudScene := preload("res://scenes/ui/game_hud.tscn")
@@ -13,6 +14,7 @@ var arena: Arena
 var characters: Array[Node2D] = []  # Mix of Escapist and Trapper nodes
 var _active_player_indices: Array[int] = []
 var _prev_start_pressed: Dictionary = {}  # {device_id: bool}
+var _selected_stage_index: int = 0
 
 @onready var arena_container := $ArenaContainer as Node2D
 @onready var character_container := $Characters as Node2D
@@ -24,6 +26,7 @@ var _view_stack: Array[Control] = []
 
 # UI instances
 var team_setup: TeamSetup
+var stage_select: StageSelect
 var phase_overlay: PhaseOverlay
 var game_hud: GameHud
 
@@ -33,6 +36,12 @@ func _ready() -> void:
 	ui_layer.add_child(team_setup)
 	team_setup.hide()
 	team_setup.teams_ready.connect(_on_teams_ready)
+
+	stage_select = StageSelectScene.instantiate() as StageSelect
+	ui_layer.add_child(stage_select)
+	stage_select.hide()
+	stage_select.stage_selected.connect(_on_stage_selected)
+	stage_select.back_requested.connect(_on_stage_back)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
@@ -74,6 +83,14 @@ func _on_teams_ready(t_assignments: Dictionary) -> void:
 		_active_player_indices.append(pi)
 	_active_player_indices.sort()
 
+	# Go to stage select
+	replace_view(stage_select)
+	stage_select.setup()
+
+
+func _on_stage_selected(stage_index: int) -> void:
+	_selected_stage_index = stage_index
+
 	while not _view_stack.is_empty():
 		pop_view()
 
@@ -85,12 +102,18 @@ func _on_teams_ready(t_assignments: Dictionary) -> void:
 	GameManager.start_observation()
 
 
+func _on_stage_back() -> void:
+	_start_team_setup()
+
+
 func _setup_arena() -> void:
 	if arena:
 		arena.queue_free()
 	arena = ArenaScene.instantiate() as Arena
 	arena_container.add_child(arena)
-	arena.load_map(MapData.get_test_map())
+	var stages := MapData.get_all()
+	var map_data: Dictionary = stages[_selected_stage_index]
+	arena.load_map(map_data)
 	arena.goal_entered.connect(_on_goal_entered)
 	_setup_camera()
 

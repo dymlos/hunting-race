@@ -30,6 +30,14 @@ const CHARACTER_RADIUS: float = 15.0
 const SEPARATION_RADIUS: float = 32.0
 const SEPARATION_FORCE: float = 800.0
 
+# --- Map Hazards ---
+const MOVING_WALL_COLOR := Color(0.9, 0.6, 0.1)
+const SLIPPERY_ZONE_COLOR := Color(0.3, 0.8, 1.0, 0.15)
+const ONE_WAY_COLOR := Color(0.2, 1.0, 0.4, 0.4)
+const SLIPPERY_MULTIPLIER: float = 1.2   # Faster on ice
+const SLIPPERY_LERP_WEIGHT: float = 0.04 # How slowly input takes effect on ice
+const ONE_WAY_PUSH_FORCE: float = 300.0
+
 # --- Collision layers (bit values) ---
 const LAYER_WALLS: int = 1
 const LAYER_CHARACTERS: int = 2
