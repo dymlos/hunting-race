@@ -33,152 +33,177 @@ static func get_test_map() -> Dictionary:
 
 
 static func get_gauntlet_map() -> Dictionary:
-	## "The Gauntlet" — large asymmetric course with all hazard types.
-	## Left to right: Spawn → Narrow Corridors → Moving Walls → Ice Bridge → One-Way Commit → Final Stretch → Goal
+	## "The Gauntlet" — 3 branching routes with different risk/reward.
+	##
+	## Verified route traces (all passable):
+	##   TOP:    Spawn(y=250-350) → corridor(y=20-350, x=300-900) → drops into merge(y=350+, x=900+) → open room → goal
+	##   MIDDLE: Spawn(y=500-700) → chamber(y=370-830, x=300-900) → straight into merge(x=900+) → open room → goal
+	##   BOTTOM: Spawn(y=850-1000) → tunnel(y=870-1000, x=300-900) → up through gap(x=900, y=830 gap) → merge → goal
+	##
 	var w := 2400.0
 	var h := 1200.0
 	var t := 20.0
 
 	var walls: Array[Dictionary] = [
-		# Outer boundary
-		{"pos": Vector2(0, 0), "size": Vector2(w, t)},
-		{"pos": Vector2(0, h - t), "size": Vector2(w, t)},
-		{"pos": Vector2(0, 0), "size": Vector2(t, h)},
-		{"pos": Vector2(w - t, 0), "size": Vector2(t, h)},
+		# === OUTER BOUNDARY ===
+		{"pos": Vector2(0, 0), "size": Vector2(w, t)},             # top
+		{"pos": Vector2(0, h - t), "size": Vector2(w, t)},         # bottom
+		{"pos": Vector2(0, 0), "size": Vector2(t, h)},             # left
+		{"pos": Vector2(w - t, 0), "size": Vector2(t, h)},         # right
 
-		# === SECTION 1: Spawn area — open room with exit chokepoints ===
-		# Right wall of spawn room with two narrow exits (top and bottom)
-		{"pos": Vector2(300, t), "size": Vector2(t, 400)},          # top block
-		{"pos": Vector2(300, 500), "size": Vector2(t, 200)},        # middle block
-		{"pos": Vector2(300, 800), "size": Vector2(t, h - 800 - t)},  # bottom block
-		# Gaps at y=420-500 and y=700-800
+		# ============================================================
+		# SECTION 1: SPAWN ROOM (x: 0–300)
+		# 3 exits: top (y=250-350), middle (y=500-700), bottom (y=850-1000)
+		# ============================================================
+		{"pos": Vector2(300, t), "size": Vector2(t, 230)},           # y=20–250
+		{"pos": Vector2(300, 350), "size": Vector2(t, 150)},         # y=350–500
+		{"pos": Vector2(300, 700), "size": Vector2(t, 150)},         # y=700–850
+		{"pos": Vector2(300, 1000), "size": Vector2(t, h - 1000 - t)}, # y=1000–1180
 
-		# === SECTION 2: Winding corridors (300-800) ===
-		# Top corridor walls
-		{"pos": Vector2(500, t), "size": Vector2(t, 500)},
-		{"pos": Vector2(500, 700), "size": Vector2(t, h - 700 - t)},
-		# Creates vertical passage at y=500-700
+		# ============================================================
+		# SECTION 2: THREE ROUTES (x: 300–900)
+		# ============================================================
 
-		# Horizontal divider creating upper and lower paths
-		{"pos": Vector2(300, 600), "size": Vector2(200, t)},
+		# --- TOP PATH floor (separates top from middle) ---
+		# y=350 wall from x=300 to x=900
+		{"pos": Vector2(300, 350), "size": Vector2(600, t)},
+		# TOP PATH: open corridor y=20–350, x=300–900
+		# (sticky walls placed as hazards inside)
 
-		# === SECTION 3: Moving walls chamber (800-1300) ===
-		# Entry walls
-		{"pos": Vector2(800, t), "size": Vector2(t, 350)},
-		{"pos": Vector2(800, h - 350 - t), "size": Vector2(t, 350)},
-		# Exit walls
-		{"pos": Vector2(1300, t), "size": Vector2(t, 350)},
-		{"pos": Vector2(1300, h - 350 - t), "size": Vector2(t, 350)},
-		# Internal pillars for moving walls to create interesting patterns
-		{"pos": Vector2(1000, 450), "size": Vector2(40, 40)},
-		{"pos": Vector2(1100, 650), "size": Vector2(40, 40)},
+		# --- MIDDLE PATH floor (separates middle from bottom) ---
+		# y=830 wall from x=300 to x=900
+		{"pos": Vector2(300, 830), "size": Vector2(600, t)},
+		# MIDDLE PATH: open chamber y=370–830, x=300–900
+		# (moving walls placed as hazards)
+		# Pillars in the chamber
+		{"pos": Vector2(480, 500), "size": Vector2(40, 40)},
+		{"pos": Vector2(640, 700), "size": Vector2(40, 40)},
+		{"pos": Vector2(780, 550), "size": Vector2(40, 40)},
 
-		# === SECTION 4: Ice bridge (1300-1800) ===
-		# Narrow bridge with drops on sides (walls creating a constrained path)
-		{"pos": Vector2(1400, t), "size": Vector2(t, 400)},
-		{"pos": Vector2(1400, h - 400 - t), "size": Vector2(t, 400)},
-		{"pos": Vector2(1700, t), "size": Vector2(t, 400)},
-		{"pos": Vector2(1700, h - 400 - t), "size": Vector2(t, 400)},
-		# Central platform narrows the ice path
-		{"pos": Vector2(1500, 500), "size": Vector2(100, t)},
-		{"pos": Vector2(1500, 680), "size": Vector2(100, t)},
+		# --- BOTTOM PATH: narrow tunnel y=870–1000, x=320–880 ---
+		# Inner ceiling (creates narrow passage)
+		{"pos": Vector2(320, 940), "size": Vector2(560, t)},
+		# BOTTOM PATH: passable strip y=850–940 (90px tall), x=320–880
+		# Below the inner ceiling is dead space (y=960–1180)
+		# Decorative fill below tunnel
+		{"pos": Vector2(320, 1060), "size": Vector2(560, t)},
 
-		# === SECTION 5: One-way commit + final stretch (1800-2400) ===
-		# Wall after one-way gate — funnels into final approach
-		{"pos": Vector2(1900, t), "size": Vector2(t, 300)},
-		{"pos": Vector2(1900, h - 300 - t), "size": Vector2(t, 300)},
-		# Final corridor obstacles — staggered blocks
-		{"pos": Vector2(2050, 350), "size": Vector2(60, 200)},
-		{"pos": Vector2(2050, 700), "size": Vector2(60, 200)},
-		{"pos": Vector2(2200, 500), "size": Vector2(60, 200)},
+		# ============================================================
+		# SECTION 3: MERGE ZONE (x: 900–1300)
+		# All 3 paths feed into one area.
+		# Top path drops down at x=900 (floor ends, open below).
+		# Middle path continues straight.
+		# Bottom path comes up through gap in y=830 separator.
+		# Ice zone in the middle of the merge.
+		# ============================================================
+
+		# Separator between merge zone and bottom — with gap for bottom path
+		# Left segment x=900-1050
+		{"pos": Vector2(900, 830), "size": Vector2(150, t)},
+		# Gap at x=1050-1150 (100px) — bottom path enters here
+		# Right segment x=1150-1300
+		{"pos": Vector2(1150, 830), "size": Vector2(150, t)},
+
+		# Bottom path corridor to reach the gap (x=880-1050, y=850-1000)
+		{"pos": Vector2(880, 1000), "size": Vector2(280, t)},        # floor of bottom connector
+
+		# Top narrows into merge — wall guides top path down
+		{"pos": Vector2(900, t), "size": Vector2(t, 200)},           # x=900, y=20-220
+
+		# ============================================================
+		# SECTION 4: OPEN ROOM + ONE-WAY (x: 1300–1750)
+		# Breathing room. All paths have merged into y=220–830.
+		# ============================================================
+		{"pos": Vector2(1300, t), "size": Vector2(t, 250)},          # top wall
+		{"pos": Vector2(1300, h - 300 - t), "size": Vector2(t, 300)}, # bottom wall
+		# Cover pillars
+		{"pos": Vector2(1450, 400), "size": Vector2(50, 50)},
+		{"pos": Vector2(1550, 650), "size": Vector2(50, 50)},
+		# Exit narrowing (one-way gate as hazard)
+		{"pos": Vector2(1730, t), "size": Vector2(t, 300)},
+		{"pos": Vector2(1730, h - 300 - t), "size": Vector2(t, 300)},
+
+		# ============================================================
+		# SECTION 5: STICKY MAZE + GOAL (x: 1750–2400)
+		# Weave through staggered blocks with sticky surfaces.
+		# ============================================================
+		{"pos": Vector2(1850, t), "size": Vector2(t, 250)},
+		{"pos": Vector2(1850, h - 250 - t), "size": Vector2(t, 250)},
+		# Maze blocks (sticky walls overlaid as hazards)
+		{"pos": Vector2(1920, 350), "size": Vector2(60, 180)},
+		{"pos": Vector2(1920, 700), "size": Vector2(60, 180)},
+		{"pos": Vector2(2060, 500), "size": Vector2(60, 200)},
+		{"pos": Vector2(2200, 350), "size": Vector2(60, 150)},
+		{"pos": Vector2(2200, 720), "size": Vector2(60, 150)},
 	]
 
 	var hazards: Array[Dictionary] = [
-		# === MOVING WALLS in chamber (section 3) ===
-		# Horizontal wall sliding up and down
+		# === TOP PATH: STICKY WALLS inside corridor (y=20-350, x=300-900) ===
+		{"type": "sticky_wall", "pos": Vector2(420, 60), "size": Vector2(12, 220)},
+		{"type": "sticky_wall", "pos": Vector2(580, 120), "size": Vector2(12, 200)},
+		{"type": "sticky_wall", "pos": Vector2(740, 40), "size": Vector2(12, 240)},
+
+		# === MIDDLE PATH: MOVING WALLS (y=370-830, x=300-900) ===
 		{
 			"type": "moving_wall",
-			"pos": Vector2(850, 370),
-			"size": Vector2(200, t),
-			"end_pos": Vector2(850, 800),
+			"pos": Vector2(400, 400),
+			"size": Vector2(180, t),
+			"end_pos": Vector2(400, 780),
 			"period": 3.5,
 		},
-		# Another moving wall, offset timing
 		{
 			"type": "moving_wall",
-			"pos": Vector2(1050, 800),
-			"size": Vector2(200, t),
-			"end_pos": Vector2(1050, 370),
+			"pos": Vector2(620, 780),
+			"size": Vector2(180, t),
+			"end_pos": Vector2(620, 400),
 			"period": 4.0,
 		},
-		# Vertical moving wall
 		{
 			"type": "moving_wall",
-			"pos": Vector2(950, 400),
-			"size": Vector2(t, 150),
-			"end_pos": Vector2(1150, 400),
+			"pos": Vector2(500, 550),
+			"size": Vector2(t, 140),
+			"end_pos": Vector2(700, 550),
 			"period": 3.0,
 		},
 
-		# === ICE BRIDGE (section 4) ===
-		# Large slippery zone covering the bridge
+		# === MERGE ZONE: ICE (x=950-1250, y=300-750) ===
 		{
 			"type": "slippery_zone",
-			"pos": Vector2(1320, 400),
-			"size": Vector2(400, 400),
+			"pos": Vector2(950, 300),
+			"size": Vector2(300, 450),
 		},
 
-		# === ONE-WAY GATE (section 5 entrance) ===
-		# No going back once you commit to the final stretch
+		# === OPEN ROOM: ONE-WAY GATE ===
 		{
 			"type": "one_way_gate",
-			"pos": Vector2(1820, 300),
-			"size": Vector2(40, 600),
+			"pos": Vector2(1700, 300),
+			"size": Vector2(30, 600),
 			"direction": Vector2(1, 0),
 		},
 
-		# === STICKY WALLS in the final stretch (section 5) ===
-		# Escapists must navigate carefully around these
-		{
-			"type": "sticky_wall",
-			"pos": Vector2(1950, 380),
-			"size": Vector2(15, 180),
-		},
-		{
-			"type": "sticky_wall",
-			"pos": Vector2(1950, 650),
-			"size": Vector2(15, 180),
-		},
-		{
-			"type": "sticky_wall",
-			"pos": Vector2(2120, 500),
-			"size": Vector2(15, 200),
-		},
-		# Sticky walls lining a narrow corridor near goal
-		{
-			"type": "sticky_wall",
-			"pos": Vector2(2280, 350),
-			"size": Vector2(10, 120),
-		},
-		{
-			"type": "sticky_wall",
-			"pos": Vector2(2280, 550),
-			"size": Vector2(10, 120),
-		},
+		# === STICKY MAZE: overlaid on the maze blocks ===
+		{"type": "sticky_wall", "pos": Vector2(1918, 530), "size": Vector2(64, 170)},
+		{"type": "sticky_wall", "pos": Vector2(2058, 350), "size": Vector2(64, 150)},
+		{"type": "sticky_wall", "pos": Vector2(2058, 700), "size": Vector2(64, 150)},
+		{"type": "sticky_wall", "pos": Vector2(2198, 500), "size": Vector2(64, 70)},
+		{"type": "sticky_wall", "pos": Vector2(2198, 870), "size": Vector2(64, 50)},
+		# Thin sticky strips on corridor entrance walls
+		{"type": "sticky_wall", "pos": Vector2(1852, 250), "size": Vector2(12, 100)},
+		{"type": "sticky_wall", "pos": Vector2(1852, h - 350), "size": Vector2(12, 100)},
 	]
 
 	return {
 		"name": "The Gauntlet",
-		"description": "Chokepoints, moving walls, ice, one-way gates, sticky walls.",
+		"description": "3 routes: sticky corridor, moving walls, or safe tunnel. All merge into a sticky maze.",
 		"size": Vector2(w, h),
 		"walls": walls,
 		"hazards": hazards,
 		"spawns": [
-			Vector2(100, 400), Vector2(100, 520),
-			Vector2(100, 640), Vector2(100, 760),
-			Vector2(180, 460), Vector2(180, 580),
+			Vector2(120, 450), Vector2(120, 560),
+			Vector2(120, 670), Vector2(120, 780),
+			Vector2(200, 500), Vector2(200, 620),
 		],
-		"goal": Rect2(w - t - 100, t, 100, h - 2 * t),
+		"goal": Rect2(w - t - 100, 250, 100, h - 500),
 	}
 
 
