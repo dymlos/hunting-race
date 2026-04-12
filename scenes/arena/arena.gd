@@ -166,42 +166,44 @@ func _build_one_way_gate(def: Dictionary) -> void:
 	var gate_size: Vector2 = def["size"]
 	var direction: Vector2 = (def["direction"] as Vector2).normalized()
 
-	var area := Area2D.new()
-	area.collision_layer = 0
-	area.collision_mask = Constants.LAYER_CHARACTERS
-	area.monitoring = true
-	area.monitorable = false
+	# StaticBody2D with one_way_collision.
+	# Default one-way normal = local -Y (blocks from above, passes from below).
+	# We rotate the body so the blocking normal faces the direction bodies CANNOT go.
+	# For direction=(1,0) "allow right": block from right → normal = +X → rotate PI/2.
+	#
+	# Rotation also rotates the shape, so we swap dimensions to compensate.
+	var body := StaticBody2D.new()
+	body.collision_layer = Constants.LAYER_WALLS
+	body.collision_mask = 0
+	body.position = pos + gate_size / 2.0
 
+	# Compute rotation: we want the normal (+Y after rotation of -Y... let's just compute)
+	# Normal in world = Vector2(0,-1).rotated(rotation) should equal +direction
+	# (blocking normal faces the allowed direction — blocks bodies approaching from that side)
+	# Vector2(0,-1).rotated(r) = direction → r = direction.angle() + PI/2
+	var rot := direction.angle() + PI / 2.0
+	body.rotation = rot
+
+	# Swap shape dimensions to compensate for rotation
 	var shape := RectangleShape2D.new()
-	shape.size = gate_size
+	var needs_swap := absf(sin(rot)) > 0.5  # Rotating ~90 or ~270 degrees
+	if needs_swap:
+		shape.size = Vector2(gate_size.y, gate_size.x)
+	else:
+		shape.size = gate_size
 
 	var col := CollisionShape2D.new()
 	col.shape = shape
-	col.position = gate_size / 2.0
+	col.one_way_collision = true
+	col.one_way_collision_margin = maxf(gate_size.x, gate_size.y)
 
-	area.position = pos
-	area.add_child(col)
-	add_child(area)
-	_hazard_nodes.append(area)
+	body.add_child(col)
+	add_child(body)
+	_hazard_nodes.append(body)
 
-	# Store metadata for rendering and physics
-	area.set_meta("gate_direction", direction)
-	area.set_meta("gate_size", gate_size)
-	area.body_entered.connect(_on_one_way_entered.bind(area, direction))
-
-
-func _on_one_way_entered(body: Node2D, area: Area2D, allowed_dir: Vector2) -> void:
-	if not GameManager.hunt_active:
-		return
-	if body is BaseCharacter:
-		var character := body as BaseCharacter
-		# Check if moving against the allowed direction
-		var move_dir := character.movement.velocity.normalized()
-		if move_dir.length() < 0.1:
-			return
-		if move_dir.dot(allowed_dir) < -0.1:
-			# Push them back along allowed direction
-			character.movement.velocity = allowed_dir * -Constants.ONE_WAY_PUSH_FORCE
+	body.set_meta("gate_direction", direction)
+	body.set_meta("gate_size", gate_size)
+	body.set_meta("gate_pos", pos)
 
 
 func _build_slippery_zone(def: Dictionary) -> void:
@@ -365,6 +367,6 @@ func _draw_hazards() -> void:
 
 
 func _process(_delta: float) -> void:
-	# Redraw every frame for moving walls
 	if not _moving_wall_data.is_empty():
 		queue_redraw()
+
