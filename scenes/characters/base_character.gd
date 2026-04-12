@@ -40,6 +40,8 @@ func _setup_role() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	queue_redraw()
+
 	if input_locked or player_index >= 100:
 		return
 
@@ -57,7 +59,6 @@ func _physics_process(_delta: float) -> void:
 		aim_direction = move_vec.normalized()
 
 	_handle_ability_input(_delta)
-	queue_redraw()
 
 
 func _handle_ability_input(_delta: float) -> void:
