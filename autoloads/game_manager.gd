@@ -31,6 +31,7 @@ var _phase_timer: float = 0.0
 var _pre_pause_state: Enums.GameState = Enums.GameState.HUNT
 
 var is_unpausing: bool = false
+var _awaiting_character_select: bool = false
 
 
 func _process(delta: float) -> void:
@@ -43,6 +44,8 @@ func _process(delta: float) -> void:
 			if _phase_timer <= 0.0:
 				activate_hunt()
 		Enums.GameState.ROUND_END:
+			if _awaiting_character_select:
+				return
 			_phase_timer -= delta
 			if _phase_timer <= 0.0:
 				_advance_after_round()
@@ -100,6 +103,7 @@ func get_living_escapists() -> int:
 
 
 func start_observation() -> void:
+	_awaiting_character_select = false
 	round_number += 1
 	hunt_active = false
 	_round_points = 0
@@ -177,6 +181,7 @@ func reset_match() -> void:
 	round_number = 0
 	match_scores = [0, 0]
 	hunt_active = false
+	_awaiting_character_select = false
 	escapist_team = Enums.Team.TEAM_1
 	player_characters.clear()
 	role_assignments.clear()
@@ -200,4 +205,5 @@ func _advance_after_round() -> void:
 	else:
 		swap_team_roles()
 		player_characters.clear()
+		_awaiting_character_select = true
 		round_advancing.emit()
