@@ -109,6 +109,7 @@ class CurrentZone extends Area2D:
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				return
+			GameManager.register_trap_contact(character.player_index)
 			_bodies_inside[body] = true
 
 	func _on_body_exited(body: Node2D) -> void:

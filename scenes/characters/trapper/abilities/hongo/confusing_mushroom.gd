@@ -67,6 +67,7 @@ class ConfuseShroom extends Area2D:
 				return
 			if esc.is_dead or esc.has_scored:
 				return
+			GameManager.register_trap_contact(esc.player_index)
 			esc.invert_controls(Constants.HONGO_CONFUSE_DURATION)
 			queue_free()  # Single-use
 

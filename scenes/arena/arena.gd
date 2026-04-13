@@ -9,7 +9,7 @@ var _goal_zones: Array[Area2D] = []
 var _hazard_nodes: Array[Node] = []
 var _moving_wall_data: Array[Dictionary] = []  # For _draw() to render moving walls
 
-signal goal_entered(scoring_team: Enums.Team)
+signal goal_entered(escapist: Escapist)
 
 
 func load_map(map_data: Dictionary) -> void:
@@ -110,7 +110,7 @@ func _on_goal_body_entered(body: Node2D) -> void:
 		var esc := body as Escapist
 		if not esc.has_scored and not esc.is_dead:
 			esc.score()
-			goal_entered.emit(esc.team)
+			goal_entered.emit(esc)
 
 
 # --- Hazards ---
@@ -392,4 +392,3 @@ func _draw_hazards() -> void:
 func _process(_delta: float) -> void:
 	if not _moving_wall_data.is_empty():
 		queue_redraw()
-

@@ -194,10 +194,8 @@ func _setup_camera() -> void:
 	camera.zoom = Vector2(target_zoom, target_zoom)
 
 
-func _on_goal_entered(scoring_team: Enums.Team) -> void:
-	# Find the escapist that just scored and mark them
-	# (arena signal doesn't tell us which one, but we handle it in the escapist)
-	GameManager.register_escapist_scored(scoring_team)
+func _on_goal_entered(escapist: Escapist) -> void:
+	GameManager.register_escapist_scored(escapist.player_index)
 
 
 func _cleanup_round() -> void:
@@ -245,7 +243,7 @@ func _spawn_characters() -> void:
 
 
 func _on_escapist_character_died(_escapist: Escapist) -> void:
-	GameManager.register_escapist_died(_escapist.team)
+	GameManager.register_escapist_died(_escapist.player_index)
 
 
 func _on_state_changed(new_state: Enums.GameState) -> void:
@@ -270,11 +268,11 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 
 
 func _on_round_ended(escapist_team: Enums.Team, points_scored: int) -> void:
-	phase_overlay.show_round_end(escapist_team, GameManager.match_scores)
+	phase_overlay.show_round_end(escapist_team, GameManager.match_scores, GameManager.get_round_score_entries())
 
 
 func _on_match_ended(winning_team: Enums.Team) -> void:
-	phase_overlay.show_match_end(winning_team, GameManager.match_scores)
+	phase_overlay.show_match_end(winning_team, GameManager.match_scores, GameManager.get_match_score_entries())
 
 
 func _on_escapist_scored(_team: Enums.Team) -> void:

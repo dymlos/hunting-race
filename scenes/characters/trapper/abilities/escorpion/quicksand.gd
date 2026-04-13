@@ -109,6 +109,7 @@ class QuicksandZone extends Area2D:
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				return
+			GameManager.register_trap_contact(character.player_index)
 			var angle: float = (body.global_position - global_position).angle()
 			_bodies_inside[body] = angle
 

@@ -71,6 +71,7 @@ func _on_body_entered(body: Node2D) -> void:
 		var character := body as BaseCharacter
 		if character.team == owner_team:
 			return  # No friendly fire
+		GameManager.register_trap_contact(character.player_index)
 
 		if is_lethal:
 			# Kill the escapist

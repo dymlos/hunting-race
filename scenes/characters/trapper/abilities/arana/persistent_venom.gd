@@ -81,6 +81,7 @@ class VenomPuddle extends Area2D:
 				return
 			if esc.is_dead or esc.has_scored:
 				return
+			GameManager.register_trap_contact(esc.player_index)
 			# Apply poison
 			esc.poison.apply_poison()
 			_triggered_targets[body] = 3.0  # Don't re-poison for 3s

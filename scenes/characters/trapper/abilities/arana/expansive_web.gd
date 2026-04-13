@@ -114,6 +114,7 @@ class WebZone extends Area2D:
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				return
+			GameManager.register_trap_contact(character.player_index)
 			_affected_bodies[body] = true
 			character.movement.set_speed_modifier(&"web_slow", Constants.ARANA_WEB_SLOW)
 

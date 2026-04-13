@@ -14,6 +14,8 @@ var role_assignments: Dictionary = {}          # {player_index: Enums.Role}
 var character_selections: Dictionary = {}      # {player_index: Enums.TrapperCharacter}
 var player_characters: Dictionary = {}         # {player_index: Node2D}
 var settings_overrides: Dictionary = {}        # {StringName: Variant} — from settings menu
+var player_score_history: Dictionary = {}
+var _round_stats: Dictionary = {}
 
 # Which team is currently playing as escapists
 var escapist_team: Enums.Team = Enums.Team.TEAM_1
@@ -125,6 +127,7 @@ func start_observation() -> void:
 	for pi: int in role_assignments:
 		if role_assignments[pi] == Enums.Role.ESCAPIST:
 			_living_escapists += 1
+	_prepare_round_stats()
 	_phase_timer = settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float
 	_change_state(Enums.GameState.OBSERVATION)
 	round_started.emit(round_number)
@@ -150,25 +153,52 @@ func get_hunt_time() -> float:
 	return _hunt_timer
 
 
-func register_escapist_scored(team: Enums.Team) -> void:
+func register_escapist_scored(player_index: int) -> void:
 	if not hunt_active:
 		return
-	_round_points += 1
+	var team := get_player_team(player_index)
+	var points := _finalize_player_round_score(player_index, true)
+	_round_points += points
 	if team == Enums.Team.TEAM_1:
-		match_scores[0] += 1
+		match_scores[0] += points
 	else:
-		match_scores[1] += 1
+		match_scores[1] += points
 	_living_escapists -= 1
 	escapist_scored.emit(team)
 	_check_round_over()
 
 
-func register_escapist_died(team: Enums.Team) -> void:
+func register_escapist_died(player_index: int) -> void:
 	if not hunt_active:
 		return
+	var team := get_player_team(player_index)
+	var points := _finalize_player_round_score(player_index, false)
+	_round_points += points
+	_add_points_to_team(team, points)
 	_living_escapists -= 1
 	escapist_died.emit(team)
 	_check_round_over()
+
+
+func register_trap_contact(player_index: int) -> void:
+	if not hunt_active:
+		return
+	if not _round_stats.has(player_index):
+		return
+	var stats: Dictionary = _round_stats[player_index]
+	stats["trap_contacts"] = (stats.get("trap_contacts", 0) as int) + 1
+
+
+func register_respawn_penalty(player_index: int, reason: StringName) -> void:
+	if not hunt_active:
+		return
+	if not _round_stats.has(player_index):
+		return
+	var stats: Dictionary = _round_stats[player_index]
+	stats["respawns"] = (stats.get("respawns", 0) as int) + 1
+	var reasons: Array = stats.get("respawn_reasons", []) as Array
+	reasons.append(reason)
+	stats["respawn_reasons"] = reasons
 
 
 func _check_round_over() -> void:
@@ -179,6 +209,7 @@ func _check_round_over() -> void:
 func _end_round() -> void:
 	hunt_active = false
 	trap_lifetime_active = false
+	_finalize_unresolved_escapists()
 	_phase_timer = Constants.ROUND_END_DURATION
 	_change_state(Enums.GameState.ROUND_END)
 	round_ended.emit(escapist_team, _round_points)
@@ -213,6 +244,8 @@ func reset_match() -> void:
 	_awaiting_character_select = false
 	escapist_team = Enums.Team.TEAM_1
 	player_characters.clear()
+	player_score_history.clear()
+	_round_stats.clear()
 	role_assignments.clear()
 	character_selections.clear()
 	_change_state(Enums.GameState.TEAM_SETUP)
@@ -253,15 +286,146 @@ func apply_runtime_settings() -> void:
 		_hunt_timer = minf(_hunt_timer, duration)
 
 
+func get_round_score_entries() -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for pi: int in _round_stats:
+		entries.append((_round_stats[pi] as Dictionary).duplicate(true))
+	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a.get("player_index", 0) as int) < (b.get("player_index", 0) as int)
+	)
+	return entries
+
+
+func get_match_score_entries() -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for pi: int in player_score_history:
+		var total := 0
+		var base_score := 0
+		var time_score := 0
+		var trap_bonus := 0
+		var respawn_penalty := 0
+		var trap_penalty := 0
+		var escaped := 0
+		var trap_contacts := 0
+		var respawns := 0
+		var history: Array = player_score_history[pi] as Array
+		for entry: Dictionary in history:
+			total += entry.get("total", 0) as int
+			base_score += entry.get("base_score", 0) as int
+			time_score += entry.get("time_score", 0) as int
+			trap_bonus += entry.get("trap_bonus", 0) as int
+			respawn_penalty += entry.get("respawn_penalty", 0) as int
+			trap_penalty += entry.get("trap_penalty", 0) as int
+			trap_contacts += entry.get("trap_contacts", 0) as int
+			respawns += entry.get("respawns", 0) as int
+			if entry.get("escaped", false):
+				escaped += 1
+		entries.append({
+			"player_index": pi,
+			"team": team_assignments.get(pi, Enums.Team.NONE),
+			"total": total,
+			"base_score": base_score,
+			"time_score": time_score,
+			"trap_bonus": trap_bonus,
+			"respawn_penalty": respawn_penalty,
+			"trap_penalty": trap_penalty,
+			"escaped": escaped,
+			"trap_contacts": trap_contacts,
+			"respawns": respawns,
+			"rounds": history.size(),
+		})
+	entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a.get("player_index", 0) as int) < (b.get("player_index", 0) as int)
+	)
+	return entries
+
+
+func _prepare_round_stats() -> void:
+	_round_stats.clear()
+	for pi: int in role_assignments:
+		if role_assignments[pi] != Enums.Role.ESCAPIST:
+			continue
+		_round_stats[pi] = {
+			"player_index": pi,
+			"round": round_number,
+			"team": team_assignments.get(pi, Enums.Team.NONE),
+			"escaped": false,
+			"finalized": false,
+			"escape_time": 0.0,
+			"time_remaining": 0.0,
+			"trap_contacts": 0,
+			"respawns": 0,
+			"respawn_reasons": [],
+			"base_score": 0,
+			"time_score": 0,
+			"trap_bonus": 0,
+			"respawn_penalty": 0,
+			"trap_penalty": 0,
+			"total": 0,
+		}
+		if not player_score_history.has(pi):
+			player_score_history[pi] = []
+
+
+func _finalize_unresolved_escapists() -> void:
+	for pi: int in _round_stats:
+		var stats: Dictionary = _round_stats[pi]
+		if not stats.get("finalized", false):
+			var points := _finalize_player_round_score(pi, false)
+			_round_points += points
+			_add_points_to_team(stats.get("team", Enums.Team.NONE) as Enums.Team, points)
+
+
+func _finalize_player_round_score(player_index: int, escaped: bool) -> int:
+	if not _round_stats.has(player_index):
+		return 0
+	var stats: Dictionary = _round_stats[player_index]
+	if stats.get("finalized", false):
+		return stats.get("total", 0) as int
+
+	var trap_contacts: int = stats.get("trap_contacts", 0) as int
+	var respawns: int = stats.get("respawns", 0) as int
+	var base_score := Constants.SCORE_ESCAPE_BASE if escaped else 0
+	var time_score := ceili(maxf(_hunt_timer, 0.0) * Constants.SCORE_ESCAPE_TIME_MULTIPLIER) if escaped else 0
+	var trap_bonus := 0
+	if escaped and trap_contacts == 0:
+		trap_bonus = Constants.SCORE_NO_TRAP_BONUS
+	elif escaped and trap_contacts == 1:
+		trap_bonus = Constants.SCORE_ONE_TRAP_BONUS
+	var respawn_penalty := respawns * Constants.SCORE_RESPAWN_PENALTY
+	var trap_penalty := Constants.SCORE_TEN_TRAPS_PENALTY if trap_contacts >= Constants.SCORE_TRAP_PENALTY_THRESHOLD else 0
+	var total := base_score + time_score + trap_bonus + respawn_penalty + trap_penalty
+
+	stats["escaped"] = escaped
+	stats["finalized"] = true
+	stats["escape_time"] = (settings_overrides.get(&"hunt_duration", Constants.HUNT_DURATION) as float) - _hunt_timer if escaped else 0.0
+	stats["time_remaining"] = maxf(_hunt_timer, 0.0) if escaped else 0.0
+	stats["base_score"] = base_score
+	stats["time_score"] = time_score
+	stats["trap_bonus"] = trap_bonus
+	stats["respawn_penalty"] = respawn_penalty
+	stats["trap_penalty"] = trap_penalty
+	stats["total"] = total
+
+	var history: Array = player_score_history.get(player_index, []) as Array
+	history.append(stats.duplicate(true))
+	player_score_history[player_index] = history
+	return total
+
+
+func _add_points_to_team(team: Enums.Team, points: int) -> void:
+	if team == Enums.Team.TEAM_1:
+		match_scores[0] += points
+	elif team == Enums.Team.TEAM_2:
+		match_scores[1] += points
+
+
 func _advance_after_round() -> void:
-	# Check if either team reached score threshold
-	var win_score: int = settings_overrides.get(&"score_to_win", Constants.SCORE_TO_WIN) as int
-	if match_scores[0] >= win_score:
+	var rounds_to_play: int = settings_overrides.get(&"score_to_win", Constants.SCORE_TO_WIN) as int
+	if round_number >= rounds_to_play and match_scores[0] != match_scores[1]:
+		var winning_team := Enums.Team.TEAM_1 if match_scores[0] > match_scores[1] else Enums.Team.TEAM_2
 		_change_state(Enums.GameState.MATCH_END)
-		match_ended.emit(Enums.Team.TEAM_1)
-	elif match_scores[1] >= win_score:
-		_change_state(Enums.GameState.MATCH_END)
-		match_ended.emit(Enums.Team.TEAM_2)
+		match_ended.emit(winning_team)
 	else:
 		swap_team_roles()
 		player_characters.clear()

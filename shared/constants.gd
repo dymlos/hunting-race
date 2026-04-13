@@ -27,6 +27,15 @@ const ROUND_END_DURATION: float = 3.0
 const SCORE_TO_WIN: int = 3
 const HUNT_DURATION: float = 30.0
 
+# --- Scoring ---
+const SCORE_ESCAPE_BASE: int = 100
+const SCORE_ESCAPE_TIME_MULTIPLIER: int = 5
+const SCORE_NO_TRAP_BONUS: int = 50
+const SCORE_ONE_TRAP_BONUS: int = 25
+const SCORE_RESPAWN_PENALTY: int = -30
+const SCORE_TEN_TRAPS_PENALTY: int = -50
+const SCORE_TRAP_PENALTY_THRESHOLD: int = 10
+
 # --- Character ---
 const CHARACTER_RADIUS: float = 15.0
 const SEPARATION_RADIUS: float = 32.0

@@ -67,6 +67,7 @@ class StingerTrap extends Area2D:
 				return
 			if esc.is_dead or esc.has_scored:
 				return
+			GameManager.register_trap_contact(esc.player_index)
 			# Stun
 			if esc.has_node("StatusEffectComponent"):
 				var status := esc.get_node("StatusEffectComponent") as StatusEffectComponent

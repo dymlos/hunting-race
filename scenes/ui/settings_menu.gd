@@ -55,7 +55,7 @@ func _ready() -> void:
 			"value": int(Constants.HUNT_COUNTDOWN_DURATION),
 		},
 		{
-			"key": "score_to_win", "label": "Score to Win",
+			"key": "score_to_win", "label": "Rounds to Play",
 			"type": "int", "min": 1, "max": 30, "step": 1,
 			"value": Constants.SCORE_TO_WIN,
 		},

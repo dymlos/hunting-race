@@ -107,6 +107,7 @@ class ElasticLine extends Area2D:
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				return
+			GameManager.register_trap_contact(character.player_index)
 
 			# Calculate bounce direction: push away from the line
 			var line_dir: Vector2 = (_point_b - _point_a).normalized()

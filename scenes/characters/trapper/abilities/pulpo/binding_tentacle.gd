@@ -103,6 +103,7 @@ class TentacleNode extends Area2D:
 		var esc := body as Escapist
 		if esc.team == owner_team or esc.is_dead or esc.has_scored:
 			return
+		GameManager.register_trap_contact(esc.player_index)
 
 		match _state:
 			TentacleState.WAITING:

@@ -157,6 +157,7 @@ class PincersNode extends Node2D:
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				return
+			GameManager.register_trap_contact(character.player_index)
 			_state = PincerState.CLOSING
 			_state_timer = Constants.ESCORPION_PINCERS_CLOSE_TIME
 

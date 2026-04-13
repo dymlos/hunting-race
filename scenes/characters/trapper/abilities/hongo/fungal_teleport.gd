@@ -119,6 +119,9 @@ class TeleportPortal extends Area2D:
 		if body in _player_cooldowns:
 			return
 		if body is BaseCharacter:
+			var character := body as BaseCharacter
+			if character.team != owner_team:
+				GameManager.register_trap_contact(character.player_index)
 			# Teleport to partner portal
 			body.global_position = partner.global_position
 			# Set cooldown on both portals to prevent loops

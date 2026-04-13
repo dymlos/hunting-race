@@ -37,6 +37,7 @@ func _ready() -> void:
 func kill() -> void:
 	if is_dead or has_scored:
 		return
+	GameManager.register_respawn_penalty(player_index, &"death")
 	is_dead = true
 	input_locked = true
 	movement.freeze()
@@ -45,6 +46,7 @@ func kill() -> void:
 
 
 func _on_poison_expired() -> void:
+	GameManager.register_respawn_penalty(player_index, &"poison")
 	respawn()
 
 
@@ -77,6 +79,7 @@ func respawn() -> void:
 func _on_crushed() -> void:
 	if is_dead or has_scored:
 		return
+	GameManager.register_respawn_penalty(player_index, &"crush")
 	position = spawn_position
 	movement.velocity = Vector2.ZERO
 	movement.slippery = false
