@@ -253,6 +253,8 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 
 	match new_state:
 		Enums.GameState.OBSERVATION:
+			if arena:
+				arena.randomize_hazards_for_round(GameManager.get_competitive_round_number())
 			_spawn_characters()
 			_freeze_all()
 			phase_overlay.clear()

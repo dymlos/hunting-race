@@ -21,7 +21,7 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, screen.x, bar_h), Color(0, 0, 0, 0.5))
 
 	# Round number
-	draw_string(font, Vector2(20, 20), "Round %d" % GameManager.round_number,
+	draw_string(font, Vector2(20, 20), "Round %d" % GameManager.get_competitive_round_number(),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 
 	# Scores

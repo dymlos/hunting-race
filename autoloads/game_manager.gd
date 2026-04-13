@@ -115,6 +115,12 @@ func get_living_escapists() -> int:
 	return _living_escapists
 
 
+func get_competitive_round_number() -> int:
+	if round_number <= 0:
+		return 0
+	return int(ceili(float(round_number) / 2.0))
+
+
 func start_observation() -> void:
 	_awaiting_character_select = false
 	round_number += 1
@@ -347,7 +353,7 @@ func _prepare_round_stats() -> void:
 			continue
 		_round_stats[pi] = {
 			"player_index": pi,
-			"round": round_number,
+			"round": get_competitive_round_number(),
 			"team": team_assignments.get(pi, Enums.Team.NONE),
 			"escaped": false,
 			"finalized": false,
@@ -422,7 +428,8 @@ func _add_points_to_team(team: Enums.Team, points: int) -> void:
 
 func _advance_after_round() -> void:
 	var rounds_to_play: int = settings_overrides.get(&"score_to_win", Constants.SCORE_TO_WIN) as int
-	if round_number >= rounds_to_play and match_scores[0] != match_scores[1]:
+	var completed_competitive_round := round_number > 0 and round_number % 2 == 0
+	if completed_competitive_round and get_competitive_round_number() >= rounds_to_play and match_scores[0] != match_scores[1]:
 		var winning_team := Enums.Team.TEAM_1 if match_scores[0] > match_scores[1] else Enums.Team.TEAM_2
 		_change_state(Enums.GameState.MATCH_END)
 		match_ended.emit(winning_team)

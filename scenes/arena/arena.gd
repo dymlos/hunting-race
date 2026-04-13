@@ -8,6 +8,9 @@ var _wall_bodies: Array[StaticBody2D] = []
 var _goal_zones: Array[Area2D] = []
 var _hazard_nodes: Array[Node] = []
 var _moving_wall_data: Array[Dictionary] = []  # For _draw() to render moving walls
+var _hazard_tweens: Array[Tween] = []
+var _base_hazards: Array[Dictionary] = []
+var _active_hazards: Array[Dictionary] = []
 
 signal goal_entered(escapist: Escapist)
 
@@ -15,6 +18,8 @@ signal goal_entered(escapist: Escapist)
 func load_map(map_data: Dictionary) -> void:
 	_map_data = map_data
 	_clear()
+	_base_hazards = _duplicate_hazards(_map_data.get("hazards", []))
+	_active_hazards = _duplicate_hazards(_base_hazards)
 	_build_walls()
 	_build_goals()
 	_build_hazards()
@@ -43,10 +48,32 @@ func _clear() -> void:
 	for zone in _goal_zones:
 		zone.queue_free()
 	_goal_zones.clear()
+	_clear_hazards()
+	_base_hazards.clear()
+	_active_hazards.clear()
+
+
+func _clear_hazards() -> void:
+	for tween in _hazard_tweens:
+		if is_instance_valid(tween):
+			tween.kill()
+	_hazard_tweens.clear()
 	for node in _hazard_nodes:
+		if not is_instance_valid(node):
+			continue
+		if node.get_parent() == self:
+			remove_child(node)
 		node.queue_free()
 	_hazard_nodes.clear()
 	_moving_wall_data.clear()
+
+
+func _duplicate_hazards(hazards: Array) -> Array[Dictionary]:
+	var copies: Array[Dictionary] = []
+	for hazard_def in hazards:
+		if hazard_def is Dictionary:
+			copies.append((hazard_def as Dictionary).duplicate(true))
+	return copies
 
 
 func _build_walls() -> void:
@@ -115,9 +142,79 @@ func _on_goal_body_entered(body: Node2D) -> void:
 
 # --- Hazards ---
 
+func randomize_hazards_for_round(round_number: int) -> void:
+	if _base_hazards.is_empty():
+		return
+
+	var rng := RandomNumberGenerator.new()
+	var seed_text := "%s:%d" % [str(_map_data.get("name", "map")), round_number]
+	var seed_value := hash(seed_text)
+	if seed_value < 0:
+		seed_value = -seed_value
+	rng.seed = seed_value
+
+	_active_hazards.clear()
+	for hazard_def in _base_hazards:
+		_active_hazards.append(_randomized_hazard(hazard_def, rng))
+
+	_clear_hazards()
+	_build_hazards()
+	queue_redraw()
+
+
+func _randomized_hazard(def: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	var result := def.duplicate(true)
+	var jitter: Vector2 = result.get("jitter", Vector2.ZERO) as Vector2
+	if jitter == Vector2.ZERO or not result.has("pos"):
+		return result
+
+	var offset := Vector2(
+		rng.randf_range(-jitter.x, jitter.x),
+		rng.randf_range(-jitter.y, jitter.y)
+	)
+	offset = _clamp_hazard_offset(result, offset)
+
+	var pos: Vector2 = result["pos"] as Vector2
+	result["pos"] = pos + offset
+	if result.has("end_pos"):
+		var end_pos: Vector2 = result["end_pos"] as Vector2
+		result["end_pos"] = end_pos + offset
+	return result
+
+
+func _clamp_hazard_offset(def: Dictionary, offset: Vector2) -> Vector2:
+	if not def.has("bounds"):
+		return offset
+
+	var bounds: Rect2 = def["bounds"] as Rect2
+	var pos: Vector2 = def["pos"] as Vector2
+	var hazard_size: Vector2 = def.get("size", Vector2.ZERO) as Vector2
+	var min_offset := bounds.position - pos
+	var max_offset := bounds.end - (pos + hazard_size)
+
+	if def.has("end_pos"):
+		var end_pos: Vector2 = def["end_pos"] as Vector2
+		var end_min_offset := bounds.position - end_pos
+		var end_max_offset := bounds.end - (end_pos + hazard_size)
+		min_offset.x = maxf(min_offset.x, end_min_offset.x)
+		min_offset.y = maxf(min_offset.y, end_min_offset.y)
+		max_offset.x = minf(max_offset.x, end_max_offset.x)
+		max_offset.y = minf(max_offset.y, end_max_offset.y)
+
+	var clamped := offset
+	if min_offset.x <= max_offset.x:
+		clamped.x = clampf(offset.x, min_offset.x, max_offset.x)
+	else:
+		clamped.x = 0.0
+	if min_offset.y <= max_offset.y:
+		clamped.y = clampf(offset.y, min_offset.y, max_offset.y)
+	else:
+		clamped.y = 0.0
+	return clamped
+
+
 func _build_hazards() -> void:
-	var hazards: Array = _map_data.get("hazards", [])
-	for hazard_def in hazards:
+	for hazard_def in _active_hazards:
 		var hazard_type: String = hazard_def.get("type", "") as String
 		match hazard_type:
 			"moving_wall":
@@ -175,6 +272,7 @@ func _build_moving_wall(def: Dictionary) -> void:
 	var tween := create_tween().set_loops()
 	tween.tween_property(body, "position", end_pos, period / 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(body, "position", pos, period / 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_hazard_tweens.append(tween)
 
 
 func _on_moving_wall_crush(body: Node2D) -> void:
@@ -335,14 +433,13 @@ func _draw() -> void:
 func _draw_hazards() -> void:
 	# Moving walls (drawn at their current position)
 	for mw in _moving_wall_data:
-		var body: StaticBody2D = mw["body"]
+		var body: Node2D = mw["body"]
 		var size: Vector2 = mw["size"]
 		if is_instance_valid(body):
 			draw_rect(Rect2(body.position, size), Constants.MOVING_WALL_COLOR)
 
 	# Slippery zones and one-way gates from hazard defs
-	var hazards: Array = _map_data.get("hazards", [])
-	for hazard_def in hazards:
+	for hazard_def in _active_hazards:
 		var hazard_type: String = hazard_def.get("type", "") as String
 		match hazard_type:
 			"slippery_zone":
