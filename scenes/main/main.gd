@@ -249,7 +249,7 @@ func _spawn_characters() -> void:
 			esc.player_index = pi
 			esc.team = t
 			esc.escapist_animal = GameManager.get_player_escapist_animal(pi)
-			esc.player_color = Enums.team_color(t)
+			esc.player_color = Enums.escapist_animal_color(esc.escapist_animal)
 			esc.position = arena.get_spawn(escapist_idx)
 			esc.aim_direction = Vector2.RIGHT
 			escapist_idx += 1

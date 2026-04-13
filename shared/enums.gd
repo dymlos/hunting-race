@@ -83,7 +83,7 @@ static func trapper_character_color(tc: TrapperCharacter) -> Color:
 	match tc:
 		TrapperCharacter.ARANA: return Color(0.6, 0.2, 0.8)
 		TrapperCharacter.HONGO: return Color(0.2, 0.8, 0.3)
-		TrapperCharacter.ESCORPION: return Color(0.9, 0.5, 0.1)
+		TrapperCharacter.ESCORPION: return Color(0.95, 0.12, 0.08)
 		TrapperCharacter.PULPO: return Color(0.2, 0.5, 0.9)
 	return Color.WHITE
 
@@ -99,8 +99,8 @@ static func escapist_animal_name(animal: EscapistAnimal) -> String:
 
 static func escapist_animal_color(animal: EscapistAnimal) -> Color:
 	match animal:
-		EscapistAnimal.RABBIT: return Color(0.95, 0.95, 0.95)
-		EscapistAnimal.RAT: return Color(0.55, 0.55, 0.6)
-		EscapistAnimal.SQUIRREL: return Color(0.9, 0.55, 0.18)
-		EscapistAnimal.FLY: return Color(0.3, 0.9, 0.85)
+		EscapistAnimal.RABBIT: return Color(0.45, 0.82, 1.0)
+		EscapistAnimal.RAT: return Color(0.58, 0.34, 0.18)
+		EscapistAnimal.SQUIRREL: return Color(0.95, 0.72, 0.16)
+		EscapistAnimal.FLY: return Color(0.18, 0.95, 0.68)
 	return Color.WHITE

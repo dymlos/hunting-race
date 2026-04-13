@@ -238,7 +238,9 @@ func _find_rescue_target() -> Escapist:
 
 
 func _draw() -> void:
-	var draw_color := player_color
+	var animal_color := Enums.escapist_animal_color(escapist_animal)
+	var team_color := Enums.team_color(team)
+	var draw_color := animal_color
 
 	# Poison tint
 	if poison and poison.is_poisoned:
@@ -252,7 +254,7 @@ func _draw() -> void:
 	# Circle with ring
 	draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS - 2.0, draw_color)
 	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 2.0, 0, TAU, 16,
-		draw_color, 1.5)
+		team_color, 2.0)
 
 	# Direction indicator
 	var tip := aim_direction * (Constants.CHARACTER_RADIUS + 8.0)
@@ -263,12 +265,11 @@ func _draw() -> void:
 	if player_index >= 100:
 		label = "BOT"
 	draw_string(ThemeDB.fallback_font, Vector2(-10, -Constants.CHARACTER_RADIUS - 6),
-		label, HORIZONTAL_ALIGNMENT_CENTER, -1, 10, draw_color)
+		label, HORIZONTAL_ALIGNMENT_CENTER, -1, 10, team_color)
 	draw_string(ThemeDB.fallback_font, Vector2(-10, Constants.CHARACTER_RADIUS + 14),
 		"ESC", HORIZONTAL_ALIGNMENT_CENTER, -1, 8, draw_color)
 
 	var animal_name := Enums.escapist_animal_name(escapist_animal)
-	var animal_color := Enums.escapist_animal_color(escapist_animal)
 	var animal_w := ThemeDB.fallback_font.get_string_size(animal_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
 	draw_string(ThemeDB.fallback_font, Vector2(-animal_w / 2.0, Constants.CHARACTER_RADIUS + 25),
 		animal_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(animal_color, 0.75))
