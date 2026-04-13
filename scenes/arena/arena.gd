@@ -551,6 +551,8 @@ func _draw() -> void:
 
 
 func _draw_hazards() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+
 	# Moving walls (drawn at their current position)
 	for mw in _moving_wall_data:
 		var body: Node2D = mw["body"]
@@ -605,8 +607,6 @@ func _draw_hazards() -> void:
 			"frost_vent":
 				var pos: Vector2 = hazard_def["pos"]
 				var size: Vector2 = hazard_def["size"]
-				var blast_rect := _get_frost_vent_blast_rect(hazard_def)
-				draw_rect(blast_rect, Constants.FROST_VENT_WARNING_COLOR)
 				draw_rect(Rect2(pos, size), Constants.FROST_VENT_COLOR)
 				draw_rect(Rect2(pos, size), Color(0.75, 1.0, 1.0, 0.8), false, 2.0)
 				var direction: Vector2 = (hazard_def.get("direction", Vector2.DOWN) as Vector2).normalized()
@@ -621,8 +621,47 @@ func _draw_hazards() -> void:
 		if pulse_timer <= 0.0:
 			continue
 		var blast_rect: Rect2 = vent_data["blast_rect"] as Rect2
+		var direction: Vector2 = vent_data["direction"] as Vector2
 		var alpha := clampf(pulse_timer / Constants.FROST_VENT_WARNING, 0.0, 1.0)
-		draw_rect(blast_rect, Color(Constants.FROST_VENT_COLOR, 0.12 + alpha * 0.22))
+		_draw_frost_waves(blast_rect, direction, alpha, now)
+
+
+func _draw_frost_waves(rect: Rect2, direction: Vector2, alpha: float, time: float) -> void:
+	var dir := direction.normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.RIGHT
+	var along_horizontal := absf(dir.x) >= absf(dir.y)
+	var travel_len := rect.size.x if along_horizontal else rect.size.y
+	var cross_len := rect.size.y if along_horizontal else rect.size.x
+	var travel_axis := Vector2.RIGHT if along_horizontal else Vector2.DOWN
+	var cross_axis := Vector2.DOWN if along_horizontal else Vector2.RIGHT
+	if dir.dot(travel_axis) < 0.0:
+		travel_axis = -travel_axis
+	var origin := rect.position
+	if travel_axis.x < 0.0:
+		origin.x = rect.end.x
+	if travel_axis.y < 0.0:
+		origin.y = rect.end.y
+
+	var base_color := Color(Constants.FROST_VENT_COLOR, 0.25 + alpha * 0.25)
+	var wave_count := 3
+	for wave_index in range(wave_count):
+		var wave_offset := (float(wave_index) - 1.0) * cross_len * 0.18
+		var amplitude := cross_len * (0.05 + 0.015 * float(wave_index))
+		var points := PackedVector2Array()
+		var steps := 18
+		for i in range(steps + 1):
+			var ratio := float(i) / float(steps)
+			var travel := ratio * travel_len
+			var wobble := sin(ratio * TAU * 1.6 + time * 4.0 + float(wave_index) * 0.8) * amplitude
+			var cross := cross_len * 0.5 + wave_offset + wobble
+			var point := origin + travel_axis * travel + cross_axis * cross
+			points.append(point)
+		draw_polyline(points, Color(base_color.r, base_color.g, base_color.b, base_color.a), 4.0)
+
+		var spark_phase := fmod(time * 1.4 + float(wave_index) * 0.33, 1.0)
+		var spark_pos := origin + travel_axis * (travel_len * spark_phase) + cross_axis * (cross_len * 0.5 + wave_offset)
+		draw_circle(spark_pos, 4.0 + alpha * 2.0, Color(1.0, 1.0, 1.0, 0.18 + alpha * 0.22))
 
 
 func _process(_delta: float) -> void:
