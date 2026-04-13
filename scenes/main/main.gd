@@ -271,6 +271,8 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 
 func _on_round_ended(escapist_team: Enums.Team, points_scored: int) -> void:
 	phase_overlay.show_round_end(escapist_team, GameManager.match_scores, GameManager.get_round_score_entries())
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
 
 
 func _on_match_ended(winning_team: Enums.Team) -> void:
@@ -303,6 +305,8 @@ func _process(_delta: float) -> void:
 
 	if state == Enums.GameState.MATCH_END:
 		_check_restart_input()
+	elif state == Enums.GameState.ROUND_END:
+		_check_round_end_skip_input()
 
 
 # --- Debug ---
@@ -384,6 +388,27 @@ func _check_restart_input() -> void:
 		_prev_start_pressed[pi] = pressed
 		if pressed and not was_pressed:
 			_reset_to_team_setup()
+			return
+
+
+func _check_round_end_skip_input() -> void:
+	for pi in _active_player_indices:
+		var device_id := InputManager.get_device_id(pi)
+		if device_id < 0:
+			_prev_start_pressed[pi] = false
+			continue
+		var start_pressed := Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
+		var was_start_pressed: bool = _prev_start_pressed.get(pi, false)
+		_prev_start_pressed[pi] = start_pressed
+		if start_pressed and not was_start_pressed:
+			GameManager.confirm_round_end()
+			_prime_start_button_state()
+			InputManager.suppress_edge_detection(3)
+			return
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			GameManager.confirm_round_end()
+			_prime_start_button_state()
+			InputManager.suppress_edge_detection(3)
 			return
 
 

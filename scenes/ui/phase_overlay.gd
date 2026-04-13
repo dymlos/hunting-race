@@ -65,7 +65,7 @@ func show_escape() -> void:
 
 func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Array[Dictionary]) -> void:
 	_text = "ROUND OVER"
-	_sub_text = "Score: %d - %d" % [scores[0], scores[1]]
+	_sub_text = "Score: %d - %d | A or START to continue" % [scores[0], scores[1]]
 	_detail_lines.clear()
 	_score_entries = entries.duplicate(true)
 	_show_match_totals = false

@@ -6,7 +6,7 @@ signal round_ended(escapist_team: Enums.Team, points_scored: int)
 signal match_ended(winning_team: Enums.Team)
 signal escapist_scored(team: Enums.Team)
 signal escapist_died(team: Enums.Team)
-signal round_advancing  # Emitted when round end timer expires, before next observation
+signal round_advancing  # Emitted when round end is confirmed, before next observation
 
 var current_state: Enums.GameState = Enums.GameState.TEAM_SETUP
 var team_assignments: Dictionary = {}          # {player_index: Enums.Team}
@@ -59,9 +59,6 @@ func _process(delta: float) -> void:
 		Enums.GameState.ROUND_END:
 			if _awaiting_character_select:
 				return
-			_phase_timer -= delta
-			if _phase_timer <= 0.0:
-				_advance_after_round()
 
 
 func set_team_assignments(assignments: Dictionary) -> void:
@@ -216,9 +213,15 @@ func _end_round() -> void:
 	hunt_active = false
 	trap_lifetime_active = false
 	_finalize_unresolved_escapists()
-	_phase_timer = Constants.ROUND_END_DURATION
+	_phase_timer = 0.0
 	_change_state(Enums.GameState.ROUND_END)
 	round_ended.emit(escapist_team, _round_points)
+
+
+func confirm_round_end() -> void:
+	if current_state != Enums.GameState.ROUND_END or _awaiting_character_select:
+		return
+	_advance_after_round()
 
 
 func swap_team_roles() -> void:
