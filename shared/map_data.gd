@@ -58,7 +58,8 @@ static func get_gauntlet_map() -> Dictionary:
 		{"pos": Vector2(300, t), "size": Vector2(t, 230)},           # y=20–250
 		{"pos": Vector2(300, 350), "size": Vector2(t, 150)},         # y=350–500
 		{"pos": Vector2(300, 700), "size": Vector2(t, 150)},         # y=700–850
-		{"pos": Vector2(300, 1000), "size": Vector2(t, h - 1000 - t)}, # y=1000–1180
+		{"pos": Vector2(300, 1000), "size": Vector2(t, 70)},
+		{"pos": Vector2(300, 1160), "size": Vector2(t, h - 1160 - t)},
 
 		# ============================================================
 		# SECTION 2: THREE ROUTES (x: 300–900)
@@ -149,6 +150,8 @@ static func get_gauntlet_map() -> Dictionary:
 	var bottom_sticky_right_lower_bounds := Rect2(Vector2(760, 896), Vector2(95, 44))
 	var bottom_sticky_upper_lane_bounds := Rect2(Vector2(380, 972), Vector2(250, 60))
 	var bottom_sticky_lower_lane_bounds := Rect2(Vector2(500, 1092), Vector2(260, 60))
+	var bottom_sticky_lower_left_bounds := Rect2(Vector2(350, 1088), Vector2(150, 70))
+	var bottom_sticky_lower_right_bounds := Rect2(Vector2(720, 1088), Vector2(130, 70))
 	var bottom_slippery_bounds := Rect2(Vector2(760, 850), Vector2(360, 150))
 	var center_ice_rect := Rect2(Vector2(900, 250), Vector2(780, 580))
 	var center_ice_box_left_top_bounds := Rect2(Vector2(955, 305), Vector2(130, 170))
@@ -296,6 +299,20 @@ static func get_gauntlet_map() -> Dictionary:
 			"jitter": Vector2(85, 10),
 			"bounds": bottom_sticky_lower_lane_bounds,
 		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(400, 1110),
+			"size": Vector2(18, 44),
+			"jitter": Vector2(55, 12),
+			"bounds": bottom_sticky_lower_left_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(770, 1108),
+			"size": Vector2(18, 46),
+			"jitter": Vector2(50, 12),
+			"bounds": bottom_sticky_lower_right_bounds,
+		},
 
 		# === CENTER ICE FIELD ===
 		{
@@ -415,6 +432,28 @@ static func get_gauntlet_map() -> Dictionary:
 			"direction": Vector2.UP,
 			"range": 440.0,
 			"width": 180.0,
+			"period": 1.0,
+			"force": 540.0,
+		},
+		{
+			"type": "frost_vent",
+			"pos": Vector2(1260, 850),
+			"size": Vector2(22, 84),
+			"fixed": true,
+			"direction": Vector2.LEFT,
+			"range": 340.0,
+			"width": 150.0,
+			"period": 0.95,
+			"force": 540.0,
+		},
+		{
+			"type": "frost_vent",
+			"pos": Vector2(1260, 1045),
+			"size": Vector2(22, 84),
+			"fixed": true,
+			"direction": Vector2.LEFT,
+			"range": 340.0,
+			"width": 150.0,
 			"period": 1.0,
 			"force": 540.0,
 		},
