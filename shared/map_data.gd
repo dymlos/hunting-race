@@ -623,7 +623,7 @@ static func get_gauntlet_map() -> Dictionary:
 	]
 
 	return {
-		"name": "The Gauntlet",
+		"name": "The Sticky Slide",
 		"description": "3 routes: sticky corridor, moving walls, or safe tunnel. All merge into a sticky maze.",
 		"size": Vector2(w, h),
 		"walls": walls,
