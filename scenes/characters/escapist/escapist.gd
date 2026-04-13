@@ -18,7 +18,8 @@ var _inversion_timer: float = 0.0
 
 func _setup_role() -> void:
 	role = Enums.Role.ESCAPIST
-	movement.move_speed = Constants.SPEED_ESCAPIST
+	var speed_mult: float = GameManager.settings_overrides.get(&"escapist_speed", 1.0) as float
+	movement.move_speed = Constants.SPEED_ESCAPIST * speed_mult
 	movement.crushed.connect(_on_crushed)
 
 	# Setup poison component

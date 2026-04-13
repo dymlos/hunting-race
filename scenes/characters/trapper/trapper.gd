@@ -25,6 +25,7 @@ const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  #
 
 func setup(map_size: Vector2) -> void:
 	_map_bounds = Rect2(Vector2.ZERO, map_size)
+	bot_ai_enabled = GameManager.settings_overrides.get(&"bot_ai", false) as bool
 	_setup_abilities()
 
 
@@ -98,8 +99,9 @@ func _process(delta: float) -> void:
 		return
 
 	# Move cursor with left stick
+	var speed_mult: float = GameManager.settings_overrides.get(&"trapper_speed", 1.0) as float
 	var move_vec := InputManager.get_move_vector(player_index)
-	position += move_vec * Constants.TRAPPER_CURSOR_SPEED * delta
+	position += move_vec * Constants.TRAPPER_CURSOR_SPEED * speed_mult * delta
 	# Clamp to map bounds
 	position.x = clampf(position.x, _map_bounds.position.x, _map_bounds.end.x)
 	position.y = clampf(position.y, _map_bounds.position.y, _map_bounds.end.y)

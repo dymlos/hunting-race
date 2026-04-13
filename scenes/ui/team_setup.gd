@@ -5,6 +5,7 @@ extends Control
 ## Roles (Escapist/Trapper) are assigned per-round by GameManager, not here.
 
 signal teams_ready(team_assignments: Dictionary)
+signal settings_requested
 
 var _player_joined: Dictionary = {}    # {device_id: bool}
 var _player_teams: Dictionary = {}     # {device_id: Enums.Team}
@@ -63,6 +64,12 @@ func _process(delta: float) -> void:
 				_player_teams[device_id] = Enums.Team.TEAM_1
 				_nav_cooldowns[device_id] = NAV_COOLDOWN
 
+	# SELECT to open settings
+	for device_id: int in pads:
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
+			settings_requested.emit()
+			return
+
 	if _has_valid_teams():
 		for device_id: int in pads:
 			if _player_joined.get(device_id, false):
@@ -96,6 +103,7 @@ func _advance() -> void:
 		pi += 1
 
 	if auto_fill_bots:
+		var team_size: int = GameManager.settings_overrides.get(&"team_size", 3) as int
 		var t1 := 0
 		var t2 := 0
 		for p: int in t_assignments:
@@ -105,11 +113,11 @@ func _advance() -> void:
 				t2 += 1
 
 		var bot_id := 100
-		while t1 < 3:
+		while t1 < team_size:
 			t_assignments[bot_id] = Enums.Team.TEAM_1
 			bot_id += 1
 			t1 += 1
-		while t2 < 3:
+		while t2 < team_size:
 			t_assignments[bot_id] = Enums.Team.TEAM_2
 			bot_id += 1
 			t2 += 1
@@ -175,3 +183,6 @@ func _draw() -> void:
 	else:
 		draw_string(font, Vector2(cx - 100, screen.y - 40), "Need at least 1 player",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(0.5, 0.5, 0.5))
+
+	draw_string(font, Vector2(cx - 80, screen.y - 18), "SELECT: Settings",
+		HORIZONTAL_ALIGNMENT_CENTER, -1, 12, Color(0.4, 0.4, 0.4))

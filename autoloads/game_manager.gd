@@ -13,6 +13,7 @@ var team_assignments: Dictionary = {}          # {player_index: Enums.Team}
 var role_assignments: Dictionary = {}          # {player_index: Enums.Role}
 var character_selections: Dictionary = {}      # {player_index: Enums.TrapperCharacter}
 var player_characters: Dictionary = {}         # {player_index: Node2D}
+var settings_overrides: Dictionary = {}        # {StringName: Variant} — from settings menu
 
 # Which team is currently playing as escapists
 var escapist_team: Enums.Team = Enums.Team.TEAM_1
@@ -118,14 +119,14 @@ func start_observation() -> void:
 	for pi: int in role_assignments:
 		if role_assignments[pi] == Enums.Role.ESCAPIST:
 			_living_escapists += 1
-	_phase_timer = Constants.OBSERVATION_DURATION
+	_phase_timer = (settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float)
 	_change_state(Enums.GameState.OBSERVATION)
 	round_started.emit(round_number)
 
 
 func activate_hunt() -> void:
 	hunt_active = true
-	_hunt_timer = Constants.HUNT_DURATION
+	_hunt_timer = (settings_overrides.get(&"hunt_duration", Constants.HUNT_DURATION) as float)
 	_change_state(Enums.GameState.HUNT)
 
 
@@ -206,10 +207,11 @@ func _change_state(new_state: Enums.GameState) -> void:
 
 func _advance_after_round() -> void:
 	# Check if either team reached score threshold
-	if match_scores[0] >= Constants.SCORE_TO_WIN:
+	var win_score: int = settings_overrides.get(&"score_to_win", Constants.SCORE_TO_WIN) as int
+	if match_scores[0] >= win_score:
 		_change_state(Enums.GameState.MATCH_END)
 		match_ended.emit(Enums.Team.TEAM_1)
-	elif match_scores[1] >= Constants.SCORE_TO_WIN:
+	elif match_scores[1] >= win_score:
 		_change_state(Enums.GameState.MATCH_END)
 		match_ended.emit(Enums.Team.TEAM_2)
 	else:

@@ -5,6 +5,7 @@ extends Node2D
 const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
+const SettingsMenuScene := preload("res://scenes/ui/settings_menu.tscn")
 const ArenaScene := preload("res://scenes/arena/arena.tscn")
 const PhaseOverlayScene := preload("res://scenes/ui/phase_overlay.tscn")
 const GameHudScene := preload("res://scenes/ui/game_hud.tscn")
@@ -29,6 +30,7 @@ var _view_stack: Array[Control] = []
 var team_setup: TeamSetup
 var stage_select: StageSelect
 var character_select: CharacterSelect
+var settings_menu: SettingsMenu
 var phase_overlay: PhaseOverlay
 var game_hud: GameHud
 var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
@@ -39,6 +41,7 @@ func _ready() -> void:
 	ui_layer.add_child(team_setup)
 	team_setup.hide()
 	team_setup.teams_ready.connect(_on_teams_ready)
+	team_setup.settings_requested.connect(_open_settings)
 
 	stage_select = StageSelectScene.instantiate() as StageSelect
 	ui_layer.add_child(stage_select)
@@ -51,6 +54,12 @@ func _ready() -> void:
 	character_select.hide()
 	character_select.characters_ready.connect(_on_characters_ready)
 	character_select.back_requested.connect(_on_character_back)
+
+	settings_menu = SettingsMenuScene.instantiate() as SettingsMenu
+	ui_layer.add_child(settings_menu)
+	settings_menu.hide()
+	settings_menu.closed.connect(_close_settings)
+	settings_menu.setting_changed.connect(_on_setting_changed)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
@@ -340,6 +349,39 @@ func _check_restart_input() -> void:
 			GameManager.reset_match()
 			_start_team_setup()
 			return
+
+
+# --- Settings ---
+
+func _open_settings() -> void:
+	push_view(settings_menu)
+	settings_menu.open()
+
+
+func _close_settings() -> void:
+	pop_view()
+
+
+func _on_setting_changed(key: String, value: Variant) -> void:
+	match key:
+		"bot_fill":
+			team_setup.auto_fill_bots = (int(value) == 0)  # 0 = "On"
+		"bot_ai":
+			GameManager.settings_overrides[&"bot_ai"] = (int(value) == 1)  # 1 = "On"
+		"hunt_duration":
+			GameManager.settings_overrides[&"hunt_duration"] = value
+		"observation_duration":
+			GameManager.settings_overrides[&"observation_duration"] = value
+		"score_to_win":
+			GameManager.settings_overrides[&"score_to_win"] = value
+		"team_size":
+			GameManager.settings_overrides[&"team_size"] = value
+		"escapist_speed":
+			GameManager.settings_overrides[&"escapist_speed"] = value
+		"trapper_speed":
+			GameManager.settings_overrides[&"trapper_speed"] = value
+		"poison_duration":
+			GameManager.settings_overrides[&"poison_duration"] = value
 
 
 # --- View stack ---

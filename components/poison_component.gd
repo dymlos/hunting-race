@@ -17,7 +17,9 @@ func setup(escapist: Node2D) -> void:
 	_owner_escapist = escapist
 
 
-func apply_poison(duration: float = Constants.POISON_DURATION) -> void:
+func apply_poison(duration: float = -1.0) -> void:
+	if duration < 0.0:
+		duration = GameManager.settings_overrides.get(&"poison_duration", Constants.POISON_DURATION) as float
 	if is_poisoned:
 		# Refresh timer
 		_poison_timer = duration
