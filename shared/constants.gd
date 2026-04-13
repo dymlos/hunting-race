@@ -19,12 +19,12 @@ const TRAP_LETHAL_COOLDOWN: float = 8.0
 const TRAP_LETHAL_RADIUS: float = 20.0
 
 # --- Phase durations ---
-const OBSERVATION_DURATION: float = 1.0
+const OBSERVATION_DURATION: float = 10.0
 const ROUND_END_DURATION: float = 3.0
 
 # --- Match ---
-const SCORE_TO_WIN: int = 10  # Placeholder — tune later
-const HUNT_DURATION: float = 60.0  # Round timer — hunt ends when it expires
+const SCORE_TO_WIN: int = 3
+const HUNT_DURATION: float = 30.0
 
 # --- Character ---
 const CHARACTER_RADIUS: float = 15.0

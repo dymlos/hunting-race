@@ -4,6 +4,7 @@ enum GameState {
 	TEAM_SETUP,
 	OBSERVATION,
 	HUNT,
+	ESCAPE,
 	ROUND_END,
 	MATCH_END,
 	PAUSED,

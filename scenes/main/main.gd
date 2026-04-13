@@ -69,6 +69,7 @@ func _ready() -> void:
 	ui_layer.add_child(pause_menu)
 	pause_menu.hide()
 	pause_menu.resume_requested.connect(_resume_from_pause)
+	pause_menu.settings_requested.connect(_open_settings)
 	pause_menu.reset_requested.connect(_reset_to_team_setup)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
@@ -253,7 +254,10 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 			_spawn_characters()
 			_freeze_all()
 		Enums.GameState.HUNT:
-			phase_overlay.show_hunt()
+			_spawn_characters()
+			_freeze_escapists_only()
+		Enums.GameState.ESCAPE:
+			phase_overlay.show_escape()
 			_unfreeze_all()
 		Enums.GameState.ROUND_END:
 			_freeze_all()
@@ -284,11 +288,13 @@ func _process(_delta: float) -> void:
 		_check_pause_input()
 		return
 
-	if state == Enums.GameState.OBSERVATION:
+	if state == Enums.GameState.HUNT:
 		phase_overlay.show_observation(GameManager.get_observation_time())
 
-	if state == Enums.GameState.HUNT:
+	if state == Enums.GameState.HUNT or state == Enums.GameState.ESCAPE:
 		_check_pause_input()
+
+	if state == Enums.GameState.ESCAPE:
 		_check_debug_input()
 
 	if state == Enums.GameState.MATCH_END:
@@ -331,6 +337,15 @@ func _unfreeze_all() -> void:
 		if is_instance_valid(c):
 			if c is BaseCharacter:
 				(c as BaseCharacter).unfreeze_character()
+			elif c is Trapper:
+				(c as Trapper).unfreeze_character()
+
+
+func _freeze_escapists_only() -> void:
+	for c in characters:
+		if is_instance_valid(c):
+			if c is BaseCharacter:
+				(c as BaseCharacter).freeze_character()
 			elif c is Trapper:
 				(c as Trapper).unfreeze_character()
 
@@ -381,6 +396,7 @@ func _resume_from_pause() -> void:
 		return
 	get_tree().paused = false
 	_clear_pause_menu()
+	_apply_runtime_settings()
 	GameManager.unpause_game()
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
@@ -409,6 +425,7 @@ func _prime_start_button_state() -> void:
 # --- Settings ---
 
 func _open_settings() -> void:
+	ui_layer.move_child(settings_menu, ui_layer.get_child_count() - 1)
 	push_view(settings_menu)
 	settings_menu.open()
 
@@ -437,6 +454,18 @@ func _on_setting_changed(key: String, value: Variant) -> void:
 			GameManager.settings_overrides[&"trapper_speed"] = value
 		"poison_duration":
 			GameManager.settings_overrides[&"poison_duration"] = value
+		"hunt_countdown_enabled":
+			GameManager.settings_overrides[&"hunt_countdown_enabled"] = (int(value) == 0)  # 0 = "On"
+
+
+func _apply_runtime_settings() -> void:
+	GameManager.apply_runtime_settings()
+	for c in characters:
+		if not is_instance_valid(c):
+			continue
+		if c is Escapist:
+			var speed_mult: float = GameManager.settings_overrides.get(&"escapist_speed", 1.0) as float
+			(c as Escapist).movement.move_speed = Constants.SPEED_ESCAPIST * speed_mult
 
 
 # --- View stack ---

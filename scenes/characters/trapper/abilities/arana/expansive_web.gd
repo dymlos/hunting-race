@@ -91,7 +91,8 @@ class WebZone extends Area2D:
 		body_exited.connect(_on_body_exited)
 
 	func _process(delta: float) -> void:
-		_lifetime -= delta
+		if GameManager.trap_lifetime_active:
+			_lifetime -= delta
 		if _lifetime <= 0.0:
 			_cleanup_effects()
 			queue_free()

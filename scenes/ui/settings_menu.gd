@@ -22,6 +22,7 @@ var _nav_cooldown: float = 0.0
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_settings = [
 		{
 			"key": "bot_fill", "label": "Bot Auto-Fill",
@@ -39,7 +40,12 @@ func _ready() -> void:
 			"value": int(Constants.HUNT_DURATION),
 		},
 		{
-			"key": "observation_duration", "label": "Observe Time",
+			"key": "hunt_countdown_enabled", "label": "Hunt Countdown",
+			"type": "options", "options": ["On", "Off"],
+			"value": 0,
+		},
+		{
+			"key": "observation_duration", "label": "Hunt Countdown Time",
 			"type": "int", "min": 1, "max": 10, "step": 1,
 			"value": int(Constants.OBSERVATION_DURATION),
 		},
@@ -51,7 +57,7 @@ func _ready() -> void:
 		{
 			"key": "team_size", "label": "Team Size",
 			"type": "int", "min": 1, "max": 4, "step": 1,
-			"value": 3,
+			"value": 1,
 		},
 		{
 			"key": "escapist_speed", "label": "Escapist Speed",

@@ -81,7 +81,8 @@ class ElasticLine extends Area2D:
 		body_entered.connect(_on_body_entered)
 
 	func _process(delta: float) -> void:
-		_lifetime -= delta
+		if GameManager.trap_lifetime_active:
+			_lifetime -= delta
 		if _lifetime <= 0.0:
 			queue_free()
 			return

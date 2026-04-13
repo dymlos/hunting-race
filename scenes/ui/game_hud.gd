@@ -43,7 +43,7 @@ func _draw() -> void:
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.7, 0.7, 0.7))
 
 	# Hunt info (during hunt)
-	if GameManager.current_state == Enums.GameState.HUNT:
+	if GameManager.current_state == Enums.GameState.ESCAPE:
 		var alive_text := "Escapists alive: %d" % GameManager.get_living_escapists()
 		draw_string(font, Vector2(screen.x - 180, 42), alive_text,
 			HORIZONTAL_ALIGNMENT_RIGHT, -1, 12, Enums.role_color(Enums.Role.ESCAPIST))
@@ -60,6 +60,7 @@ func _draw() -> void:
 	match GameManager.current_state:
 		Enums.GameState.OBSERVATION: phase = "OBSERVE"
 		Enums.GameState.HUNT: phase = "HUNT"
+		Enums.GameState.ESCAPE: phase = "ESCAPE"
 		Enums.GameState.ROUND_END: phase = "ROUND END"
 		Enums.GameState.MATCH_END: phase = "MATCH END"
 		Enums.GameState.PAUSED: phase = "PAUSED"

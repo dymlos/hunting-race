@@ -2,6 +2,7 @@ class_name PauseMenu
 extends Control
 
 signal resume_requested
+signal settings_requested
 signal reset_requested
 
 var input_blocked: bool = false
@@ -10,7 +11,7 @@ var _selected_index: int = 0
 var _nav_cooldown: float = 0.0
 
 const NAV_COOLDOWN: float = 0.2
-const OPTIONS: Array[String] = ["Resume", "Return to Setup"]
+const OPTIONS: Array[String] = ["Resume", "Settings", "Return to Setup"]
 
 
 func _ready() -> void:
@@ -55,6 +56,8 @@ func _process(delta: float) -> void:
 				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
 			if _selected_index == 0:
 				resume_requested.emit()
+			elif _selected_index == 1:
+				settings_requested.emit()
 			else:
 				reset_requested.emit()
 			return

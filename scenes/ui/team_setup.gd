@@ -103,7 +103,7 @@ func _advance() -> void:
 		pi += 1
 
 	if auto_fill_bots:
-		var team_size: int = GameManager.settings_overrides.get(&"team_size", 3) as int
+		var team_size: int = GameManager.settings_overrides.get(&"team_size", 1) as int
 		var t1 := 0
 		var t2 := 0
 		for p: int in t_assignments:

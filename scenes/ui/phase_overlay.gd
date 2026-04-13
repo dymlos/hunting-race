@@ -11,7 +11,7 @@ var input_blocked: bool = false
 
 
 func show_observation(time_left: float) -> void:
-	_text = "OBSERVE"
+	_text = "HUNT"
 	_sub_text = "%d" % ceili(time_left)
 	_text_color = Color.YELLOW
 	visible = true
@@ -20,6 +20,15 @@ func show_observation(time_left: float) -> void:
 
 func show_hunt() -> void:
 	_text = "HUNT!"
+	_sub_text = ""
+	_text_color = Color.RED
+	_show_timer = 2.0
+	visible = true
+	queue_redraw()
+
+
+func show_escape() -> void:
+	_text = "ESCAPE!"
 	_sub_text = ""
 	_text_color = Color.RED
 	_show_timer = 2.0
