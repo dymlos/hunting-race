@@ -85,6 +85,7 @@ func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Arr
 	_score_entries = entries.duplicate(true)
 	_show_match_totals = false
 	_text_color = Color.WHITE
+	_show_timer = 0.0
 	_anchor_top = false
 	visible = true
 	queue_redraw()
@@ -97,6 +98,7 @@ func show_match_end(winning_team: Enums.Team, scores: Array[int], entries: Array
 	_score_entries = entries.duplicate(true)
 	_show_match_totals = true
 	_text_color = Enums.team_color(winning_team)
+	_show_timer = 0.0
 	_anchor_top = false
 	visible = true
 	queue_redraw()
@@ -122,12 +124,11 @@ func _build_round_lines(entries: Array[Dictionary]) -> Array[String]:
 		var total: int = entry.get("total", 0) as int
 		var traps: int = entry.get("trap_contacts", 0) as int
 		var respawns: int = entry.get("respawns", 0) as int
-		var score_parts := "base %d, time %d, trap bonus %d, respawn %d, trap penalty %d" % [
+		var score_parts := "base %d, time %d, trap bonus %d, respawn %d" % [
 			entry.get("base_score", 0) as int,
 			entry.get("time_score", 0) as int,
 			entry.get("trap_bonus", 0) as int,
 			entry.get("respawn_penalty", 0) as int,
-			entry.get("trap_penalty", 0) as int,
 		]
 		lines.append("%s: %s | %s | left %.1fs | traps %d | respawns %d" % [
 			player_label, state, _format_score(total), time_left, traps, respawns
@@ -302,12 +303,11 @@ func _draw_score_entries(font: Font, panel_rect: Rect2) -> void:
 		draw_string(font, Vector2(x + 14.0, y),
 			title, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Enums.team_color(team))
 
-		var breakdown := "Base %s   Time %s   Trap bonus %s   Respawn %s   10 traps %s" % [
+		var breakdown := "Base %s   Time %s   Trap bonus %s   Respawn %s" % [
 			_format_score(entry.get("base_score", 0) as int),
 			_format_score(entry.get("time_score", 0) as int),
 			_format_score(entry.get("trap_bonus", 0) as int),
 			_format_score(entry.get("respawn_penalty", 0) as int),
-			_format_score(entry.get("trap_penalty", 0) as int),
 		]
 		draw_string(font, Vector2(x + 14.0, y + 22.0),
 			breakdown, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.86, 0.86, 0.86))

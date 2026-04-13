@@ -339,7 +339,6 @@ func get_match_score_entries() -> Array[Dictionary]:
 		var time_score := 0
 		var trap_bonus := 0
 		var respawn_penalty := 0
-		var trap_penalty := 0
 		var escaped := 0
 		var trap_contacts := 0
 		var respawns := 0
@@ -350,7 +349,6 @@ func get_match_score_entries() -> Array[Dictionary]:
 			time_score += entry.get("time_score", 0) as int
 			trap_bonus += entry.get("trap_bonus", 0) as int
 			respawn_penalty += entry.get("respawn_penalty", 0) as int
-			trap_penalty += entry.get("trap_penalty", 0) as int
 			trap_contacts += entry.get("trap_contacts", 0) as int
 			respawns += entry.get("respawns", 0) as int
 			if entry.get("escaped", false):
@@ -363,7 +361,6 @@ func get_match_score_entries() -> Array[Dictionary]:
 			"time_score": time_score,
 			"trap_bonus": trap_bonus,
 			"respawn_penalty": respawn_penalty,
-			"trap_penalty": trap_penalty,
 			"escaped": escaped,
 			"trap_contacts": trap_contacts,
 			"respawns": respawns,
@@ -395,7 +392,6 @@ func _prepare_round_stats() -> void:
 			"time_score": 0,
 			"trap_bonus": 0,
 			"respawn_penalty": 0,
-			"trap_penalty": 0,
 			"total": 0,
 		}
 		if not player_score_history.has(pi):
@@ -428,8 +424,7 @@ func _finalize_player_round_score(player_index: int, escaped: bool) -> int:
 	elif escaped and trap_contacts == 1:
 		trap_bonus = Constants.SCORE_ONE_TRAP_BONUS
 	var respawn_penalty := respawns * Constants.SCORE_RESPAWN_PENALTY
-	var trap_penalty := Constants.SCORE_TEN_TRAPS_PENALTY if trap_contacts >= Constants.SCORE_TRAP_PENALTY_THRESHOLD else 0
-	var total := base_score + time_score + trap_bonus + respawn_penalty + trap_penalty
+	var total := base_score + time_score + trap_bonus + respawn_penalty
 
 	stats["escaped"] = escaped
 	stats["finalized"] = true
@@ -439,7 +434,6 @@ func _finalize_player_round_score(player_index: int, escaped: bool) -> int:
 	stats["time_score"] = time_score
 	stats["trap_bonus"] = trap_bonus
 	stats["respawn_penalty"] = respawn_penalty
-	stats["trap_penalty"] = trap_penalty
 	stats["total"] = total
 
 	var history: Array = player_score_history.get(player_index, []) as Array

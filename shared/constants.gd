@@ -35,8 +35,6 @@ const SCORE_ESCAPE_TIME_MULTIPLIER: int = 5
 const SCORE_NO_TRAP_BONUS: int = 50
 const SCORE_ONE_TRAP_BONUS: int = 25
 const SCORE_RESPAWN_PENALTY: int = -10
-const SCORE_TEN_TRAPS_PENALTY: int = -50
-const SCORE_TRAP_PENALTY_THRESHOLD: int = 10
 
 # --- Character ---
 const CHARACTER_RADIUS: float = 15.0
