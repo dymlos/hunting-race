@@ -12,6 +12,7 @@ var _nav_cooldown: float = 0.0
 var input_blocked: bool = false
 
 const NAV_COOLDOWN: float = 0.2
+const LOCKED_STAGE_NAMES: Array[String] = ["Toxic Garden", "Clockwork Burrow"]
 
 
 func setup() -> void:
@@ -101,13 +102,44 @@ func _draw() -> void:
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 36, Color(0.5, 0.5, 0.5))
 
 	# Counter
-	var counter := "%d / %d" % [_selected_index + 1, _stages.size()]
+	var total_stage_slots := _stages.size() + LOCKED_STAGE_NAMES.size()
+	var counter := "%d AVAILABLE / %d TOTAL" % [_stages.size(), total_stage_slots]
 	var counter_width := font.get_string_size(counter, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	draw_string(font, Vector2(cx - counter_width / 2.0, cy + 70),
 		counter, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.4, 0.4, 0.4))
+
+	_draw_locked_stage_slots(font, screen)
 
 	# Hints
 	var hint := "START to confirm  |  SELECT to go back"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 40),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)
+
+
+func _draw_locked_stage_slots(font: Font, screen: Vector2) -> void:
+	if LOCKED_STAGE_NAMES.is_empty():
+		return
+
+	var cx := screen.x / 2.0
+	var slot_w := 240.0
+	var slot_h := 76.0
+	var gap := 18.0
+	var total_w := LOCKED_STAGE_NAMES.size() * slot_w + (LOCKED_STAGE_NAMES.size() - 1) * gap
+	var x := cx - total_w / 2.0
+	var y := screen.y * 0.68
+
+	for i in LOCKED_STAGE_NAMES.size():
+		var rect := Rect2(Vector2(x + i * (slot_w + gap), y), Vector2(slot_w, slot_h))
+		draw_rect(rect, Color(0.08, 0.08, 0.08, 0.9))
+		draw_rect(rect, Color(0.35, 0.35, 0.35, 0.55), false, 1.5)
+
+		var locked_name := LOCKED_STAGE_NAMES[i]
+		var name_width := font.get_string_size(locked_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+		draw_string(font, Vector2(rect.position.x + rect.size.x / 2.0 - name_width / 2.0, rect.position.y + 28.0),
+			locked_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.5, 0.5, 0.5))
+
+		var soon := "COMING SOON"
+		var soon_width := font.get_string_size(soon, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		draw_string(font, Vector2(rect.position.x + rect.size.x / 2.0 - soon_width / 2.0, rect.position.y + 52.0),
+			soon, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.75, 0.75, 0.75))

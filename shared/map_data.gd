@@ -284,4 +284,4 @@ static func get_gauntlet_map() -> Dictionary:
 
 
 static func get_all() -> Array[Dictionary]:
-	return [get_gauntlet_map(), get_test_map()]
+	return [get_gauntlet_map()]
