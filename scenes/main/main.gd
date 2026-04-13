@@ -286,7 +286,10 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 				arena.randomize_hazards_for_round(GameManager.get_competitive_round_number())
 			_spawn_characters()
 			_freeze_all()
-			phase_overlay.clear()
+			phase_overlay.show_round_intro(
+				GameManager.get_competitive_round_number(),
+				GameManager.get_round_leg_label()
+			)
 		Enums.GameState.HUNT:
 			_freeze_escapists_only()
 		Enums.GameState.ESCAPE:

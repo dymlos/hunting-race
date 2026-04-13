@@ -128,6 +128,14 @@ func get_competitive_round_number() -> int:
 	return int(ceili(float(round_number) / 2.0))
 
 
+func get_round_leg_label() -> String:
+	if round_number <= 0:
+		return ""
+	if round_number % 2 == 1:
+		return "Escape Round"
+	return "Hunt Round"
+
+
 func start_observation() -> void:
 	_awaiting_character_select = false
 	round_number += 1

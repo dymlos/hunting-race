@@ -26,6 +26,19 @@ func show_observation(_time_left: float) -> void:
 	queue_redraw()
 
 
+func show_round_intro(round_number: int, leg_label: String) -> void:
+	_text = "ROUND %d" % round_number
+	_sub_text = leg_label
+	_detail_lines.clear()
+	_score_entries.clear()
+	_show_match_totals = false
+	_text_color = Color(1.0, 0.95, 0.25)
+	_show_timer = 2.4
+	_anchor_top = false
+	visible = true
+	queue_redraw()
+
+
 func show_hunt_countdown(time_left: float) -> void:
 	_text = "STRATEGY HUNT"
 	_sub_text = "%d" % ceili(time_left)
