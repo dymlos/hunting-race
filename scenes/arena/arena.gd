@@ -532,18 +532,6 @@ func _draw() -> void:
 	# Background
 	draw_rect(Rect2(Vector2.ZERO, map_size), Color(0.08, 0.08, 0.08))
 
-	# Grid lines
-	var grid_step := 60.0
-	var grid_color := Color(0.15, 0.15, 0.15)
-	var x := 0.0
-	while x <= map_size.x:
-		draw_line(Vector2(x, 0), Vector2(x, map_size.y), grid_color, 1.0)
-		x += grid_step
-	var y := 0.0
-	while y <= map_size.y:
-		draw_line(Vector2(0, y), Vector2(map_size.x, y), grid_color, 1.0)
-		y += grid_step
-
 	# Static walls
 	var wall_color := Color(0.6, 0.6, 0.6)
 	var walls: Array = _map_data.get("walls", [])
@@ -578,13 +566,6 @@ func _draw_hazards() -> void:
 				var pos: Vector2 = hazard_def["pos"]
 				var size: Vector2 = hazard_def["size"]
 				draw_rect(Rect2(pos, size), Constants.SLIPPERY_ZONE_COLOR)
-				# Ice pattern — diagonal lines
-				var step := 20.0
-				var ice_color := Color(0.3, 0.8, 1.0, 0.1)
-				var ix := pos.x
-				while ix < pos.x + size.x:
-					draw_line(Vector2(ix, pos.y), Vector2(ix + size.y * 0.3, pos.y + size.y), ice_color, 1.0)
-					ix += step
 			"one_way_gate":
 				var pos: Vector2 = hazard_def["pos"]
 				var size: Vector2 = hazard_def["size"]
