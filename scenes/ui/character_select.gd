@@ -21,6 +21,10 @@ var _allow_back: bool = true                 # false between rounds
 var input_blocked: bool = false
 
 const NAV_COOLDOWN: float = 0.2
+const CARD_GAP: float = 18.0
+const CARD_MARGIN: float = 12.0
+const ABILITY_LINE_HEIGHT: float = 11.0
+const ABILITY_BLOCK_HEIGHT: float = 46.0
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
@@ -189,6 +193,45 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+func _draw_wrapped_text(font: Font, text: String, position: Vector2,
+		max_width: float, font_size: int, color: Color, line_height: float,
+		max_lines: int) -> float:
+	var words := text.split(" ", false)
+	var lines: Array[String] = []
+	var current := ""
+
+	for word: String in words:
+		var candidate := word if current.is_empty() else "%s %s" % [current, word]
+		var candidate_width := font.get_string_size(candidate,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		if candidate_width <= max_width or current.is_empty():
+			current = candidate
+		else:
+			lines.append(current)
+			current = word
+
+	if not current.is_empty():
+		lines.append(current)
+
+	if lines.size() > max_lines:
+		lines = lines.slice(0, max_lines)
+		var last_line := lines[max_lines - 1]
+		while not last_line.is_empty():
+			var trimmed := "%s..." % last_line
+			var trimmed_width := font.get_string_size(trimmed,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+			if trimmed_width <= max_width:
+				lines[max_lines - 1] = trimmed
+				break
+			last_line = last_line.substr(0, last_line.length() - 1).strip_edges()
+
+	for i in lines.size():
+		draw_string(font, position + Vector2(0, i * line_height),
+			lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+
+	return lines.size() * line_height
+
+
 func _draw() -> void:
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
@@ -213,9 +256,10 @@ func _draw() -> void:
 
 	# Character cards — 4 cards in a row
 	var card_count := _characters.size()
-	var card_w := 180.0
-	var card_h := 200.0
-	var card_gap := 20.0
+	var card_gap := CARD_GAP
+	var available_w := maxf(760.0, screen.x - 260.0)
+	var card_w := clampf((available_w - (card_count - 1) * card_gap) / card_count, 180.0, 230.0)
+	var card_h := 240.0
 	var total_w := card_count * card_w + (card_count - 1) * card_gap
 	var cards_x := cx - total_w / 2.0
 	var cards_y := 100.0
@@ -261,9 +305,15 @@ func _draw() -> void:
 			char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, char_color)
 
 		# Subtitle
-		var sub_w := font.get_string_size(char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-		draw_string(font, Vector2(card_x + card_w / 2.0 - sub_w / 2.0, cards_y + 48),
-			char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.6, 0.6, 0.6))
+		var sub_y := cards_y + 48
+		var sub_max_w := card_w - CARD_MARGIN * 2.0
+		var subtitle_width := font.get_string_size(char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		if subtitle_width <= sub_max_w:
+			draw_string(font, Vector2(card_x + card_w / 2.0 - subtitle_width / 2.0, sub_y),
+				char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.6, 0.6, 0.6))
+		else:
+			_draw_wrapped_text(font, char_sub, Vector2(card_x + CARD_MARGIN, sub_y),
+				sub_max_w, 11, Color(0.6, 0.6, 0.6), 12.0, 2)
 
 		# Abilities list
 		for a_i in abilities.size():
@@ -271,11 +321,14 @@ func _draw() -> void:
 			var a_name: String = ability["name"] as String
 			var a_btn: String = ability["button"] as String
 			var a_text := "[%s] %s" % [a_btn, a_name]
-			draw_string(font, Vector2(card_x + 10, cards_y + 78 + a_i * 22),
-				a_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.75, 0.75, 0.75))
+			var text_x := card_x + CARD_MARGIN
+			var text_w := card_w - CARD_MARGIN * 2.0
+			var block_y := cards_y + 82 + a_i * ABILITY_BLOCK_HEIGHT
+			draw_string(font, Vector2(text_x, block_y),
+				a_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.82, 0.82, 0.82))
 			var a_desc: String = ability["desc"] as String
-			draw_string(font, Vector2(card_x + 10, cards_y + 92 + a_i * 22),
-				a_desc, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.5, 0.5, 0.5))
+			_draw_wrapped_text(font, a_desc, Vector2(text_x, block_y + 14),
+				text_w, 9, Color(0.55, 0.55, 0.55), ABILITY_LINE_HEIGHT, 2)
 
 		# TAKEN label
 		if is_taken:
