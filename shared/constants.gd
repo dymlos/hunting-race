@@ -19,7 +19,8 @@ const TRAP_LETHAL_COOLDOWN: float = 8.0
 const TRAP_LETHAL_RADIUS: float = 20.0
 
 # --- Phase durations ---
-const OBSERVATION_DURATION: float = 10.0
+const OBSERVATION_DURATION: float = 5.0
+const HUNT_COUNTDOWN_DURATION: float = 10.0
 const ROUND_END_DURATION: float = 3.0
 
 # --- Match ---

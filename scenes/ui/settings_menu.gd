@@ -45,9 +45,14 @@ func _ready() -> void:
 			"value": 0,
 		},
 		{
-			"key": "observation_duration", "label": "Hunt Countdown Time",
-			"type": "int", "min": 1, "max": 10, "step": 1,
+			"key": "observation_duration", "label": "Observation Time",
+			"type": "int", "min": 1, "max": 20, "step": 1,
 			"value": int(Constants.OBSERVATION_DURATION),
+		},
+		{
+			"key": "hunt_countdown_duration", "label": "Hunt Countdown Time",
+			"type": "int", "min": 1, "max": 10, "step": 1,
+			"value": int(Constants.HUNT_COUNTDOWN_DURATION),
 		},
 		{
 			"key": "score_to_win", "label": "Score to Win",

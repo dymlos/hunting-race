@@ -42,6 +42,10 @@ func _process(delta: float) -> void:
 		return
 
 	match current_state:
+		Enums.GameState.OBSERVATION:
+			_phase_timer -= delta
+			if _phase_timer <= 0.0:
+				activate_hunt()
 		Enums.GameState.HUNT:
 			_phase_timer -= delta
 			if _phase_timer <= 0.0:
@@ -122,10 +126,17 @@ func start_observation() -> void:
 		if role_assignments[pi] == Enums.Role.ESCAPIST:
 			_living_escapists += 1
 	_phase_timer = settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float
-	_change_state(Enums.GameState.HUNT)
+	_change_state(Enums.GameState.OBSERVATION)
 	round_started.emit(round_number)
+
+
+func activate_hunt() -> void:
+	trap_lifetime_active = false
 	if not settings_overrides.get(&"hunt_countdown_enabled", true):
 		activate_escape()
+		return
+	_phase_timer = settings_overrides.get(&"hunt_countdown_duration", Constants.HUNT_COUNTDOWN_DURATION) as float
+	_change_state(Enums.GameState.HUNT)
 
 
 func activate_escape() -> void:
@@ -218,6 +229,12 @@ func apply_runtime_settings() -> void:
 		current_state == Enums.GameState.ESCAPE
 		or (current_state == Enums.GameState.PAUSED and _pre_pause_state == Enums.GameState.ESCAPE)
 	)
+	if current_state == Enums.GameState.OBSERVATION:
+		var observation_duration := settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float
+		_phase_timer = minf(_phase_timer, observation_duration)
+	elif current_state == Enums.GameState.PAUSED and _pre_pause_state == Enums.GameState.OBSERVATION:
+		var observation_duration := settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float
+		_phase_timer = minf(_phase_timer, observation_duration)
 	if current_state == Enums.GameState.HUNT and not countdown_enabled:
 		activate_escape()
 	elif current_state == Enums.GameState.PAUSED and _pre_pause_state == Enums.GameState.HUNT and not countdown_enabled:
@@ -226,7 +243,10 @@ func apply_runtime_settings() -> void:
 		_hunt_timer = settings_overrides.get(&"hunt_duration", Constants.HUNT_DURATION) as float
 		_pre_pause_state = Enums.GameState.ESCAPE
 	elif current_state == Enums.GameState.PAUSED and _pre_pause_state == Enums.GameState.HUNT:
-		var countdown_duration := settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float
+		var countdown_duration := settings_overrides.get(&"hunt_countdown_duration", Constants.HUNT_COUNTDOWN_DURATION) as float
+		_phase_timer = minf(_phase_timer, countdown_duration)
+	elif current_state == Enums.GameState.HUNT:
+		var countdown_duration := settings_overrides.get(&"hunt_countdown_duration", Constants.HUNT_COUNTDOWN_DURATION) as float
 		_phase_timer = minf(_phase_timer, countdown_duration)
 	elif is_escape_context:
 		var duration := settings_overrides.get(&"hunt_duration", Constants.HUNT_DURATION) as float

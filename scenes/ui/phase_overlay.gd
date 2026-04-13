@@ -7,13 +7,23 @@ var _text: String = ""
 var _sub_text: String = ""
 var _text_color: Color = Color.WHITE
 var _show_timer: float = 0.0
+var _anchor_top: bool = false
 var input_blocked: bool = false
 
 
-func show_observation(time_left: float) -> void:
+func show_observation(_time_left: float) -> void:
+	_text = ""
+	_sub_text = ""
+	_anchor_top = false
+	visible = false
+	queue_redraw()
+
+
+func show_hunt_countdown(time_left: float) -> void:
 	_text = "HUNT"
 	_sub_text = "%d" % ceili(time_left)
 	_text_color = Color.YELLOW
+	_anchor_top = true
 	visible = true
 	queue_redraw()
 
@@ -23,6 +33,7 @@ func show_hunt() -> void:
 	_sub_text = ""
 	_text_color = Color.RED
 	_show_timer = 2.0
+	_anchor_top = true
 	visible = true
 	queue_redraw()
 
@@ -32,6 +43,7 @@ func show_escape() -> void:
 	_sub_text = ""
 	_text_color = Color.RED
 	_show_timer = 2.0
+	_anchor_top = false
 	visible = true
 	queue_redraw()
 
@@ -41,6 +53,7 @@ func show_round_end(escapist_team: Enums.Team, scores: Array[int]) -> void:
 	_text = "ROUND OVER"
 	_sub_text = "Score: %d - %d" % [scores[0], scores[1]]
 	_text_color = Color.WHITE
+	_anchor_top = false
 	visible = true
 	queue_redraw()
 
@@ -49,6 +62,7 @@ func show_match_end(winning_team: Enums.Team, scores: Array[int]) -> void:
 	_text = "TEAM %d WINS!" % winning_team
 	_sub_text = "Final: %d - %d | START to restart" % [scores[0], scores[1]]
 	_text_color = Enums.team_color(winning_team)
+	_anchor_top = false
 	visible = true
 	queue_redraw()
 
@@ -72,7 +86,7 @@ func _draw() -> void:
 
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
-	var cy := screen.y / 2.0
+	var cy := 112.0 if _anchor_top else screen.y / 2.0
 	var font := ThemeDB.fallback_font
 
 	var text_size := 36

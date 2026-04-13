@@ -58,7 +58,7 @@ func _draw() -> void:
 	# Phase indicator
 	var phase := ""
 	match GameManager.current_state:
-		Enums.GameState.OBSERVATION: phase = "OBSERVE"
+		Enums.GameState.OBSERVATION: phase = ""
 		Enums.GameState.HUNT: phase = "HUNT"
 		Enums.GameState.ESCAPE: phase = "ESCAPE"
 		Enums.GameState.ROUND_END: phase = "ROUND END"

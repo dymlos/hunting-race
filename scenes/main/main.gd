@@ -40,6 +40,10 @@ var _is_first_round: bool = true  # Tracks if this is the initial pre-game selec
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	arena_container.process_mode = Node.PROCESS_MODE_PAUSABLE
+	character_container.process_mode = Node.PROCESS_MODE_PAUSABLE
+	camera.process_mode = Node.PROCESS_MODE_PAUSABLE
+	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
 
 	team_setup = TeamSetupScene.instantiate() as TeamSetup
 	ui_layer.add_child(team_setup)
@@ -253,8 +257,8 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 		Enums.GameState.OBSERVATION:
 			_spawn_characters()
 			_freeze_all()
+			phase_overlay.clear()
 		Enums.GameState.HUNT:
-			_spawn_characters()
 			_freeze_escapists_only()
 		Enums.GameState.ESCAPE:
 			phase_overlay.show_escape()
@@ -289,9 +293,9 @@ func _process(_delta: float) -> void:
 		return
 
 	if state == Enums.GameState.HUNT:
-		phase_overlay.show_observation(GameManager.get_observation_time())
+		phase_overlay.show_hunt_countdown(GameManager.get_observation_time())
 
-	if state == Enums.GameState.HUNT or state == Enums.GameState.ESCAPE:
+	if state == Enums.GameState.OBSERVATION or state == Enums.GameState.HUNT or state == Enums.GameState.ESCAPE:
 		_check_pause_input()
 
 	if state == Enums.GameState.ESCAPE:
@@ -386,6 +390,7 @@ func _check_restart_input() -> void:
 func _pause_game() -> void:
 	GameManager.pause_game()
 	_prime_start_button_state()
+	push_view(pause_menu)
 	pause_menu.open()
 	InputManager.suppress_edge_detection(3)
 	get_tree().paused = true
@@ -412,8 +417,11 @@ func _reset_to_team_setup() -> void:
 
 
 func _clear_pause_menu() -> void:
+	while pause_menu and pause_menu in _view_stack:
+		pop_view()
 	if pause_menu:
 		pause_menu.hide()
+		pause_menu.input_blocked = false
 
 
 func _prime_start_button_state() -> void:
@@ -444,6 +452,8 @@ func _on_setting_changed(key: String, value: Variant) -> void:
 			GameManager.settings_overrides[&"hunt_duration"] = value
 		"observation_duration":
 			GameManager.settings_overrides[&"observation_duration"] = value
+		"hunt_countdown_duration":
+			GameManager.settings_overrides[&"hunt_countdown_duration"] = value
 		"score_to_win":
 			GameManager.settings_overrides[&"score_to_win"] = value
 		"team_size":
