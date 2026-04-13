@@ -6,6 +6,7 @@ const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
 const SettingsMenuScene := preload("res://scenes/ui/settings_menu.tscn")
+const PauseMenuScene := preload("res://scenes/ui/pause_menu.gd")
 const ArenaScene := preload("res://scenes/arena/arena.tscn")
 const PhaseOverlayScene := preload("res://scenes/ui/phase_overlay.tscn")
 const GameHudScene := preload("res://scenes/ui/game_hud.tscn")
@@ -31,12 +32,15 @@ var team_setup: TeamSetup
 var stage_select: StageSelect
 var character_select: CharacterSelect
 var settings_menu: SettingsMenu
+var pause_menu: PauseMenu
 var phase_overlay: PhaseOverlay
 var game_hud: GameHud
 var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 	team_setup = TeamSetupScene.instantiate() as TeamSetup
 	ui_layer.add_child(team_setup)
 	team_setup.hide()
@@ -61,6 +65,12 @@ func _ready() -> void:
 	settings_menu.closed.connect(_close_settings)
 	settings_menu.setting_changed.connect(_on_setting_changed)
 
+	pause_menu = PauseMenuScene.new() as PauseMenu
+	ui_layer.add_child(pause_menu)
+	pause_menu.hide()
+	pause_menu.resume_requested.connect(_resume_from_pause)
+	pause_menu.reset_requested.connect(_reset_to_team_setup)
+
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
 	phase_overlay.hide()
@@ -80,6 +90,8 @@ func _ready() -> void:
 
 
 func _start_team_setup() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
 	_cleanup_round()
 	_active_player_indices.clear()
 	if arena:
@@ -268,6 +280,10 @@ func _on_escapist_died(_team: Enums.Team) -> void:
 func _process(_delta: float) -> void:
 	var state := GameManager.current_state
 
+	if state == Enums.GameState.PAUSED:
+		_check_pause_input()
+		return
+
 	if state == Enums.GameState.OBSERVATION:
 		phase_overlay.show_observation(GameManager.get_observation_time())
 
@@ -331,8 +347,10 @@ func _check_pause_input() -> void:
 		var was_pressed: bool = _prev_start_pressed.get(pi, false)
 		_prev_start_pressed[pi] = pressed
 		if pressed and not was_pressed:
-			GameManager.pause_game()
-			get_tree().paused = true
+			if GameManager.current_state == Enums.GameState.PAUSED:
+				_resume_from_pause()
+			else:
+				_pause_game()
 			return
 
 
@@ -346,9 +364,46 @@ func _check_restart_input() -> void:
 		var was_pressed: bool = _prev_start_pressed.get(pi, false)
 		_prev_start_pressed[pi] = pressed
 		if pressed and not was_pressed:
-			GameManager.reset_match()
-			_start_team_setup()
+			_reset_to_team_setup()
 			return
+
+
+func _pause_game() -> void:
+	GameManager.pause_game()
+	_prime_start_button_state()
+	pause_menu.open()
+	InputManager.suppress_edge_detection(3)
+	get_tree().paused = true
+
+
+func _resume_from_pause() -> void:
+	if GameManager.current_state != Enums.GameState.PAUSED:
+		return
+	get_tree().paused = false
+	_clear_pause_menu()
+	GameManager.unpause_game()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _reset_to_team_setup() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	GameManager.reset_match()
+	_start_team_setup()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _clear_pause_menu() -> void:
+	if pause_menu:
+		pause_menu.hide()
+
+
+func _prime_start_button_state() -> void:
+	for pi in _active_player_indices:
+		var device_id := InputManager.get_device_id(pi)
+		_prev_start_pressed[pi] = device_id >= 0 and Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
 
 
 # --- Settings ---
