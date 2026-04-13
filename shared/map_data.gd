@@ -128,12 +128,19 @@ static func get_gauntlet_map() -> Dictionary:
 		# ============================================================
 		{"pos": Vector2(1850, t), "size": Vector2(t, 250)},
 		{"pos": Vector2(1850, h - 250 - t), "size": Vector2(t, 250)},
-		# Maze blocks (sticky walls overlaid as hazards)
-		{"pos": Vector2(1920, 350), "size": Vector2(60, 180)},
-		{"pos": Vector2(1920, 700), "size": Vector2(60, 180)},
-		{"pos": Vector2(2060, 500), "size": Vector2(60, 200)},
-		{"pos": Vector2(2200, 350), "size": Vector2(60, 150)},
-		{"pos": Vector2(2200, 720), "size": Vector2(60, 150)},
+		# Maze blocks with passable gaps between each pair.
+		{"pos": Vector2(1920, 300), "size": Vector2(38, 180)},
+		{"pos": Vector2(1920, 690), "size": Vector2(38, 220)},
+		{"pos": Vector2(2045, 120), "size": Vector2(38, 220)},
+		{"pos": Vector2(2045, 520), "size": Vector2(38, 220)},
+		{"pos": Vector2(2170, 300), "size": Vector2(38, 220)},
+		{"pos": Vector2(2170, 730), "size": Vector2(38, 230)},
+		{"pos": Vector2(2280, 170), "size": Vector2(38, 190)},
+		{"pos": Vector2(2280, 840), "size": Vector2(38, 180)},
+		{"pos": Vector2(1920, 564), "size": Vector2(150, 12)},
+		{"pos": Vector2(2035, 404), "size": Vector2(170, 12)},
+		{"pos": Vector2(2045, 824), "size": Vector2(160, 12)},
+		{"pos": Vector2(2200, 604), "size": Vector2(80, 12)},
 	]
 
 	var top_sticky_left_bounds := Rect2(Vector2(380, 40), Vector2(110, 210))
@@ -164,7 +171,19 @@ static func get_gauntlet_map() -> Dictionary:
 	var center_ice_sticky_mid_bounds := Rect2(Vector2(1160, 350), Vector2(180, 180))
 	var center_ice_sticky_lower_bounds := Rect2(Vector2(1280, 690), Vector2(230, 70))
 	var center_ice_sticky_right_bounds := Rect2(Vector2(1490, 445), Vector2(170, 200))
-	var sticky_maze_bounds := Rect2(Vector2(1780, 250), Vector2(600, 730))
+	var center_entry_lift_bounds := Rect2(Vector2(740, 560), Vector2(340, 170))
+	var sticky_maze_left_top_bounds := Rect2(Vector2(1890, 280), Vector2(130, 220))
+	var sticky_maze_left_bottom_bounds := Rect2(Vector2(1885, 660), Vector2(150, 260))
+	var sticky_maze_mid_top_bounds := Rect2(Vector2(2020, 170), Vector2(150, 260))
+	var sticky_maze_mid_bottom_bounds := Rect2(Vector2(2020, 535), Vector2(170, 260))
+	var sticky_maze_right_top_bounds := Rect2(Vector2(2160, 270), Vector2(150, 280))
+	var sticky_maze_right_bottom_bounds := Rect2(Vector2(2160, 680), Vector2(150, 260))
+	var sticky_maze_goal_top_bounds := Rect2(Vector2(2245, 250), Vector2(115, 260))
+	var sticky_maze_goal_bottom_bounds := Rect2(Vector2(2245, 660), Vector2(115, 260))
+	var sticky_maze_lift_left_bounds := Rect2(Vector2(1810, 440), Vector2(150, 260))
+	var sticky_maze_lift_upper_bounds := Rect2(Vector2(1885, 340), Vector2(110, 300))
+	var sticky_maze_lift_mid_bounds := Rect2(Vector2(2085, 450), Vector2(110, 260))
+	var sticky_maze_lift_bottom_bounds := Rect2(Vector2(2010, 890), Vector2(360, 80))
 	var top_entrance_sticky_bounds := Rect2(Vector2(1840, 120), Vector2(50, 330))
 	var bottom_entrance_sticky_bounds := Rect2(Vector2(1840, 720), Vector2(50, 330))
 
@@ -392,6 +411,15 @@ static func get_gauntlet_map() -> Dictionary:
 			"bounds": center_ice_sticky_right_bounds,
 		},
 		{
+			"type": "moving_wall",
+			"pos": Vector2(780, 585),
+			"size": Vector2(12, 120),
+			"end_pos": Vector2(940, 585),
+			"period": 2.4,
+			"fixed": true,
+			"bounds": center_entry_lift_bounds,
+		},
+		{
 			"type": "frost_vent",
 			"pos": Vector2(950, 170),
 			"size": Vector2(84, 22),
@@ -469,38 +497,113 @@ static func get_gauntlet_map() -> Dictionary:
 		# === STICKY MAZE: overlaid on the maze blocks ===
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(1918, 530),
-			"size": Vector2(64, 170),
-			"jitter": Vector2(130, 130),
-			"bounds": sticky_maze_bounds,
+			"pos": Vector2(1925, 325),
+			"size": Vector2(28, 130),
+			"jitter": Vector2(28, 40),
+			"bounds": sticky_maze_left_top_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(2058, 350),
-			"size": Vector2(64, 150),
-			"jitter": Vector2(130, 130),
-			"bounds": sticky_maze_bounds,
+			"pos": Vector2(1925, 735),
+			"size": Vector2(28, 130),
+			"jitter": Vector2(32, 55),
+			"bounds": sticky_maze_left_bottom_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(2058, 700),
-			"size": Vector2(64, 150),
-			"jitter": Vector2(130, 130),
-			"bounds": sticky_maze_bounds,
+			"pos": Vector2(2050, 195),
+			"size": Vector2(28, 115),
+			"jitter": Vector2(32, 55),
+			"bounds": sticky_maze_mid_top_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(2198, 500),
-			"size": Vector2(64, 70),
-			"jitter": Vector2(130, 130),
-			"bounds": sticky_maze_bounds,
+			"pos": Vector2(2050, 580),
+			"size": Vector2(28, 115),
+			"jitter": Vector2(38, 55),
+			"bounds": sticky_maze_mid_bottom_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(2198, 870),
-			"size": Vector2(64, 50),
-			"jitter": Vector2(130, 130),
-			"bounds": sticky_maze_bounds,
+			"pos": Vector2(2175, 360),
+			"size": Vector2(28, 125),
+			"jitter": Vector2(35, 55),
+			"bounds": sticky_maze_right_top_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(2175, 770),
+			"size": Vector2(28, 125),
+			"jitter": Vector2(35, 55),
+			"bounds": sticky_maze_right_bottom_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(2285, 245),
+			"size": Vector2(28, 90),
+			"jitter": Vector2(24, 45),
+			"bounds": sticky_maze_goal_top_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(2285, 850),
+			"size": Vector2(28, 90),
+			"jitter": Vector2(24, 45),
+			"bounds": sticky_maze_goal_bottom_bounds,
+		},
+		{
+			"type": "slippery_zone",
+			"pos": Vector2(1875, 155),
+			"size": Vector2(165, 85),
+			"fixed": true,
+		},
+		{
+			"type": "slippery_zone",
+			"pos": Vector2(1985, 920),
+			"size": Vector2(170, 85),
+			"fixed": true,
+		},
+		{
+			"type": "slippery_zone",
+			"pos": Vector2(2215, 520),
+			"size": Vector2(125, 95),
+			"fixed": true,
+		},
+		{
+			"type": "moving_wall",
+			"pos": Vector2(1825, 650),
+			"size": Vector2(120, 12),
+			"end_pos": Vector2(1825, 470),
+			"period": 2.6,
+			"fixed": true,
+			"bounds": sticky_maze_lift_left_bounds,
+		},
+		{
+			"type": "moving_wall",
+			"pos": Vector2(1915, 600),
+			"size": Vector2(12, 120),
+			"end_pos": Vector2(1915, 380),
+			"period": 2.8,
+			"fixed": true,
+			"bounds": sticky_maze_lift_upper_bounds,
+		},
+		{
+			"type": "moving_wall",
+			"pos": Vector2(2135, 500),
+			"size": Vector2(12, 130),
+			"end_pos": Vector2(2135, 640),
+			"period": 2.5,
+			"fixed": true,
+			"bounds": sticky_maze_lift_mid_bounds,
+		},
+		{
+			"type": "moving_wall",
+			"pos": Vector2(2250, 930),
+			"size": Vector2(120, 12),
+			"end_pos": Vector2(2025, 930),
+			"period": 3.0,
+			"fixed": true,
+			"bounds": sticky_maze_lift_bottom_bounds,
 		},
 		# Thin sticky strips on corridor entrance walls
 		{
@@ -530,7 +633,7 @@ static func get_gauntlet_map() -> Dictionary:
 			Vector2(120, 670), Vector2(120, 780),
 			Vector2(200, 500), Vector2(200, 620),
 		],
-		"goal": Rect2(w - t - 100, 250, 100, h - 500),
+		"goal": Rect2(w - t - 70, 430, 70, 340),
 	}
 
 
