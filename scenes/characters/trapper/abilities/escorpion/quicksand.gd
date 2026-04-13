@@ -76,6 +76,8 @@ class QuicksandZone extends Area2D:
 				var esc := character as Escapist
 				if esc.is_dead or esc.has_scored:
 					continue
+				if esc.is_effect_immune():
+					continue
 
 			var to_center: Vector2 = global_position - character.global_position
 			var dist: float = to_center.length()

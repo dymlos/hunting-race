@@ -104,6 +104,8 @@ class TentacleNode extends Area2D:
 		if esc.team == owner_team or esc.is_dead or esc.has_scored:
 			return
 		GameManager.register_trap_contact(esc.player_index)
+		if esc.is_effect_immune():
+			return
 
 		match _state:
 			TentacleState.WAITING:

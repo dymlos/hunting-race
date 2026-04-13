@@ -37,6 +37,14 @@ enum TrapperCharacter {
 	PULPO,
 }
 
+enum EscapistAnimal {
+	NONE,
+	RABBIT,
+	RAT,
+	SQUIRREL,
+	FLY,
+}
+
 
 static func team_color(team: Team) -> Color:
 	if team == Team.TEAM_1:
@@ -77,4 +85,22 @@ static func trapper_character_color(tc: TrapperCharacter) -> Color:
 		TrapperCharacter.HONGO: return Color(0.2, 0.8, 0.3)
 		TrapperCharacter.ESCORPION: return Color(0.9, 0.5, 0.1)
 		TrapperCharacter.PULPO: return Color(0.2, 0.5, 0.9)
+	return Color.WHITE
+
+
+static func escapist_animal_name(animal: EscapistAnimal) -> String:
+	match animal:
+		EscapistAnimal.RABBIT: return "RABBIT"
+		EscapistAnimal.RAT: return "RAT"
+		EscapistAnimal.SQUIRREL: return "SQUIRREL"
+		EscapistAnimal.FLY: return "FLY"
+	return "None"
+
+
+static func escapist_animal_color(animal: EscapistAnimal) -> Color:
+	match animal:
+		EscapistAnimal.RABBIT: return Color(0.95, 0.95, 0.95)
+		EscapistAnimal.RAT: return Color(0.55, 0.55, 0.6)
+		EscapistAnimal.SQUIRREL: return Color(0.9, 0.55, 0.18)
+		EscapistAnimal.FLY: return Color(0.3, 0.9, 0.85)
 	return Color.WHITE

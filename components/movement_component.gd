@@ -101,6 +101,8 @@ func _check_sticky_walls() -> void:
 		var collision := body.get_slide_collision(i)
 		var collider := collision.get_collider()
 		if collider is Node and (collider as Node).is_in_group("sticky_walls"):
+			if body is Escapist and (body as Escapist).is_effect_immune():
+				continue
 			var wall_id := (collider as Node).get_instance_id()
 			if wall_id in _sticky_cooldowns:
 				continue  # This wall is still on cooldown
@@ -147,6 +149,8 @@ func apply_movement(input_vector: Vector2) -> void:
 
 
 func set_speed_modifier(key: StringName, value: float) -> void:
+	if key != &"fly_boost" and body is Escapist and (body as Escapist).is_effect_immune():
+		return
 	_speed_modifiers[key] = value
 
 
@@ -166,6 +170,8 @@ func clear_speed_modifiers() -> void:
 
 
 func start_dash(direction: Vector2, distance: float, on_complete: Callable = Callable(), duration: float = 0.1) -> void:
+	if body is Escapist and (body as Escapist).is_effect_immune():
+		return
 	_dash_direction = direction.normalized()
 	_dash_remaining = distance
 	_dash_speed = distance / duration

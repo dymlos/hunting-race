@@ -12,6 +12,7 @@ var current_state: Enums.GameState = Enums.GameState.TEAM_SETUP
 var team_assignments: Dictionary = {}          # {player_index: Enums.Team}
 var role_assignments: Dictionary = {}          # {player_index: Enums.Role}
 var character_selections: Dictionary = {}      # {player_index: Enums.TrapperCharacter}
+var escapist_selections: Dictionary = {}       # {player_index: Enums.EscapistAnimal}
 var player_characters: Dictionary = {}         # {player_index: Node2D}
 var settings_overrides: Dictionary = {}        # {StringName: Variant} — from settings menu
 var player_score_history: Dictionary = {}
@@ -70,8 +71,17 @@ func set_character_selections(selections: Dictionary) -> void:
 		character_selections[pi] = selections[pi]
 
 
+func set_escapist_selections(selections: Dictionary) -> void:
+	for pi: int in selections:
+		escapist_selections[pi] = selections[pi]
+
+
 func get_player_character(player_index: int) -> Enums.TrapperCharacter:
 	return character_selections.get(player_index, Enums.TrapperCharacter.NONE) as Enums.TrapperCharacter
+
+
+func get_player_escapist_animal(player_index: int) -> Enums.EscapistAnimal:
+	return escapist_selections.get(player_index, Enums.EscapistAnimal.RABBIT) as Enums.EscapistAnimal
 
 
 func get_trapping_team() -> Enums.Team:
@@ -190,6 +200,9 @@ func register_trap_contact(player_index: int) -> void:
 		return
 	var stats: Dictionary = _round_stats[player_index]
 	stats["trap_contacts"] = (stats.get("trap_contacts", 0) as int) + 1
+	var character: Node = player_characters.get(player_index, null) as Node
+	if character and is_instance_valid(character) and character.has_method("notify_trap_contact"):
+		character.call("notify_trap_contact")
 
 
 func register_respawn_penalty(player_index: int, reason: StringName) -> void:
@@ -259,6 +272,7 @@ func reset_match() -> void:
 	player_characters.clear()
 	player_score_history.clear()
 	_round_stats.clear()
+	escapist_selections.clear()
 	role_assignments.clear()
 	character_selections.clear()
 	_change_state(Enums.GameState.TEAM_SETUP)

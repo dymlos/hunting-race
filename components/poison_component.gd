@@ -18,6 +18,8 @@ func setup(escapist: Node2D) -> void:
 
 
 func apply_poison(duration: float = -1.0) -> void:
+	if _owner_escapist is Escapist and (_owner_escapist as Escapist).is_effect_immune():
+		return
 	if duration < 0.0:
 		duration = GameManager.settings_overrides.get(&"poison_duration", Constants.POISON_DURATION) as float
 	if is_poisoned:

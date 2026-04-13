@@ -4,6 +4,7 @@ extends Node2D
 
 const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
+const EscapistSelectScene := preload("res://scenes/ui/escapist_select.tscn")
 const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
 const SettingsMenuScene := preload("res://scenes/ui/settings_menu.tscn")
 const PauseMenuScene := preload("res://scenes/ui/pause_menu.gd")
@@ -30,6 +31,7 @@ var _view_stack: Array[Control] = []
 # UI instances
 var team_setup: TeamSetup
 var stage_select: StageSelect
+var escapist_select: EscapistSelect
 var character_select: CharacterSelect
 var settings_menu: SettingsMenu
 var pause_menu: PauseMenu
@@ -56,6 +58,12 @@ func _ready() -> void:
 	stage_select.hide()
 	stage_select.stage_selected.connect(_on_stage_selected)
 	stage_select.back_requested.connect(_on_stage_back)
+
+	escapist_select = EscapistSelectScene.instantiate() as EscapistSelect
+	ui_layer.add_child(escapist_select)
+	escapist_select.hide()
+	escapist_select.escapists_ready.connect(_on_escapists_ready)
+	escapist_select.back_requested.connect(_on_escapist_back)
 
 	character_select = CharacterSelectScene.instantiate() as CharacterSelect
 	ui_layer.add_child(character_select)
@@ -127,11 +135,20 @@ func _on_teams_ready(t_assignments: Dictionary) -> void:
 func _on_stage_selected(stage_index: int) -> void:
 	_selected_stage_index = stage_index
 	_is_first_round = true
-	_show_character_select(true)
+	_show_escapist_select(true)
 
 
 func _on_stage_back() -> void:
 	_start_team_setup()
+
+
+func _show_escapist_select(allow_back: bool) -> void:
+	if _view_stack.is_empty():
+		push_view(escapist_select)
+	else:
+		replace_view(escapist_select)
+	escapist_select.setup(_active_player_indices, GameManager.team_assignments,
+		GameManager.escapist_team, allow_back)
 
 
 func _show_character_select(allow_back: bool) -> void:
@@ -141,6 +158,11 @@ func _show_character_select(allow_back: bool) -> void:
 		replace_view(character_select)
 	character_select.setup(_active_player_indices, GameManager.team_assignments,
 		GameManager.get_trapping_team(), allow_back)
+
+
+func _on_escapists_ready(selections: Dictionary) -> void:
+	GameManager.set_escapist_selections(selections)
+	_show_character_select(_is_first_round)
 
 
 func _on_characters_ready(selections: Dictionary) -> void:
@@ -160,14 +182,18 @@ func _on_characters_ready(selections: Dictionary) -> void:
 
 
 func _on_character_back() -> void:
+	_show_escapist_select(true)
+
+
+func _on_escapist_back() -> void:
 	replace_view(stage_select)
 	stage_select.setup()
 
 
 func _on_round_advancing() -> void:
-	# Between rounds: show character select for the new trapping team
+	# Between rounds: pick escapists first, then trappers.
 	phase_overlay.clear()
-	_show_character_select(false)
+	_show_escapist_select(false)
 
 
 func _setup_arena() -> void:
@@ -205,6 +231,8 @@ func _cleanup_round() -> void:
 	characters.clear()
 	for node in get_tree().get_nodes_in_group("traps"):
 		node.queue_free()
+	for node in get_tree().get_nodes_in_group("projectiles"):
+		node.queue_free()
 
 
 func _spawn_characters() -> void:
@@ -220,6 +248,7 @@ func _spawn_characters() -> void:
 			var esc := EscapistScene.instantiate() as Escapist
 			esc.player_index = pi
 			esc.team = t
+			esc.escapist_animal = GameManager.get_player_escapist_animal(pi)
 			esc.player_color = Enums.team_color(t)
 			esc.position = arena.get_spawn(escapist_idx)
 			esc.aim_direction = Vector2.RIGHT

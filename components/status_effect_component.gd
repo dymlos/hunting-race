@@ -26,6 +26,8 @@ func _process(delta: float) -> void:
 
 
 func apply_effect(cc_type: Enums.CCType, duration: float, slow_multiplier: float = 0.4) -> void:
+	if _movement and _movement.body is Escapist and (_movement.body as Escapist).is_effect_immune():
+		return
 	_active_effects[cc_type] = duration
 
 	match cc_type:

@@ -138,3 +138,23 @@ const PULPO_CURRENT_MAX: int = 2
 # --- Shared ability ---
 const POISON_DURATION: float = 5.0
 const POISON_CURE_RADIUS: float = 30.0
+
+# --- Escapist animals ---
+const RABBIT_LEAP_MIN_DIST: float = 90.0
+const RABBIT_LEAP_MAX_DIST: float = 260.0
+const RABBIT_LEAP_MAX_CHARGE: float = 1.2
+const RABBIT_LEAP_DURATION: float = 0.16
+
+const RAT_RESCUE_RANGE: float = 260.0
+const RAT_RESCUE_WIDTH: float = 48.0
+const RAT_RESCUE_PULL_DIST: float = 130.0
+const RAT_RESCUE_DURATION: float = 0.18
+
+const SQUIRREL_ACORN_SPEED: float = 620.0
+const SQUIRREL_ACORN_LIFETIME: float = 2.4
+const SQUIRREL_ACORN_RADIUS: float = 8.0
+const SQUIRREL_ACORN_BOUNCES: int = 3
+
+const FLY_COUNTER_DURATION: float = 2.0
+const FLY_BOOST_DURATION: float = 3.0
+const FLY_SPEED_BOOST: float = 1.75
