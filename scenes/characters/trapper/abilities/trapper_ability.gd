@@ -136,5 +136,5 @@ func draw_preview(trapper_node: Trapper) -> void:
 	trapper_node.draw_line(last_local, Vector2.ZERO, color, 1.5)
 	# Draw max range circle around last point
 	if max_point_distance > 0.0:
-		trapper_node.draw_arc(last_local, max_point_distance, 0, TAU, 25,
+		trapper_node.draw_arc(last_local, max_point_distance, 0, TAU, 24,
 			Color(color, 0.15), 1.0)
