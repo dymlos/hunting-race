@@ -193,7 +193,7 @@ func _update_set_reload(delta: float) -> void:
 	for ability: TrapperAbility in _abilities:
 		ability.refill_charges()
 	_spent_ability_indices.clear()
-	_show_floating_text("Reloaded !!", Enums.trapper_character_color(trapper_character))
+	_show_floating_text("Reloaded !!", Color.WHITE)
 
 
 func _show_floating_text(text: String, text_color: Color) -> void:
@@ -240,10 +240,14 @@ func _draw() -> void:
 
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / Constants.FLOATING_TEXT_DURATION, 0.0, 1.0)
-		var text_size := 12
+		var text_size := 18
 		var text_w := ThemeDB.fallback_font.get_string_size(
 			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
-		draw_string(ThemeDB.fallback_font, Vector2(-text_w / 2.0, -size - 32),
+		var text_pos := Vector2(-text_w / 2.0, -size - 40)
+		draw_string(ThemeDB.fallback_font, text_pos + Vector2(2.0, 2.0),
+			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size,
+			Color(0.0, 0.0, 0.0, 0.65 * text_alpha))
+		draw_string(ThemeDB.fallback_font, text_pos,
 			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size,
 			Color(_floating_text_color, text_alpha))
 

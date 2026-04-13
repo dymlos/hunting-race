@@ -7,6 +7,7 @@ var _text: String = ""
 var _sub_text: String = ""
 var _text_color: Color = Color.WHITE
 var _show_timer: float = 0.0
+var _escape_anim_time: float = 0.0
 var _anchor_top: bool = false
 var _detail_lines: Array[String] = []
 var _score_entries: Array[Dictionary] = []
@@ -57,7 +58,8 @@ func show_escape() -> void:
 	_score_entries.clear()
 	_show_match_totals = false
 	_text_color = Color.RED
-	_show_timer = 2.0
+	_show_timer = 2.6
+	_escape_anim_time = 0.0
 	_anchor_top = false
 	visible = true
 	queue_redraw()
@@ -93,6 +95,7 @@ func clear() -> void:
 	_detail_lines.clear()
 	_score_entries.clear()
 	_show_match_totals = false
+	_escape_anim_time = 0.0
 	visible = false
 
 
@@ -145,6 +148,9 @@ func _build_match_lines(entries: Array[Dictionary]) -> Array[String]:
 func _process(delta: float) -> void:
 	if _show_timer > 0.0:
 		_show_timer -= delta
+		if _text == "ESCAPE!":
+			_escape_anim_time += delta
+		queue_redraw()
 		if _show_timer <= 0.0:
 			clear()
 
@@ -157,15 +163,23 @@ func _draw() -> void:
 	var cx := screen.x / 2.0
 	var cy := 112.0 if _anchor_top else screen.y / 2.0
 	var font := ThemeDB.fallback_font
+	var now := Time.get_ticks_msec() / 1000.0
+	var anim_time := _escape_anim_time if _text == "ESCAPE!" else now
 
 	var text_size := 36
 	var sub_text_size := 18
+	if _text == "ESCAPE!":
+		text_size = 96
+		sub_text_size = 24
 	var text_w := font.get_string_size(_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
 	var sub_text_w := 0.0
 	if not _sub_text.is_empty():
 		sub_text_w = font.get_string_size(_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x
 	var panel_w := maxf(text_w, sub_text_w) + 96.0
 	var panel_h := 82.0 if _sub_text.is_empty() else 118.0
+	if _text == "ESCAPE!":
+		panel_w = screen.x
+		panel_h = screen.y
 	if not _detail_lines.is_empty():
 		panel_w = maxf(panel_w, minf(screen.x - 120.0, 900.0))
 		panel_h += _detail_lines.size() * 18.0 + 24.0
@@ -176,12 +190,54 @@ func _draw() -> void:
 		Vector2(cx - panel_w / 2.0, cy - panel_h / 2.0),
 		Vector2(panel_w, panel_h)
 	)
-	draw_rect(panel_rect, Color(0, 0, 0, 0.68))
+	var panel_alpha := 0.68
+	if _text == "ESCAPE!":
+		panel_alpha = 0.82
+	draw_rect(panel_rect, Color(0, 0, 0, panel_alpha))
 	draw_rect(panel_rect, Color(0.8, 0.8, 0.8, 0.35), false, 2.0)
 
 	var title_w := font.get_string_size(_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
-	draw_string(font, Vector2(cx - title_w / 2.0, panel_rect.position.y + 48.0),
-		_text, HORIZONTAL_ALIGNMENT_CENTER, -1, text_size, _text_color)
+	var title_pos_y := panel_rect.position.y + 48.0
+	if _text == "ESCAPE!":
+		var beat_phase := fmod(anim_time * 1.35, 1.0)
+		var beat_primary := clampf(1.0 - absf(beat_phase - 0.12) / 0.12, 0.0, 1.0)
+		var beat_secondary := clampf(1.0 - absf(beat_phase - 0.32) / 0.09, 0.0, 1.0) * 0.55
+		var heartbeat := maxf(beat_primary, beat_secondary)
+		var idle_pulse := 0.5 + 0.5 * sin(anim_time * 2.4)
+		var flash_strength := 0.32 + 0.42 * heartbeat + 0.12 * idle_pulse
+		var escape_size := int(text_size * (1.0 + 0.16 * heartbeat + 0.025 * idle_pulse))
+		var escape_w := font.get_string_size(_text, HORIZONTAL_ALIGNMENT_LEFT, -1, escape_size).x
+		title_pos_y = screen.y * 0.5 - 36.0 - heartbeat * 10.0
+		var title_pos := Vector2(cx - escape_w / 2.0, title_pos_y)
+		draw_rect(Rect2(Vector2(0, 0), screen), Color(1.0, 0.06, 0.02, flash_strength * 0.10))
+		for ring in range(4):
+			var radius := 5.0 + float(ring) * 7.0 + heartbeat * 10.0
+			var alpha := (0.22 - 0.035 * float(ring)) + heartbeat * 0.18
+			for i in range(16):
+				var angle := (TAU / 16.0) * float(i)
+				var offset := Vector2.from_angle(angle) * radius
+				draw_string(font, title_pos + offset,
+					_text, HORIZONTAL_ALIGNMENT_CENTER, -1, escape_size,
+					Color(1.0, 0.12 + 0.08 * float(ring), 0.02, alpha))
+		var white_glow_alpha := 0.20 + 0.34 * heartbeat
+		for i in range(8):
+			var angle := (TAU / 8.0) * float(i) + anim_time * 0.6
+			var offset := Vector2.from_angle(angle) * (3.0 + heartbeat * 3.0)
+			draw_string(font, title_pos + offset,
+				_text, HORIZONTAL_ALIGNMENT_CENTER, -1, escape_size,
+				Color(1.0, 1.0, 1.0, white_glow_alpha))
+		var glow_color := Color(1.0, 0.34, 0.08, 0.62 + 0.26 * heartbeat)
+		draw_string(font, title_pos + Vector2(6.0, 6.0),
+			_text, HORIZONTAL_ALIGNMENT_CENTER, -1, escape_size, Color(0.0, 0.0, 0.0, 0.8))
+		draw_string(font, title_pos + Vector2(1.5, 1.5),
+			_text, HORIZONTAL_ALIGNMENT_CENTER, -1, escape_size, Color(0.0, 0.0, 0.0, 0.45))
+		draw_string(font, title_pos,
+			_text, HORIZONTAL_ALIGNMENT_CENTER, -1, escape_size, Color(1.0, 1.0, 1.0))
+		draw_string(font, title_pos + Vector2(0.0, -4.0),
+			_text, HORIZONTAL_ALIGNMENT_CENTER, -1, escape_size, glow_color)
+	else:
+		draw_string(font, Vector2(cx - title_w / 2.0, title_pos_y),
+			_text, HORIZONTAL_ALIGNMENT_CENTER, -1, text_size, _text_color)
 
 	if not _sub_text.is_empty():
 		var sub_w := font.get_string_size(_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x

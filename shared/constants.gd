@@ -18,7 +18,7 @@ const TRAP_RADIUS: float = 30.0
 const TRAP_LETHAL_COOLDOWN: float = 8.0
 const TRAP_LETHAL_RADIUS: float = 20.0
 const TRAPPER_SET_RELOAD_DELAY: float = 4.0
-const FLOATING_TEXT_DURATION: float = 1.4
+const FLOATING_TEXT_DURATION: float = 2.8
 
 # --- Phase durations ---
 const OBSERVATION_DURATION: float = 5.0
