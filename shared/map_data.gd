@@ -116,9 +116,7 @@ static func get_gauntlet_map() -> Dictionary:
 		# ============================================================
 		{"pos": Vector2(1300, t), "size": Vector2(t, 250)},          # top wall
 		{"pos": Vector2(1300, h - 300 - t), "size": Vector2(t, 300)}, # bottom wall
-		# Cover pillars
-		{"pos": Vector2(1450, 400), "size": Vector2(50, 50)},
-		{"pos": Vector2(1550, 650), "size": Vector2(50, 50)},
+		# Randomized ice boxes are defined as hazards.
 		# Exit narrowing (one-way gate as hazard)
 		{"pos": Vector2(1730, t), "size": Vector2(t, 300)},
 		{"pos": Vector2(1730, h - 300 - t), "size": Vector2(t, 300)},
@@ -152,7 +150,17 @@ static func get_gauntlet_map() -> Dictionary:
 	var bottom_sticky_upper_lane_bounds := Rect2(Vector2(380, 972), Vector2(250, 60))
 	var bottom_sticky_lower_lane_bounds := Rect2(Vector2(500, 1092), Vector2(260, 60))
 	var bottom_slippery_bounds := Rect2(Vector2(760, 850), Vector2(360, 150))
-	var slippery_bounds := Rect2(Vector2(760, 190), Vector2(760, 720))
+	var center_ice_rect := Rect2(Vector2(900, 250), Vector2(780, 580))
+	var center_ice_box_left_top_bounds := Rect2(Vector2(955, 305), Vector2(130, 170))
+	var center_ice_box_left_bottom_bounds := Rect2(Vector2(1035, 565), Vector2(145, 175))
+	var center_ice_box_mid_top_bounds := Rect2(Vector2(1165, 335), Vector2(145, 170))
+	var center_ice_box_mid_bottom_bounds := Rect2(Vector2(1285, 610), Vector2(145, 160))
+	var center_ice_box_right_top_bounds := Rect2(Vector2(1435, 330), Vector2(135, 175))
+	var center_ice_box_right_bottom_bounds := Rect2(Vector2(1540, 585), Vector2(120, 170))
+	var center_ice_sticky_left_bounds := Rect2(Vector2(970, 430), Vector2(210, 70))
+	var center_ice_sticky_mid_bounds := Rect2(Vector2(1160, 350), Vector2(180, 180))
+	var center_ice_sticky_lower_bounds := Rect2(Vector2(1280, 690), Vector2(230, 70))
+	var center_ice_sticky_right_bounds := Rect2(Vector2(1490, 445), Vector2(170, 200))
 	var sticky_maze_bounds := Rect2(Vector2(1780, 250), Vector2(600, 730))
 	var top_entrance_sticky_bounds := Rect2(Vector2(1840, 120), Vector2(50, 330))
 	var bottom_entrance_sticky_bounds := Rect2(Vector2(1840, 720), Vector2(50, 330))
@@ -289,13 +297,126 @@ static func get_gauntlet_map() -> Dictionary:
 			"bounds": bottom_sticky_lower_lane_bounds,
 		},
 
-		# === MERGE ZONE: ICE (x=950-1250, y=300-750) ===
+		# === CENTER ICE FIELD ===
 		{
 			"type": "slippery_zone",
-			"pos": Vector2(950, 300),
-			"size": Vector2(300, 450),
-			"jitter": Vector2(280, 210),
-			"bounds": slippery_bounds,
+			"pos": center_ice_rect.position,
+			"size": center_ice_rect.size,
+			"fixed": true,
+		},
+		{
+			"type": "ice_box",
+			"pos": Vector2(995, 345),
+			"size": Vector2(46, 46),
+			"jitter": Vector2(42, 58),
+			"bounds": center_ice_box_left_top_bounds,
+		},
+		{
+			"type": "ice_box",
+			"pos": Vector2(1090, 630),
+			"size": Vector2(56, 46),
+			"jitter": Vector2(48, 65),
+			"bounds": center_ice_box_left_bottom_bounds,
+		},
+		{
+			"type": "ice_box",
+			"pos": Vector2(1220, 390),
+			"size": Vector2(48, 56),
+			"jitter": Vector2(52, 60),
+			"bounds": center_ice_box_mid_top_bounds,
+		},
+		{
+			"type": "ice_box",
+			"pos": Vector2(1345, 665),
+			"size": Vector2(58, 42),
+			"jitter": Vector2(50, 58),
+			"bounds": center_ice_box_mid_bottom_bounds,
+		},
+		{
+			"type": "ice_box",
+			"pos": Vector2(1485, 405),
+			"size": Vector2(50, 50),
+			"jitter": Vector2(45, 62),
+			"bounds": center_ice_box_right_top_bounds,
+		},
+		{
+			"type": "ice_box",
+			"pos": Vector2(1580, 645),
+			"size": Vector2(48, 58),
+			"jitter": Vector2(42, 62),
+			"bounds": center_ice_box_right_bottom_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(1020, 455),
+			"size": Vector2(120, 18),
+			"jitter": Vector2(55, 24),
+			"bounds": center_ice_sticky_left_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(1210, 385),
+			"size": Vector2(18, 110),
+			"jitter": Vector2(58, 44),
+			"bounds": center_ice_sticky_mid_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(1340, 715),
+			"size": Vector2(130, 18),
+			"jitter": Vector2(62, 22),
+			"bounds": center_ice_sticky_lower_bounds,
+		},
+		{
+			"type": "sticky_wall",
+			"pos": Vector2(1535, 500),
+			"size": Vector2(18, 120),
+			"jitter": Vector2(54, 52),
+			"bounds": center_ice_sticky_right_bounds,
+		},
+		{
+			"type": "frost_vent",
+			"pos": Vector2(950, 170),
+			"size": Vector2(84, 22),
+			"fixed": true,
+			"direction": Vector2.DOWN,
+			"range": 520.0,
+			"width": 180.0,
+			"period": 0.95,
+			"force": 560.0,
+		},
+		{
+			"type": "frost_vent",
+			"pos": Vector2(1375, 170),
+			"size": Vector2(84, 22),
+			"fixed": true,
+			"direction": Vector2.DOWN,
+			"range": 520.0,
+			"width": 180.0,
+			"period": 1.0,
+			"force": 560.0,
+		},
+		{
+			"type": "frost_vent",
+			"pos": Vector2(1265, 900),
+			"size": Vector2(84, 22),
+			"fixed": true,
+			"direction": Vector2.UP,
+			"range": 440.0,
+			"width": 180.0,
+			"period": 0.9,
+			"force": 540.0,
+		},
+		{
+			"type": "frost_vent",
+			"pos": Vector2(1525, 900),
+			"size": Vector2(84, 22),
+			"fixed": true,
+			"direction": Vector2.UP,
+			"range": 440.0,
+			"width": 180.0,
+			"period": 1.0,
+			"force": 540.0,
 		},
 
 		# === OPEN ROOM: ONE-WAY GATE ===

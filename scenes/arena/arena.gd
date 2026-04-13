@@ -8,6 +8,7 @@ var _wall_bodies: Array[StaticBody2D] = []
 var _goal_zones: Array[Area2D] = []
 var _hazard_nodes: Array[Node] = []
 var _moving_wall_data: Array[Dictionary] = []  # For _draw() to render moving walls
+var _frost_vent_data: Array[Dictionary] = []
 var _hazard_tweens: Array[Tween] = []
 var _base_hazards: Array[Dictionary] = []
 var _active_hazards: Array[Dictionary] = []
@@ -66,6 +67,7 @@ func _clear_hazards() -> void:
 		node.queue_free()
 	_hazard_nodes.clear()
 	_moving_wall_data.clear()
+	_frost_vent_data.clear()
 
 
 func _duplicate_hazards(hazards: Array) -> Array[Dictionary]:
@@ -164,6 +166,8 @@ func randomize_hazards_for_round(round_number: int) -> void:
 
 func _randomized_hazard(def: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var result := def.duplicate(true)
+	if result.get("fixed", false) as bool:
+		return result
 	var jitter: Vector2 = result.get("jitter", Vector2.ZERO) as Vector2
 	if jitter == Vector2.ZERO or not result.has("pos"):
 		return result
@@ -225,6 +229,10 @@ func _build_hazards() -> void:
 				_build_slippery_zone(hazard_def)
 			"sticky_wall":
 				_build_sticky_wall(hazard_def)
+			"ice_box":
+				_build_ice_box(hazard_def)
+			"frost_vent":
+				_build_frost_vent(hazard_def)
 
 
 func _build_moving_wall(def: Dictionary) -> void:
@@ -409,6 +417,103 @@ func _build_sticky_wall(def: Dictionary) -> void:
 	_hazard_nodes.append(body)
 
 
+func _build_ice_box(def: Dictionary) -> void:
+	var pos: Vector2 = def["pos"]
+	var box_size: Vector2 = def["size"]
+
+	var body := StaticBody2D.new()
+	body.collision_layer = Constants.LAYER_WALLS
+	body.collision_mask = 0
+
+	var shape := RectangleShape2D.new()
+	shape.size = box_size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = box_size / 2.0
+
+	body.position = pos
+	body.add_child(col)
+	add_child(body)
+	_hazard_nodes.append(body)
+
+
+func _build_frost_vent(def: Dictionary) -> void:
+	var pos: Vector2 = def["pos"]
+	var vent_size: Vector2 = def["size"]
+	var blast_rect := _get_frost_vent_blast_rect(def)
+	var direction: Vector2 = (def.get("direction", Vector2.DOWN) as Vector2).normalized()
+	var force: float = def.get("force", Constants.FROST_VENT_FORCE) as float
+	var period: float = def.get("period", Constants.FROST_VENT_PERIOD) as float
+
+	var area := Area2D.new()
+	area.collision_layer = 0
+	area.collision_mask = Constants.LAYER_CHARACTERS
+	area.monitoring = true
+	area.monitorable = false
+
+	var shape := RectangleShape2D.new()
+	shape.size = blast_rect.size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = blast_rect.size / 2.0
+
+	area.position = blast_rect.position
+	area.add_child(col)
+	add_child(area)
+	_hazard_nodes.append(area)
+
+	var timer := Timer.new()
+	timer.wait_time = period
+	timer.autostart = true
+	timer.timeout.connect(_on_frost_vent_timeout.bind(area, direction, force))
+	area.add_child(timer)
+
+	_frost_vent_data.append({
+		"area": area,
+		"vent_pos": pos,
+		"vent_size": vent_size,
+		"blast_rect": blast_rect,
+		"direction": direction,
+	})
+
+
+func _get_frost_vent_blast_rect(def: Dictionary) -> Rect2:
+	var pos: Vector2 = def["pos"]
+	var vent_size: Vector2 = def["size"]
+	var direction: Vector2 = (def.get("direction", Vector2.DOWN) as Vector2).normalized()
+	var blast_range: float = def.get("range", 240.0) as float
+	var blast_width: float = def.get("width", 120.0) as float
+
+	if absf(direction.x) > absf(direction.y):
+		var y := pos.y + vent_size.y / 2.0 - blast_width / 2.0
+		if direction.x > 0.0:
+			return Rect2(Vector2(pos.x + vent_size.x, y), Vector2(blast_range, blast_width))
+		return Rect2(Vector2(pos.x - blast_range, y), Vector2(blast_range, blast_width))
+
+	var x := pos.x + vent_size.x / 2.0 - blast_width / 2.0
+	if direction.y > 0.0:
+		return Rect2(Vector2(x, pos.y + vent_size.y), Vector2(blast_width, blast_range))
+	return Rect2(Vector2(x, pos.y - blast_range), Vector2(blast_width, blast_range))
+
+
+func _on_frost_vent_timeout(area: Area2D, direction: Vector2, force: float) -> void:
+	if not is_instance_valid(area):
+		return
+	area.set_meta("pulse_timer", Constants.FROST_VENT_WARNING)
+	for body in area.get_overlapping_bodies():
+		if not body is BaseCharacter:
+			continue
+		var character := body as BaseCharacter
+		if character is Escapist:
+			var esc := character as Escapist
+			if esc.is_dead or esc.has_scored or esc.is_effect_immune():
+				continue
+			GameManager.register_trap_contact(esc.player_index)
+		character.movement.apply_impulse(direction * force)
+
+
 func _register_map_hazard_contact(body: Node2D) -> void:
 	if body is Escapist:
 		var esc := body as Escapist
@@ -511,8 +616,41 @@ func _draw_hazards() -> void:
 						var y1 := pos.y + (x1 - hx)
 						draw_line(Vector2(x0, y0), Vector2(x1, y1), hatch_color, 1.0)
 					hx += step
+			"ice_box":
+				var pos: Vector2 = hazard_def["pos"]
+				var size: Vector2 = hazard_def["size"]
+				draw_rect(Rect2(pos, size), Color(0.62, 0.62, 0.62))
+				draw_rect(Rect2(pos, size), Color(0.86, 0.86, 0.86, 0.65), false, 2.0)
+			"frost_vent":
+				var pos: Vector2 = hazard_def["pos"]
+				var size: Vector2 = hazard_def["size"]
+				var blast_rect := _get_frost_vent_blast_rect(hazard_def)
+				draw_rect(blast_rect, Constants.FROST_VENT_WARNING_COLOR)
+				draw_rect(Rect2(pos, size), Constants.FROST_VENT_COLOR)
+				draw_rect(Rect2(pos, size), Color(0.75, 1.0, 1.0, 0.8), false, 2.0)
+				var direction: Vector2 = (hazard_def.get("direction", Vector2.DOWN) as Vector2).normalized()
+				var center := pos + size / 2.0
+				draw_line(center, center + direction * 18.0, Color(0.75, 1.0, 1.0, 0.9), 3.0)
+
+	for vent_data in _frost_vent_data:
+		var area: Area2D = vent_data["area"] as Area2D
+		if not is_instance_valid(area):
+			continue
+		var pulse_timer: float = area.get_meta("pulse_timer", 0.0) as float
+		if pulse_timer <= 0.0:
+			continue
+		var blast_rect: Rect2 = vent_data["blast_rect"] as Rect2
+		var alpha := clampf(pulse_timer / Constants.FROST_VENT_WARNING, 0.0, 1.0)
+		draw_rect(blast_rect, Color(Constants.FROST_VENT_COLOR, 0.12 + alpha * 0.22))
 
 
 func _process(_delta: float) -> void:
-	if not _moving_wall_data.is_empty():
+	for vent_data in _frost_vent_data:
+		var area: Area2D = vent_data["area"] as Area2D
+		if not is_instance_valid(area):
+			continue
+		var pulse_timer: float = area.get_meta("pulse_timer", 0.0) as float
+		if pulse_timer > 0.0:
+			area.set_meta("pulse_timer", maxf(0.0, pulse_timer - _delta))
+	if not _moving_wall_data.is_empty() or not _frost_vent_data.is_empty():
 		queue_redraw()

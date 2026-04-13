@@ -11,6 +11,7 @@ var velocity: Vector2 = Vector2.ZERO
 var can_move: bool = true
 var slippery: bool = false  # Ice zone — lerp toward target velocity instead of snapping
 var _speed_modifiers: Dictionary = {}  # {StringName: float}
+var _external_velocity: Vector2 = Vector2.ZERO
 
 # Reference to parent CharacterBody2D — set by parent on ready
 var body: CharacterBody2D
@@ -69,8 +70,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var separation := _compute_separation()
-	body.velocity = velocity + separation
+	body.velocity = velocity + separation + _external_velocity
 	body.move_and_slide()
+	_external_velocity = _external_velocity.move_toward(Vector2.ZERO, Constants.FROST_VENT_IMPULSE_DECAY * delta)
 	_check_map_hazards()
 	_check_sticky_walls()
 
@@ -169,6 +171,14 @@ func clear_speed_modifiers() -> void:
 	_speed_modifiers.clear()
 
 
+func apply_impulse(impulse: Vector2) -> void:
+	if not can_move:
+		return
+	if body is Escapist and (body as Escapist).is_effect_immune():
+		return
+	_external_velocity += impulse
+
+
 func start_dash(direction: Vector2, distance: float, on_complete: Callable = Callable(), duration: float = 0.1) -> void:
 	if body is Escapist and (body as Escapist).is_effect_immune():
 		return
@@ -199,6 +209,7 @@ func _end_dash() -> void:
 func freeze() -> void:
 	can_move = false
 	velocity = Vector2.ZERO
+	_external_velocity = Vector2.ZERO
 
 
 func unfreeze() -> void:

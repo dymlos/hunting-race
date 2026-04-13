@@ -51,6 +51,12 @@ const ONE_WAY_COLOR := Color(0.2, 1.0, 0.4, 0.4)
 const SLIPPERY_MULTIPLIER: float = 1.2   # Faster on ice
 const SLIPPERY_LERP_WEIGHT: float = 0.04 # How slowly input takes effect on ice
 const ONE_WAY_PUSH_FORCE: float = 300.0
+const FROST_VENT_COLOR := Color(0.45, 0.95, 1.0, 0.38)
+const FROST_VENT_WARNING_COLOR := Color(0.45, 0.95, 1.0, 0.12)
+const FROST_VENT_FORCE: float = 520.0
+const FROST_VENT_IMPULSE_DECAY: float = 1400.0
+const FROST_VENT_PERIOD: float = 2.8
+const FROST_VENT_WARNING: float = 0.6
 
 # --- Collision layers (bit values) ---
 const LAYER_WALLS: int = 1
