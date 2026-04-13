@@ -66,11 +66,24 @@ func _draw() -> void:
 	var cy := screen.y / 2.0
 	var font := ThemeDB.fallback_font
 
-	draw_rect(Rect2(0, cy - 60, screen.x, 120), Color(0, 0, 0, 0.6))
+	var text_size := 36
+	var sub_text_size := 18
+	var text_w := font.get_string_size(_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
+	var sub_text_w := 0.0
+	if not _sub_text.is_empty():
+		sub_text_w = font.get_string_size(_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x
+	var panel_w := maxf(text_w, sub_text_w) + 96.0
+	var panel_h := 82.0 if _sub_text.is_empty() else 118.0
+	var panel_rect := Rect2(
+		Vector2(cx - panel_w / 2.0, cy - panel_h / 2.0),
+		Vector2(panel_w, panel_h)
+	)
+	draw_rect(panel_rect, Color(0, 0, 0, 0.68))
+	draw_rect(panel_rect, Color(0.8, 0.8, 0.8, 0.35), false, 2.0)
 
 	draw_string(font, Vector2(cx - _text.length() * 10, cy),
-		_text, HORIZONTAL_ALIGNMENT_CENTER, -1, 36, _text_color)
+		_text, HORIZONTAL_ALIGNMENT_CENTER, -1, text_size, _text_color)
 
 	if not _sub_text.is_empty():
 		draw_string(font, Vector2(cx - _sub_text.length() * 5, cy + 36),
-			_sub_text, HORIZONTAL_ALIGNMENT_CENTER, -1, 18, Color(0.8, 0.8, 0.8))
+			_sub_text, HORIZONTAL_ALIGNMENT_CENTER, -1, sub_text_size, Color(0.8, 0.8, 0.8))
