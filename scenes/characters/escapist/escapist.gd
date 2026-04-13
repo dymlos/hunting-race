@@ -22,6 +22,9 @@ var _rabbit_charge_time: float = 0.0
 var _fly_counter_timer: float = 0.0
 var _fly_boost_timer: float = 0.0
 var _effect_immunity_timer: float = 0.0
+var _floating_text: String = ""
+var _floating_text_timer: float = 0.0
+var _floating_text_color: Color = Color.WHITE
 
 
 func _setup_role() -> void:
@@ -81,18 +84,14 @@ func _physics_process(delta: float) -> void:
 			movement.remove_speed_modifier(&"fly_boost")
 	if _effect_immunity_timer > 0.0:
 		_effect_immunity_timer -= delta
+	_update_floating_text(delta)
 	super._physics_process(delta)
 
 
 func respawn() -> void:
 	if is_dead or has_scored:
 		return
-	position = spawn_position
-	movement.velocity = Vector2.ZERO
-	movement.slippery = false
-	movement.clear_speed_modifiers()
-	controls_inverted = false
-	_inversion_timer = 0.0
+	_return_to_spawn_with_death_message()
 	if poison.is_poisoned:
 		poison.cure()
 	_reset_ability()
@@ -104,11 +103,34 @@ func _on_crushed() -> void:
 	if is_effect_immune():
 		return
 	GameManager.register_respawn_penalty(player_index, &"crush")
+	_return_to_spawn_with_death_message()
+	_reset_ability()
+
+
+func _return_to_spawn_with_death_message() -> void:
 	position = spawn_position
 	movement.velocity = Vector2.ZERO
 	movement.slippery = false
 	movement.clear_speed_modifiers()
-	_reset_ability()
+	controls_inverted = false
+	_inversion_timer = 0.0
+	_show_floating_text("You died !!", Color(1.0, 0.25, 0.25))
+
+
+func _show_floating_text(text: String, text_color: Color) -> void:
+	_floating_text = text
+	_floating_text_color = text_color
+	_floating_text_timer = Constants.FLOATING_TEXT_DURATION
+	queue_redraw()
+
+
+func _update_floating_text(delta: float) -> void:
+	if _floating_text_timer <= 0.0:
+		return
+	_floating_text_timer = maxf(_floating_text_timer - delta, 0.0)
+	if _floating_text_timer <= 0.0:
+		_floating_text = ""
+	queue_redraw()
 
 
 func score() -> void:
@@ -273,6 +295,15 @@ func _draw() -> void:
 	var animal_w := ThemeDB.fallback_font.get_string_size(animal_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
 	draw_string(ThemeDB.fallback_font, Vector2(-animal_w / 2.0, Constants.CHARACTER_RADIUS + 25),
 		animal_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(animal_color, 0.75))
+
+	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
+		var text_alpha := clampf(_floating_text_timer / Constants.FLOATING_TEXT_DURATION, 0.0, 1.0)
+		var text_size := 12
+		var text_w := ThemeDB.fallback_font.get_string_size(
+			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
+		draw_string(ThemeDB.fallback_font, Vector2(-text_w / 2.0, -Constants.CHARACTER_RADIUS - 28),
+			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size,
+			Color(_floating_text_color, text_alpha))
 
 	var ability_color := Color(0.2, 1.0, 0.4) if _ability_available else Color(0.35, 0.35, 0.35)
 	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 7.0, 0, TAU, 18, ability_color, 1.5)

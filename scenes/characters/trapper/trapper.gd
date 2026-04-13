@@ -13,6 +13,11 @@ var bot_ai_enabled: bool = false
 
 var _abilities: Array[TrapperAbility] = []  # 3 abilities: [A, RB, X]
 var _map_bounds: Rect2 = Rect2()
+var _spent_ability_indices: Dictionary = {}
+var _set_reload_timer: float = 0.0
+var _floating_text: String = ""
+var _floating_text_timer: float = 0.0
+var _floating_text_color: Color = Color.WHITE
 
 # Bot AI state
 var _bot_target: Vector2 = Vector2.ZERO
@@ -26,15 +31,22 @@ const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  #
 func setup(map_size: Vector2) -> void:
 	_map_bounds = Rect2(Vector2.ZERO, map_size)
 	bot_ai_enabled = GameManager.settings_overrides.get(&"bot_ai", false) as bool
+	_spent_ability_indices.clear()
+	_set_reload_timer = 0.0
+	_floating_text = ""
+	_floating_text_timer = 0.0
 	_setup_abilities()
 
 
 func _setup_abilities() -> void:
 	_abilities.clear()
 	var ability_classes := _get_ability_classes()
-	for ability_class: GDScript in ability_classes:
+	for i in range(ability_classes.size()):
+		var ability_class: GDScript = ability_classes[i]
 		var ability: TrapperAbility = ability_class.new() as TrapperAbility
 		ability.setup(self)
+		ability.reset_round_uses()
+		ability.escape_charge_used.connect(_on_ability_escape_charge_used.bind(i))
 		_abilities.append(ability)
 
 
@@ -87,6 +99,8 @@ func _process(delta: float) -> void:
 	# Update abilities even when locked (for cooldown ticking)
 	for ability: TrapperAbility in _abilities:
 		ability.update(delta)
+	_update_set_reload(delta)
+	_update_floating_text(delta)
 
 	if input_locked:
 		queue_redraw()
@@ -158,6 +172,46 @@ func _process_bot(delta: float) -> void:
 		_bot_ability_timer = randf_range(3.0, 8.0)
 
 
+func _on_ability_escape_charge_used(_ability: TrapperAbility, ability_index: int) -> void:
+	if GameManager.current_state != Enums.GameState.ESCAPE:
+		return
+	_spent_ability_indices[ability_index] = true
+	if _spent_ability_indices.size() >= _abilities.size() and _set_reload_timer <= 0.0:
+		_set_reload_timer = Constants.TRAPPER_SET_RELOAD_DELAY
+
+
+func _update_set_reload(delta: float) -> void:
+	if _set_reload_timer <= 0.0:
+		return
+	if GameManager.current_state != Enums.GameState.ESCAPE:
+		_set_reload_timer = 0.0
+		_spent_ability_indices.clear()
+		return
+	_set_reload_timer -= delta
+	if _set_reload_timer > 0.0:
+		return
+	for ability: TrapperAbility in _abilities:
+		ability.refill_charges()
+	_spent_ability_indices.clear()
+	_show_floating_text("Reloaded !!", Enums.trapper_character_color(trapper_character))
+
+
+func _show_floating_text(text: String, text_color: Color) -> void:
+	_floating_text = text
+	_floating_text_color = text_color
+	_floating_text_timer = Constants.FLOATING_TEXT_DURATION
+	queue_redraw()
+
+
+func _update_floating_text(delta: float) -> void:
+	if _floating_text_timer <= 0.0:
+		return
+	_floating_text_timer = maxf(_floating_text_timer - delta, 0.0)
+	if _floating_text_timer <= 0.0:
+		_floating_text = ""
+	queue_redraw()
+
+
 func _draw() -> void:
 	var char_color := Enums.trapper_character_color(trapper_character)
 	if trapper_character == Enums.TrapperCharacter.NONE:
@@ -184,14 +238,27 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(-name_w / 2.0, -size - 14),
 			char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(char_color, 0.6))
 
+	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
+		var text_alpha := clampf(_floating_text_timer / Constants.FLOATING_TEXT_DURATION, 0.0, 1.0)
+		var text_size := 12
+		var text_w := ThemeDB.fallback_font.get_string_size(
+			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
+		draw_string(ThemeDB.fallback_font, Vector2(-text_w / 2.0, -size - 32),
+			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size,
+			Color(_floating_text_color, text_alpha))
+
 	# Ability indicators
 	var indicator_y := size + 14.0
 	for i in _abilities.size():
 		var ability: TrapperAbility = _abilities[i]
 		var a_color := ability.get_display_color()
 
-		# Active count
-		var count_text := "%d/%d" % [ability.get_active_count(), ability.max_active]
+		# Active count and remaining charge
+		var use_text := "S%d C%d" % [
+			ability.get_strategy_uses_remaining(),
+			ability.get_charges_remaining(),
+		]
+		var count_text := "A%d %s" % [ability.get_active_count(), use_text]
 		draw_string(ThemeDB.fallback_font, Vector2(-10, indicator_y),
 			count_text, HORIZONTAL_ALIGNMENT_CENTER, -1, 7, Color(a_color, 0.7))
 

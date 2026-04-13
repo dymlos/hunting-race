@@ -1,14 +1,20 @@
 class_name TrapperAbility
 extends RefCounted
 
+signal escape_charge_used(ability: TrapperAbility)
+
 ## Base class for trapper character abilities. Each ability handles its own
 ## placement logic, cooldown, active object tracking, and drawing.
 
 var trapper: Trapper
 var cooldown: float = 0.0
 var max_active: int = 1
+var max_charges: int = 1
 var _cooldown_remaining: float = 0.0
 var _active_objects: Array[Node2D] = []
+var _charges_remaining: int = 1
+var _strategy_uses_remaining: int = 1
+var _strategy_uses_spent: int = 0
 
 # Multi-point placement
 var points_required: int = 1
@@ -19,12 +25,15 @@ var is_placing: bool = false
 
 func setup(p_trapper: Trapper) -> void:
 	trapper = p_trapper
+	reset_round_uses()
 
 
 func can_activate() -> bool:
 	if _cooldown_remaining > 0.0:
 		return false
-	if _active_objects.size() >= max_active:
+	if _get_available_uses() <= 0:
+		return false
+	if _active_objects.size() >= _get_active_limit():
 		return false
 	return true
 
@@ -36,8 +45,10 @@ func activate() -> void:
 		return
 
 	if points_required <= 1:
+		if not _consume_use():
+			return
 		_spawn_object(trapper.global_position)
-		_cooldown_remaining = cooldown
+		_start_cooldown_if_needed()
 	else:
 		# Multi-point placement
 		if not is_placing:
@@ -52,12 +63,17 @@ func activate() -> void:
 			if pos.distance_to(prev) > max_point_distance:
 				return  # Too far — don't place this point
 
+		if _placement_points.size() + 1 >= points_required and _get_available_uses() <= 0:
+			return
 		_placement_points.append(pos)
 		if _placement_points.size() >= points_required:
+			if not _consume_use():
+				_placement_points.pop_back()
+				return
 			_spawn_from_points(_placement_points.duplicate())
 			_placement_points.clear()
 			is_placing = false
-			_cooldown_remaining = cooldown
+			_start_cooldown_if_needed()
 
 
 func cancel_placement() -> void:
@@ -94,6 +110,50 @@ func _register_object(obj: Node2D) -> void:
 	trapper.get_parent().add_child(obj)
 
 
+func reset_round_uses() -> void:
+	_charges_remaining = max_charges
+	_strategy_uses_remaining = 1
+	_strategy_uses_spent = 0
+	_cooldown_remaining = 0.0
+	_placement_points.clear()
+	is_placing = false
+
+
+func _get_available_uses() -> int:
+	if GameManager.current_state == Enums.GameState.HUNT:
+		return _strategy_uses_remaining
+	if GameManager.current_state == Enums.GameState.ESCAPE:
+		return _charges_remaining
+	return 0
+
+
+func _consume_use() -> bool:
+	if GameManager.current_state == Enums.GameState.HUNT:
+		if _strategy_uses_remaining <= 0:
+			return false
+		_strategy_uses_remaining -= 1
+		_strategy_uses_spent += 1
+		return true
+	if GameManager.current_state == Enums.GameState.ESCAPE:
+		if _charges_remaining <= 0:
+			return false
+		_charges_remaining -= 1
+		escape_charge_used.emit(self)
+		return true
+	return false
+
+
+func _start_cooldown_if_needed() -> void:
+	if GameManager.current_state == Enums.GameState.ESCAPE:
+		_cooldown_remaining = cooldown
+	else:
+		_cooldown_remaining = 0.0
+
+
+func _get_active_limit() -> int:
+	return max_active + _strategy_uses_spent
+
+
 func get_display_name() -> String:
 	return "Ability"
 
@@ -110,6 +170,19 @@ func get_cooldown_ratio() -> float:
 
 func get_active_count() -> int:
 	return _active_objects.size()
+
+
+func get_charges_remaining() -> int:
+	return _charges_remaining
+
+
+func get_strategy_uses_remaining() -> int:
+	return _strategy_uses_remaining
+
+
+func refill_charges() -> void:
+	_charges_remaining = max_charges
+	_cooldown_remaining = 0.0
 
 
 func is_placement_valid(cursor_pos: Vector2) -> bool:

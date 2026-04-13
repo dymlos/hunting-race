@@ -40,7 +40,7 @@ func _ready() -> void:
 			"value": int(Constants.HUNT_DURATION),
 		},
 		{
-			"key": "hunt_countdown_enabled", "label": "Hunt Countdown",
+			"key": "hunt_countdown_enabled", "label": "Strategy Hunt",
 			"type": "options", "options": ["On", "Off"],
 			"value": 0,
 		},
@@ -50,7 +50,7 @@ func _ready() -> void:
 			"value": int(Constants.OBSERVATION_DURATION),
 		},
 		{
-			"key": "hunt_countdown_duration", "label": "Hunt Countdown Time",
+			"key": "hunt_countdown_duration", "label": "Strategy Hunt Time",
 			"type": "int", "min": 1, "max": 10, "step": 1,
 			"value": int(Constants.HUNT_COUNTDOWN_DURATION),
 		},

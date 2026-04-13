@@ -26,7 +26,7 @@ func show_observation(_time_left: float) -> void:
 
 
 func show_hunt_countdown(time_left: float) -> void:
-	_text = "HUNT"
+	_text = "STRATEGY HUNT"
 	_sub_text = "%d" % ceili(time_left)
 	_detail_lines.clear()
 	_score_entries.clear()
@@ -38,7 +38,7 @@ func show_hunt_countdown(time_left: float) -> void:
 
 
 func show_hunt() -> void:
-	_text = "HUNT!"
+	_text = "STRATEGY HUNT!"
 	_sub_text = ""
 	_detail_lines.clear()
 	_score_entries.clear()
