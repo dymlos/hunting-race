@@ -25,6 +25,7 @@ var _dash_callback: Callable
 # Sticky wall stun
 var _sticky_stun_timer: float = 0.0
 var _sticky_cooldowns: Dictionary = {}  # {wall_node_id: remaining_cooldown}
+var _map_hazard_cooldowns: Dictionary = {}
 
 
 func _physics_process(delta: float) -> void:
@@ -39,6 +40,14 @@ func _physics_process(delta: float) -> void:
 			expired_walls.append(wall_id)
 	for wall_id in expired_walls:
 		_sticky_cooldowns.erase(wall_id)
+
+	var expired_hazards: Array[int] = []
+	for hazard_id: int in _map_hazard_cooldowns:
+		_map_hazard_cooldowns[hazard_id] -= delta
+		if _map_hazard_cooldowns[hazard_id] <= 0.0:
+			expired_hazards.append(hazard_id)
+	for hazard_id in expired_hazards:
+		_map_hazard_cooldowns.erase(hazard_id)
 
 	if _sticky_stun_timer > 0.0:
 		_sticky_stun_timer -= delta
@@ -62,6 +71,7 @@ func _physics_process(delta: float) -> void:
 	var separation := _compute_separation()
 	body.velocity = velocity + separation
 	body.move_and_slide()
+	_check_map_hazards()
 	_check_sticky_walls()
 
 
@@ -94,11 +104,32 @@ func _check_sticky_walls() -> void:
 			var wall_id := (collider as Node).get_instance_id()
 			if wall_id in _sticky_cooldowns:
 				continue  # This wall is still on cooldown
+			if body is Escapist:
+				var esc := body as Escapist
+				if not esc.is_dead and not esc.has_scored:
+					GameManager.register_trap_contact(esc.player_index)
 			_sticky_stun_timer = Constants.STICKY_WALL_STUN
 			_sticky_cooldowns[wall_id] = Constants.STICKY_WALL_STUN + Constants.STICKY_WALL_COOLDOWN
 			can_move = false
 			velocity = Vector2.ZERO
 			return
+
+
+func _check_map_hazards() -> void:
+	if not body is Escapist:
+		return
+	var esc := body as Escapist
+	if esc.is_dead or esc.has_scored:
+		return
+	for i in body.get_slide_collision_count():
+		var collision := body.get_slide_collision(i)
+		var collider := collision.get_collider()
+		if collider is Node and (collider as Node).is_in_group("map_hazards"):
+			var hazard_id := (collider as Node).get_instance_id()
+			if hazard_id in _map_hazard_cooldowns:
+				continue
+			_map_hazard_cooldowns[hazard_id] = Constants.STICKY_WALL_COOLDOWN
+			GameManager.register_trap_contact(esc.player_index)
 
 
 

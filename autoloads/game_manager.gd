@@ -224,6 +224,10 @@ func confirm_round_end() -> void:
 	_advance_after_round()
 
 
+func is_round_end_waiting_for_continue() -> bool:
+	return current_state == Enums.GameState.ROUND_END and not _awaiting_character_select
+
+
 func swap_team_roles() -> void:
 	if escapist_team == Enums.Team.TEAM_1:
 		escapist_team = Enums.Team.TEAM_2

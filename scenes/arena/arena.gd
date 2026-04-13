@@ -237,6 +237,7 @@ func _build_moving_wall(def: Dictionary) -> void:
 	var body := AnimatableBody2D.new()
 	body.collision_layer = Constants.LAYER_WALLS
 	body.collision_mask = 0
+	body.add_to_group("map_hazards")
 
 	var shape := RectangleShape2D.new()
 	shape.size = wall_size
@@ -244,6 +245,20 @@ func _build_moving_wall(def: Dictionary) -> void:
 	var col := CollisionShape2D.new()
 	col.shape = shape
 	col.position = wall_size / 2.0
+
+	var contact_area := Area2D.new()
+	contact_area.collision_layer = 0
+	contact_area.collision_mask = Constants.LAYER_CHARACTERS
+	contact_area.monitoring = true
+	contact_area.monitorable = false
+	var contact_shape := RectangleShape2D.new()
+	contact_shape.size = wall_size + Vector2(8.0, 8.0)
+	var contact_col := CollisionShape2D.new()
+	contact_col.shape = contact_shape
+	contact_col.position = wall_size / 2.0
+	contact_area.add_child(contact_col)
+	body.add_child(contact_area)
+	contact_area.body_entered.connect(_on_moving_wall_contact)
 
 	# Crush detection — Area2D that detects characters overlapping with the wall
 	var crush_area := Area2D.new()
@@ -280,6 +295,10 @@ func _on_moving_wall_crush(body: Node2D) -> void:
 		var esc := body as Escapist
 		if not esc.is_dead and not esc.has_scored:
 			esc.movement.crushed.emit()
+
+
+func _on_moving_wall_contact(body: Node2D) -> void:
+	_register_map_hazard_contact(body)
 
 
 func _build_one_way_gate(def: Dictionary) -> void:
@@ -359,6 +378,7 @@ func _on_slippery_entered(body: Node2D) -> void:
 	if body is BaseCharacter:
 		var character := body as BaseCharacter
 		character.movement.slippery = true
+	_register_map_hazard_contact(body)
 
 
 func _on_slippery_exited(body: Node2D) -> void:
@@ -387,6 +407,13 @@ func _build_sticky_wall(def: Dictionary) -> void:
 	body.add_child(col)
 	add_child(body)
 	_hazard_nodes.append(body)
+
+
+func _register_map_hazard_contact(body: Node2D) -> void:
+	if body is Escapist:
+		var esc := body as Escapist
+		if not esc.is_dead and not esc.has_scored:
+			GameManager.register_trap_contact(esc.player_index)
 
 
 # --- Drawing ---

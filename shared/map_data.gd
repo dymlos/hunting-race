@@ -137,13 +137,13 @@ static func get_gauntlet_map() -> Dictionary:
 		{"pos": Vector2(2200, 720), "size": Vector2(60, 150)},
 	]
 
-	var top_sticky_bounds := Rect2(Vector2(320, 25), Vector2(600, 315))
-	var moving_sweeper_bounds := Rect2(Vector2(320, 370), Vector2(600, 460))
-	var moving_blocker_bounds := Rect2(Vector2(360, 390), Vector2(540, 440))
-	var slippery_bounds := Rect2(Vector2(840, 220), Vector2(560, 670))
-	var sticky_maze_bounds := Rect2(Vector2(1840, 300), Vector2(520, 660))
-	var top_entrance_sticky_bounds := Rect2(Vector2(1840, 170), Vector2(50, 260))
-	var bottom_entrance_sticky_bounds := Rect2(Vector2(1840, 760), Vector2(50, 250))
+	var top_sticky_bounds := Rect2(Vector2(300, 20), Vector2(620, 330))
+	var moving_sweeper_bounds := Rect2(Vector2(300, 370), Vector2(620, 460))
+	var moving_blocker_bounds := Rect2(Vector2(320, 370), Vector2(600, 460))
+	var slippery_bounds := Rect2(Vector2(760, 190), Vector2(760, 720))
+	var sticky_maze_bounds := Rect2(Vector2(1780, 250), Vector2(600, 730))
+	var top_entrance_sticky_bounds := Rect2(Vector2(1840, 120), Vector2(50, 330))
+	var bottom_entrance_sticky_bounds := Rect2(Vector2(1840, 720), Vector2(50, 330))
 
 	var hazards: Array[Dictionary] = [
 		# === TOP PATH: STICKY WALLS inside corridor (y=20-350, x=300-900) ===
@@ -151,21 +151,21 @@ static func get_gauntlet_map() -> Dictionary:
 			"type": "sticky_wall",
 			"pos": Vector2(420, 60),
 			"size": Vector2(12, 220),
-			"jitter": Vector2(120, 75),
+			"jitter": Vector2(220, 125),
 			"bounds": top_sticky_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(580, 120),
 			"size": Vector2(12, 200),
-			"jitter": Vector2(120, 75),
+			"jitter": Vector2(220, 125),
 			"bounds": top_sticky_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(740, 40),
 			"size": Vector2(12, 240),
-			"jitter": Vector2(120, 75),
+			"jitter": Vector2(220, 125),
 			"bounds": top_sticky_bounds,
 		},
 
@@ -176,7 +176,7 @@ static func get_gauntlet_map() -> Dictionary:
 			"size": Vector2(180, t),
 			"end_pos": Vector2(400, 780),
 			"period": 3.5,
-			"jitter": Vector2(130, 50),
+			"jitter": Vector2(220, 80),
 			"bounds": moving_sweeper_bounds,
 		},
 		{
@@ -185,7 +185,7 @@ static func get_gauntlet_map() -> Dictionary:
 			"size": Vector2(180, t),
 			"end_pos": Vector2(620, 400),
 			"period": 4.0,
-			"jitter": Vector2(130, 50),
+			"jitter": Vector2(220, 80),
 			"bounds": moving_sweeper_bounds,
 		},
 		{
@@ -194,7 +194,7 @@ static func get_gauntlet_map() -> Dictionary:
 			"size": Vector2(t, 140),
 			"end_pos": Vector2(700, 550),
 			"period": 3.0,
-			"jitter": Vector2(130, 90),
+			"jitter": Vector2(190, 150),
 			"bounds": moving_blocker_bounds,
 		},
 
@@ -203,7 +203,7 @@ static func get_gauntlet_map() -> Dictionary:
 			"type": "slippery_zone",
 			"pos": Vector2(950, 300),
 			"size": Vector2(300, 450),
-			"jitter": Vector2(150, 125),
+			"jitter": Vector2(280, 210),
 			"bounds": slippery_bounds,
 		},
 
@@ -220,35 +220,35 @@ static func get_gauntlet_map() -> Dictionary:
 			"type": "sticky_wall",
 			"pos": Vector2(1918, 530),
 			"size": Vector2(64, 170),
-			"jitter": Vector2(70, 70),
+			"jitter": Vector2(130, 130),
 			"bounds": sticky_maze_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(2058, 350),
 			"size": Vector2(64, 150),
-			"jitter": Vector2(70, 70),
+			"jitter": Vector2(130, 130),
 			"bounds": sticky_maze_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(2058, 700),
 			"size": Vector2(64, 150),
-			"jitter": Vector2(70, 70),
+			"jitter": Vector2(130, 130),
 			"bounds": sticky_maze_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(2198, 500),
 			"size": Vector2(64, 70),
-			"jitter": Vector2(70, 70),
+			"jitter": Vector2(130, 130),
 			"bounds": sticky_maze_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(2198, 870),
 			"size": Vector2(64, 50),
-			"jitter": Vector2(70, 70),
+			"jitter": Vector2(130, 130),
 			"bounds": sticky_maze_bounds,
 		},
 		# Thin sticky strips on corridor entrance walls
@@ -256,14 +256,14 @@ static func get_gauntlet_map() -> Dictionary:
 			"type": "sticky_wall",
 			"pos": Vector2(1852, 250),
 			"size": Vector2(12, 100),
-			"jitter": Vector2(0, 80),
+			"jitter": Vector2(0, 150),
 			"bounds": top_entrance_sticky_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(1852, h - 350),
 			"size": Vector2(12, 100),
-			"jitter": Vector2(0, 80),
+			"jitter": Vector2(0, 150),
 			"bounds": bottom_entrance_sticky_bounds,
 		},
 	]

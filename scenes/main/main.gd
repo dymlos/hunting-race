@@ -305,7 +305,7 @@ func _process(_delta: float) -> void:
 
 	if state == Enums.GameState.MATCH_END:
 		_check_restart_input()
-	elif state == Enums.GameState.ROUND_END:
+	elif GameManager.is_round_end_waiting_for_continue():
 		_check_round_end_skip_input()
 
 
