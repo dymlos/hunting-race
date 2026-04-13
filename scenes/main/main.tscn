@@ -1,15 +1,15 @@
-[gd_scene load_steps=2 format=3 uid="uid://b1main"]
+[gd_scene format=3 uid="uid://b1main"]
 
-[ext_resource type="Script" path="res://scenes/main/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://duts4monk11ob" path="res://scenes/main/main.gd" id="1_main"]
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node2D" unique_id=258797262]
 script = ExtResource("1_main")
 
-[node name="ArenaContainer" type="Node2D" parent="."]
+[node name="ArenaContainer" type="Node2D" parent="." unique_id=1311191269]
 
-[node name="Characters" type="Node2D" parent="."]
+[node name="Characters" type="Node2D" parent="." unique_id=181048862]
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1119852649]
 
-[node name="UILayer" type="CanvasLayer" parent="."]
+[node name="UILayer" type="CanvasLayer" parent="." unique_id=1155941325]
 layer = 10
