@@ -35,6 +35,7 @@ var trap_lifetime_active: bool = false
 # Phase timer
 var _phase_timer: float = 0.0
 var _hunt_timer: float = 0.0
+var _escape_timer_running: bool = false
 var _pre_pause_state: Enums.GameState = Enums.GameState.ESCAPE
 
 var is_unpausing: bool = false
@@ -55,6 +56,8 @@ func _process(delta: float) -> void:
 			if _phase_timer <= 0.0:
 				activate_escape()
 		Enums.GameState.ESCAPE:
+			if not _escape_timer_running:
+				return
 			_hunt_timer -= delta
 			if _hunt_timer <= 0.0:
 				_end_round()
@@ -150,6 +153,7 @@ func start_observation() -> void:
 	round_number += 1
 	hunt_active = false
 	trap_lifetime_active = false
+	_escape_timer_running = false
 	_round_points = 0
 	assign_round_roles()
 	# Count escapists
@@ -165,6 +169,7 @@ func start_observation() -> void:
 
 func activate_hunt() -> void:
 	trap_lifetime_active = false
+	_escape_timer_running = false
 	if not settings_overrides.get(&"hunt_countdown_enabled", true):
 		activate_escape()
 		return
@@ -176,7 +181,14 @@ func activate_escape() -> void:
 	hunt_active = true
 	trap_lifetime_active = true
 	_hunt_timer = settings_overrides.get(&"hunt_duration", Constants.HUNT_DURATION) as float
+	_escape_timer_running = false
 	_change_state(Enums.GameState.ESCAPE)
+
+
+func start_escape_timer() -> void:
+	if current_state != Enums.GameState.ESCAPE:
+		return
+	_escape_timer_running = true
 
 
 func get_hunt_time() -> float:
@@ -245,6 +257,7 @@ func _check_round_over() -> void:
 func _end_round() -> void:
 	hunt_active = false
 	trap_lifetime_active = false
+	_escape_timer_running = false
 	_finalize_unresolved_escapists()
 	_phase_timer = 0.0
 	_change_state(Enums.GameState.ROUND_END)
@@ -288,6 +301,7 @@ func reset_match() -> void:
 	match_scores = [0, 0]
 	hunt_active = false
 	trap_lifetime_active = false
+	_escape_timer_running = false
 	_awaiting_character_select = false
 	escapist_team = Enums.Team.TEAM_1
 	player_characters.clear()
@@ -303,7 +317,10 @@ func prepare_practice_character_select() -> void:
 	practice_mode = true
 	hunt_active = false
 	trap_lifetime_active = false
+	_escape_timer_running = false
 	_awaiting_character_select = true
+	settings_overrides[&"skill_cooldowns_enabled"] = false
+	settings_overrides[&"practice_obstacles_enabled"] = true
 	player_characters.clear()
 	_round_stats.clear()
 	_change_state(Enums.GameState.TEAM_SETUP)
@@ -312,10 +329,13 @@ func prepare_practice_character_select() -> void:
 func start_practice() -> void:
 	practice_mode = true
 	_awaiting_character_select = false
+	settings_overrides[&"skill_cooldowns_enabled"] = false
+	settings_overrides[&"practice_obstacles_enabled"] = true
 	round_number = 0
 	match_scores = [0, 0]
 	hunt_active = true
 	trap_lifetime_active = true
+	_escape_timer_running = false
 	_living_escapists = 0
 	for pi: int in role_assignments:
 		if role_assignments[pi] == Enums.Role.ESCAPIST:
@@ -348,6 +368,7 @@ func apply_runtime_settings() -> void:
 		hunt_active = true
 		trap_lifetime_active = true
 		_hunt_timer = settings_overrides.get(&"hunt_duration", Constants.HUNT_DURATION) as float
+		_escape_timer_running = true
 		_pre_pause_state = Enums.GameState.ESCAPE
 	elif current_state == Enums.GameState.PAUSED and _pre_pause_state == Enums.GameState.HUNT:
 		var countdown_duration := settings_overrides.get(&"hunt_countdown_duration", Constants.HUNT_COUNTDOWN_DURATION) as float

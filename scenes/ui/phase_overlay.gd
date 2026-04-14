@@ -3,6 +3,8 @@ extends Control
 
 ## Displays phase announcements: countdown, hunt start, round end, match end.
 
+signal escape_finished
+
 var _text: String = ""
 var _sub_text: String = ""
 var _text_color: Color = Color.WHITE
@@ -163,11 +165,14 @@ func _build_match_lines(entries: Array[Dictionary]) -> Array[String]:
 func _process(delta: float) -> void:
 	if _show_timer > 0.0:
 		_show_timer -= delta
+		var finished_text := _text
 		if _text == "ESCAPE!":
 			_escape_anim_time += delta
 		queue_redraw()
 		if _show_timer <= 0.0:
 			clear()
+			if finished_text == "ESCAPE!":
+				escape_finished.emit()
 
 
 func _draw() -> void:

@@ -116,6 +116,7 @@ func _ready() -> void:
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
 	phase_overlay.hide()
+	phase_overlay.escape_finished.connect(_on_escape_overlay_finished)
 
 	game_hud = GameHudScene.instantiate() as GameHud
 	ui_layer.add_child(game_hud)
@@ -448,6 +449,10 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 			_spawn_characters()
 			_unfreeze_all()
 			phase_overlay.clear()
+
+
+func _on_escape_overlay_finished() -> void:
+	GameManager.start_escape_timer()
 
 
 func _on_round_ended(escapist_team: Enums.Team, points_scored: int) -> void:
