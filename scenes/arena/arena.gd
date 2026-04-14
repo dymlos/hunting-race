@@ -617,9 +617,6 @@ func _draw_respawn_marker() -> void:
 	if respawn_rect.size.x > 0.0 and respawn_rect.size.y > 0.0:
 		draw_rect(respawn_rect, Color(color, 0.12))
 		draw_rect(respawn_rect, color, false, 2.0)
-		var center := respawn_rect.position + respawn_rect.size / 2.0
-		draw_line(center + Vector2(-18.0, 0.0), center + Vector2(18.0, 0.0), color, 2.0)
-		draw_line(center + Vector2(0.0, -18.0), center + Vector2(0.0, 18.0), color, 2.0)
 		return
 	var spawns: Array = _map_data.get("spawns", [])
 	if spawns.is_empty():
