@@ -3,6 +3,7 @@ extends Node2D
 ## Main scene — orchestrates arena, characters, UI, and game state.
 
 const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
+const CoverScreenScene := preload("res://scenes/ui/cover_screen.tscn")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const EscapistSelectScene := preload("res://scenes/ui/escapist_select.tscn")
 const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
@@ -29,6 +30,7 @@ var _selected_stage_index: int = 0
 var _view_stack: Array[Control] = []
 
 # UI instances
+var cover_screen: CoverScreen
 var team_setup: TeamSetup
 var stage_select: StageSelect
 var escapist_select: EscapistSelect
@@ -46,6 +48,11 @@ func _ready() -> void:
 	character_container.process_mode = Node.PROCESS_MODE_PAUSABLE
 	camera.process_mode = Node.PROCESS_MODE_PAUSABLE
 	ui_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+
+	cover_screen = CoverScreenScene.instantiate() as CoverScreen
+	ui_layer.add_child(cover_screen)
+	cover_screen.hide()
+	cover_screen.start_requested.connect(_on_cover_start_requested)
 
 	team_setup = TeamSetupScene.instantiate() as TeamSetup
 	ui_layer.add_child(team_setup)
@@ -99,6 +106,28 @@ func _ready() -> void:
 	GameManager.escapist_died.connect(_on_escapist_died)
 	GameManager.round_advancing.connect(_on_round_advancing)
 
+	_start_cover_screen()
+
+
+func _start_cover_screen() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	_active_player_indices.clear()
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	cover_screen.open()
+	push_view(cover_screen)
+
+
+func _on_cover_start_requested() -> void:
 	_start_team_setup()
 
 
