@@ -73,6 +73,7 @@ func show_escape() -> void:
 	_text_color = Color.RED
 	_show_timer = 2.6
 	_escape_anim_time = 0.0
+	AudioManager.play_skill(&"EscapeHeartbeat")
 	_anchor_top = false
 	visible = true
 	queue_redraw()

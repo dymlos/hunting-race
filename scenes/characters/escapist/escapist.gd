@@ -174,6 +174,7 @@ func _handle_rabbit_ability(delta: float) -> void:
 		movement.start_dash(direction, distance, Callable(), Constants.RABBIT_LEAP_DURATION)
 		_rabbit_charging = false
 		_ability_available = false
+		AudioManager.play_skill(&"RabbitLeap")
 
 
 func _use_rat_rescue() -> void:
@@ -187,6 +188,7 @@ func _use_rat_rescue() -> void:
 	ally.movement.clear_speed_modifiers()
 	ally.movement.start_dash(direction, Constants.RAT_RESCUE_PULL_DIST, Callable(), Constants.RAT_RESCUE_DURATION)
 	_ability_available = false
+	AudioManager.play_skill(&"RatRescue")
 
 
 func _use_squirrel_acorn() -> void:
@@ -194,11 +196,13 @@ func _use_squirrel_acorn() -> void:
 	acorn.setup(global_position, _get_ability_direction())
 	get_parent().add_child(acorn)
 	_ability_available = false
+	AudioManager.play_skill(&"SquirrelAcorn")
 
 
 func _use_fly_counter() -> void:
 	_fly_counter_timer = Constants.FLY_COUNTER_DURATION
 	_ability_available = false
+	AudioManager.play_skill(&"FlyCounter")
 
 
 func notify_trap_contact() -> void:
@@ -207,6 +211,7 @@ func notify_trap_contact() -> void:
 		_fly_boost_timer = Constants.FLY_BOOST_DURATION
 		_effect_immunity_timer = Constants.FLY_BOOST_DURATION
 		movement.set_speed_modifier(&"fly_boost", Constants.FLY_SPEED_BOOST)
+		AudioManager.play_skill(&"FlyBoost")
 
 
 func is_effect_immune() -> bool:

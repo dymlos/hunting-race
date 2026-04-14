@@ -124,6 +124,7 @@ func _start_cover_screen() -> void:
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	menu_music.use_menu_volume()
 	menu_music.start_music()
 
 	while not _view_stack.is_empty():
@@ -147,6 +148,7 @@ func _start_team_setup() -> void:
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	menu_music.use_menu_volume()
 	menu_music.start_music()
 
 	while not _view_stack.is_empty():
@@ -213,6 +215,7 @@ func _on_characters_ready(selections: Dictionary) -> void:
 	if _is_first_round:
 		_setup_arena()
 	_is_first_round = false
+	menu_music.use_round_volume()
 	game_hud.show()
 	GameManager.start_observation()
 
@@ -229,6 +232,7 @@ func _on_escapist_back() -> void:
 func _on_round_advancing() -> void:
 	# Between rounds: pick escapists first, then trappers.
 	phase_overlay.clear()
+	menu_music.use_menu_volume()
 	menu_music.start_music()
 	_show_escapist_select(false)
 
@@ -319,6 +323,7 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 
 	match new_state:
 		Enums.GameState.OBSERVATION:
+			menu_music.use_round_volume()
 			if arena:
 				arena.randomize_hazards_for_round(GameManager.get_competitive_round_number())
 			_spawn_characters()

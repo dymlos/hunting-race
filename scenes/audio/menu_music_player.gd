@@ -7,6 +7,8 @@ const STEP_SECONDS: float = 0.34
 const ROOT_FREQ: float = 110.0
 const GAIN: float = 0.135
 const TAU_F: float = PI * 2.0
+const MENU_VOLUME_DB: float = -3.0
+const ROUND_VOLUME_DB: float = -12.0
 
 var _playback: AudioStreamGeneratorPlayback
 var _sample_time: float = 0.0
@@ -28,7 +30,7 @@ func _ready() -> void:
 	generator.mix_rate = MIX_RATE
 	generator.buffer_length = BUFFER_LENGTH
 	stream = generator
-	volume_db = -3.0
+	volume_db = MENU_VOLUME_DB
 
 
 func start_music() -> void:
@@ -44,6 +46,14 @@ func stop_music() -> void:
 		return
 	stop()
 	_playback = null
+
+
+func use_menu_volume() -> void:
+	volume_db = MENU_VOLUME_DB
+
+
+func use_round_volume() -> void:
+	volume_db = ROUND_VOLUME_DB
 
 
 func _process(_delta: float) -> void:
