@@ -611,12 +611,20 @@ func _draw() -> void:
 
 
 func _draw_respawn_marker() -> void:
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 360.0)
+	var color := Color(0.25, 0.85, 1.0, 0.45 + pulse * 0.25)
+	var respawn_rect: Rect2 = _map_data.get("respawn_zone", Rect2())
+	if respawn_rect.size.x > 0.0 and respawn_rect.size.y > 0.0:
+		draw_rect(respawn_rect, Color(color, 0.12))
+		draw_rect(respawn_rect, color, false, 2.0)
+		var center := respawn_rect.position + respawn_rect.size / 2.0
+		draw_line(center + Vector2(-18.0, 0.0), center + Vector2(18.0, 0.0), color, 2.0)
+		draw_line(center + Vector2(0.0, -18.0), center + Vector2(0.0, 18.0), color, 2.0)
+		return
 	var spawns: Array = _map_data.get("spawns", [])
 	if spawns.is_empty():
 		return
 	var spawn: Vector2 = spawns[0] as Vector2
-	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 360.0)
-	var color := Color(0.25, 0.85, 1.0, 0.45 + pulse * 0.25)
 	draw_circle(spawn, 30.0 + pulse * 4.0, Color(color, 0.12))
 	draw_arc(spawn, 30.0 + pulse * 4.0, 0.0, TAU, 32, color, 2.0)
 	draw_line(spawn + Vector2(-18.0, 0.0), spawn + Vector2(18.0, 0.0), color, 2.0)

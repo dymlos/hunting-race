@@ -641,6 +641,7 @@ static func get_practice_map() -> Dictionary:
 	var w := 1600.0
 	var h := 900.0
 	var spawn := Vector2(w / 2.0, h / 2.0)
+	var respawn_zone := Rect2(spawn - Vector2(120.0, 65.0), Vector2(240.0, 130.0))
 
 	return {
 		"name": "Practice Room",
@@ -650,6 +651,7 @@ static func get_practice_map() -> Dictionary:
 		"hazards": [],
 		"spawns": [spawn],
 		"goal": Rect2(),
+		"respawn_zone": respawn_zone,
 		"show_respawn_marker": true,
 	}
 
