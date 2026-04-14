@@ -14,6 +14,7 @@ const PhaseOverlayScene := preload("res://scenes/ui/phase_overlay.tscn")
 const GameHudScene := preload("res://scenes/ui/game_hud.tscn")
 const EscapistScene := preload("res://scenes/characters/escapist/escapist.tscn")
 const TrapperScene := preload("res://scenes/characters/trapper/trapper.tscn")
+const MenuMusicPlayerScene := preload("res://scenes/audio/menu_music_player.gd")
 
 var arena: Arena
 var characters: Array[Node2D] = []  # Mix of Escapist and Trapper nodes
@@ -39,6 +40,7 @@ var settings_menu: SettingsMenu
 var pause_menu: PauseMenu
 var phase_overlay: PhaseOverlay
 var game_hud: GameHud
+var menu_music: MenuMusicPlayer
 var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
 
 
@@ -99,6 +101,9 @@ func _ready() -> void:
 	ui_layer.add_child(game_hud)
 	game_hud.hide()
 
+	menu_music = MenuMusicPlayerScene.new() as MenuMusicPlayer
+	add_child(menu_music)
+
 	GameManager.state_changed.connect(_on_state_changed)
 	GameManager.round_ended.connect(_on_round_ended)
 	GameManager.match_ended.connect(_on_match_ended)
@@ -119,6 +124,7 @@ func _start_cover_screen() -> void:
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	menu_music.start_music()
 
 	while not _view_stack.is_empty():
 		pop_view()
@@ -141,6 +147,7 @@ func _start_team_setup() -> void:
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	menu_music.start_music()
 
 	while not _view_stack.is_empty():
 		pop_view()
@@ -222,6 +229,7 @@ func _on_escapist_back() -> void:
 func _on_round_advancing() -> void:
 	# Between rounds: pick escapists first, then trappers.
 	phase_overlay.clear()
+	menu_music.start_music()
 	_show_escapist_select(false)
 
 
