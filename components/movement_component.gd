@@ -186,8 +186,20 @@ func apply_impulse(impulse: Vector2) -> void:
 
 func start_dash(direction: Vector2, distance: float, on_complete: Callable = Callable(),
 		duration: float = 0.1, ignore_collisions: bool = false) -> void:
-	if body is Escapist and (body as Escapist).is_effect_immune():
+	_start_dash(direction, distance, on_complete, duration, ignore_collisions, false, false)
+
+
+func start_dash_ghost_pull(direction: Vector2, distance: float, on_complete: Callable = Callable(),
+		duration: float = 0.1) -> void:
+	_start_dash(direction, distance, on_complete, duration, true, true, true)
+
+
+func _start_dash(direction: Vector2, distance: float, on_complete: Callable,
+		duration: float, ignore_collisions: bool, keep_area_detection: bool,
+		ignore_effect_immunity: bool) -> void:
+	if not ignore_effect_immunity and body is Escapist and (body as Escapist).is_effect_immune():
 		return
+	duration = maxf(duration, 0.01)
 	if is_dashing:
 		_restore_dash_collision()
 	_dash_direction = direction.normalized()
@@ -197,7 +209,7 @@ func start_dash(direction: Vector2, distance: float, on_complete: Callable = Cal
 	_dash_callback = on_complete
 	is_dashing = true
 	is_airborne_dashing = ignore_collisions
-	_apply_dash_collision(ignore_collisions)
+	_apply_dash_collision(ignore_collisions, keep_area_detection)
 
 
 func get_dash_progress() -> float:
@@ -206,13 +218,17 @@ func get_dash_progress() -> float:
 	return clampf(1.0 - (_dash_remaining / _dash_total_distance), 0.0, 1.0)
 
 
-func _apply_dash_collision(ignore_collisions: bool) -> void:
+func _apply_dash_collision(ignore_collisions: bool, keep_area_detection: bool = false) -> void:
 	if not body:
 		return
 	_dash_original_collision_layer = body.collision_layer
 	_dash_original_collision_mask = body.collision_mask
 	_dash_has_collision_override = true
 	if ignore_collisions:
+		if keep_area_detection:
+			body.collision_layer = Constants.LAYER_CHARACTERS
+			body.collision_mask = 0
+			return
 		body.collision_layer = 0
 		body.collision_mask = 0
 		return

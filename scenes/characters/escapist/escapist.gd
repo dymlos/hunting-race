@@ -25,6 +25,7 @@ var _effect_immunity_timer: float = 0.0
 var _floating_text: String = ""
 var _floating_text_timer: float = 0.0
 var _floating_text_color: Color = Color.WHITE
+var _active_rat_tail: Node = null
 
 
 func _setup_role() -> void:
@@ -183,18 +184,37 @@ func _handle_rabbit_ability(delta: float) -> void:
 
 
 func _use_rat_rescue() -> void:
-	var ally := _find_rescue_target()
-	if not ally:
+	if is_instance_valid(_active_rat_tail):
 		return
-	var direction := (global_position - ally.global_position).normalized()
+	var tail := RatTailHook.new()
+	tail.setup(self, _get_ability_direction())
+	get_parent().add_child(tail)
+	_active_rat_tail = tail
+	tail.finished.connect(_on_rat_tail_finished)
+	if _skills_cooldowns_enabled():
+		_ability_available = false
+	AudioManager.play_skill(&"RatRescue")
+
+
+func _on_rat_tail_finished(tail: Node) -> void:
+	if _active_rat_tail == tail:
+		_active_rat_tail = null
+
+
+func _complete_rat_rescue(ally: Escapist) -> void:
+	if not is_instance_valid(ally) or ally.is_dead or ally.has_scored:
+		return
+	var pull_vector := global_position - ally.global_position
+	var pull_distance := maxf(pull_vector.length() - Constants.RAT_RESCUE_PULL_STOP_DISTANCE, 0.0)
+	if pull_distance <= 0.0:
+		return
+	var direction := pull_vector.normalized()
 	ally.movement.unfreeze()
 	ally.movement.velocity = Vector2.ZERO
 	ally.movement.slippery = false
 	ally.movement.clear_speed_modifiers()
-	ally.movement.start_dash(direction, Constants.RAT_RESCUE_PULL_DIST, Callable(), Constants.RAT_RESCUE_DURATION)
-	if _skills_cooldowns_enabled():
-		_ability_available = false
-	AudioManager.play_skill(&"RatRescue")
+	var duration := pull_distance / Constants.RAT_RESCUE_PULL_SPEED
+	ally.movement.start_dash_ghost_pull(direction, pull_distance, Callable(), duration)
 
 
 func _use_squirrel_acorn() -> void:
@@ -233,6 +253,9 @@ func _reset_ability() -> void:
 	_fly_counter_timer = 0.0
 	_fly_boost_timer = 0.0
 	_effect_immunity_timer = 0.0
+	if is_instance_valid(_active_rat_tail):
+		_active_rat_tail.queue_free()
+	_active_rat_tail = null
 	if movement:
 		movement.remove_speed_modifier(&"fly_boost")
 
@@ -249,31 +272,6 @@ func _get_ability_direction() -> Vector2:
 	if direction.length() < 0.1:
 		direction = Vector2.RIGHT
 	return direction.normalized()
-
-
-func _find_rescue_target() -> Escapist:
-	var direction := _get_ability_direction()
-	var best: Escapist = null
-	var best_projection := Constants.RAT_RESCUE_RANGE
-	var tree := get_tree()
-	if not tree:
-		return null
-	for node: Node in tree.get_nodes_in_group("characters"):
-		if node == self or not node is Escapist:
-			continue
-		var ally := node as Escapist
-		if ally.team != team or ally.is_dead or ally.has_scored:
-			continue
-		var to_ally := ally.global_position - global_position
-		var projection := to_ally.dot(direction)
-		if projection < 0.0 or projection > Constants.RAT_RESCUE_RANGE:
-			continue
-		var closest := global_position + direction * projection
-		var distance_to_line := ally.global_position.distance_to(closest)
-		if distance_to_line <= Constants.RAT_RESCUE_WIDTH and projection < best_projection:
-			best_projection = projection
-			best = ally
-	return best
 
 
 func _get_animal_mark_alpha() -> float:
@@ -510,6 +508,115 @@ func _draw() -> void:
 
 	if jump_lift > 0.0:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+class RatTailHook extends Node2D:
+	signal finished(tail: Node)
+
+	var _owner_rat: Escapist
+	var _direction: Vector2 = Vector2.RIGHT
+	var _distance: float = 0.0
+	var _target: Escapist = null
+	var _is_returning: bool = false
+	var _fade_timer: float = 0.18
+	var _color: Color = Enums.escapist_animal_color(Enums.EscapistAnimal.RAT)
+
+	func setup(owner_rat: Escapist, direction: Vector2) -> void:
+		_owner_rat = owner_rat
+		_direction = direction.normalized()
+		if _direction.length_squared() < 0.01:
+			_direction = Vector2.RIGHT
+		global_position = _owner_rat.global_position
+		z_index = 8
+
+	func _process(delta: float) -> void:
+		if not is_instance_valid(_owner_rat) or _owner_rat.is_dead or _owner_rat.has_scored:
+			_finish()
+			return
+		if _is_returning:
+			_update_return(delta)
+			return
+
+		var previous_distance := _distance
+		_distance = minf(_distance + Constants.RAT_RESCUE_HOOK_SPEED * delta, Constants.RAT_RESCUE_RANGE)
+		var ally := _find_hooked_ally(previous_distance, _distance)
+		if ally != null:
+			_hook_ally(ally)
+			return
+		if _distance >= Constants.RAT_RESCUE_RANGE:
+			_is_returning = true
+		queue_redraw()
+
+	func _update_return(delta: float) -> void:
+		_fade_timer -= delta
+		if is_instance_valid(_target):
+			_distance = _owner_rat.global_position.distance_to(_target.global_position)
+		else:
+			_distance = maxf(_distance - Constants.RAT_RESCUE_HOOK_SPEED * delta, 0.0)
+		if _fade_timer <= 0.0 or _distance <= Constants.RAT_RESCUE_PULL_STOP_DISTANCE:
+			_finish()
+			return
+		queue_redraw()
+
+	func _find_hooked_ally(from_distance: float, to_distance: float) -> Escapist:
+		var tree := get_tree()
+		if not tree:
+			return null
+		var hook_start := _owner_rat.global_position + _direction * from_distance
+		var hook_end := _owner_rat.global_position + _direction * to_distance
+		var best: Escapist = null
+		var best_distance := Constants.RAT_RESCUE_RANGE
+		for node: Node in tree.get_nodes_in_group("characters"):
+			if node == _owner_rat or not (node is Escapist):
+				continue
+			var ally := node as Escapist
+			if ally.team != _owner_rat.team or ally.is_dead or ally.has_scored:
+				continue
+			var distance_to_segment := _distance_to_segment(ally.global_position, hook_start, hook_end)
+			if distance_to_segment > Constants.RAT_RESCUE_WIDTH:
+				continue
+			var distance_from_owner := _owner_rat.global_position.distance_to(ally.global_position)
+			if distance_from_owner < best_distance:
+				best_distance = distance_from_owner
+				best = ally
+		return best
+
+	func _hook_ally(ally: Escapist) -> void:
+		_target = ally
+		_distance = _owner_rat.global_position.distance_to(ally.global_position)
+		_is_returning = true
+		_fade_timer = maxf(0.18, _distance / Constants.RAT_RESCUE_PULL_SPEED)
+		_owner_rat._complete_rat_rescue(ally)
+		queue_redraw()
+
+	func _distance_to_segment(point: Vector2, segment_start: Vector2, segment_end: Vector2) -> float:
+		var segment := segment_end - segment_start
+		var segment_length_sq := segment.length_squared()
+		if segment_length_sq <= 0.01:
+			return point.distance_to(segment_start)
+		var t := clampf((point - segment_start).dot(segment) / segment_length_sq, 0.0, 1.0)
+		var closest := segment_start + segment * t
+		return point.distance_to(closest)
+
+	func _finish() -> void:
+		finished.emit(self)
+		queue_free()
+
+	func _draw() -> void:
+		if not is_instance_valid(_owner_rat):
+			return
+		var start := _owner_rat.global_position - global_position
+		var end := start + _direction * _distance
+		if is_instance_valid(_target):
+			end = _target.global_position - global_position
+		var alpha := 0.72
+		if _is_returning and not is_instance_valid(_target):
+			alpha = clampf(_fade_timer / 0.18, 0.0, 1.0) * 0.72
+		var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 80.0)
+		var line_color := Color(_color, alpha * pulse)
+		draw_line(start, end, Color(0.0, 0.0, 0.0, alpha * 0.45), 7.0)
+		draw_line(start, end, line_color, 4.0)
+		draw_circle(end, 8.0, Color(_color, alpha))
 
 
 class AcornProjectile extends Node2D:

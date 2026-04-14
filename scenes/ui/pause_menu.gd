@@ -6,6 +6,7 @@ signal settings_requested
 signal practice_requested
 signal practice_character_select_requested
 signal practice_obstacles_toggled(enabled: bool)
+signal practice_bots_toggled(enabled: bool)
 signal reset_requested
 
 var input_blocked: bool = false
@@ -16,7 +17,7 @@ var _showing_ability_guide: bool = false
 
 const NAV_COOLDOWN: float = 0.2
 const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Practice Mode", "Return to Setup"]
-const PRACTICE_OPTIONS: Array[String] = ["Resume", "Ability Guide", "Cooldowns", "Practice Obstacles", "Change Characters", "Return to Setup"]
+const PRACTICE_OPTIONS: Array[String] = ["Resume", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Return to Setup"]
 
 
 func _ready() -> void:
@@ -158,6 +159,9 @@ func _get_option_label(option: String) -> String:
 		"Practice Obstacles":
 			var enabled := GameManager.settings_overrides.get(&"practice_obstacles_enabled", false) as bool
 			return "Obstacles: < %s >" % ("On" if enabled else "Off")
+		"Practice Bots":
+			var enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", true) as bool
+			return "Bots: < %s >" % ("On" if enabled else "Off")
 	return option
 
 
@@ -176,6 +180,8 @@ func _activate_option(option: String) -> void:
 			practice_requested.emit()
 		"Practice Obstacles":
 			_toggle_practice_obstacles()
+		"Practice Bots":
+			_toggle_practice_bots()
 		"Change Characters":
 			practice_character_select_requested.emit()
 		"Return to Setup":
@@ -193,6 +199,14 @@ func _toggle_practice_obstacles() -> void:
 	var next_enabled := not enabled
 	GameManager.settings_overrides[&"practice_obstacles_enabled"] = next_enabled
 	practice_obstacles_toggled.emit(next_enabled)
+	queue_redraw()
+
+
+func _toggle_practice_bots() -> void:
+	var enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", true) as bool
+	var next_enabled := not enabled
+	GameManager.settings_overrides[&"practice_bots_enabled"] = next_enabled
+	practice_bots_toggled.emit(next_enabled)
 	queue_redraw()
 
 

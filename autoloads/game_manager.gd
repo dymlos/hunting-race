@@ -321,6 +321,7 @@ func prepare_practice_character_select() -> void:
 	_awaiting_character_select = true
 	settings_overrides[&"skill_cooldowns_enabled"] = false
 	settings_overrides[&"practice_obstacles_enabled"] = true
+	settings_overrides[&"practice_bots_enabled"] = true
 	player_characters.clear()
 	_round_stats.clear()
 	_change_state(Enums.GameState.TEAM_SETUP)
@@ -331,6 +332,7 @@ func start_practice() -> void:
 	_awaiting_character_select = false
 	settings_overrides[&"skill_cooldowns_enabled"] = false
 	settings_overrides[&"practice_obstacles_enabled"] = true
+	settings_overrides[&"practice_bots_enabled"] = true
 	round_number = 0
 	match_scores = [0, 0]
 	hunt_active = true

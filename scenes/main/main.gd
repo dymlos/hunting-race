@@ -23,6 +23,7 @@ var characters: Array[Node2D] = []  # Mix of Escapist and Trapper nodes
 var _active_player_indices: Array[int] = []
 var _prev_start_pressed: Dictionary = {}  # {device_id: bool}
 var _selected_stage_index: int = 0
+var _practice_bots_added: bool = false
 
 @onready var arena_container := $ArenaContainer as Node2D
 @onready var character_container := $Characters as Node2D
@@ -112,6 +113,7 @@ func _ready() -> void:
 	pause_menu.practice_requested.connect(_start_practice_setup)
 	pause_menu.practice_character_select_requested.connect(_restart_practice_character_select)
 	pause_menu.practice_obstacles_toggled.connect(_on_practice_obstacles_toggled)
+	pause_menu.practice_bots_toggled.connect(_on_practice_bots_toggled)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
@@ -184,10 +186,12 @@ func _start_practice_setup() -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
 	_cleanup_round()
+	_practice_bots_added = false
 	_active_player_indices.clear()
 	GameManager.reset_match()
 	GameManager.settings_overrides[&"skill_cooldowns_enabled"] = false
 	GameManager.settings_overrides[&"practice_obstacles_enabled"] = true
+	GameManager.settings_overrides[&"practice_bots_enabled"] = true
 	_is_practice_flow = true
 	if arena:
 		arena.queue_free()
@@ -218,6 +222,7 @@ func _start_team_setup() -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
 	_cleanup_round()
+	_practice_bots_added = false
 	_active_player_indices.clear()
 	_is_practice_flow = false
 	if arena:
@@ -350,6 +355,9 @@ func _start_practice_session() -> void:
 	menu_music.use_round_volume()
 	game_hud.show()
 	GameManager.start_practice()
+	var bots_enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", true) as bool
+	if bots_enabled:
+		_add_practice_bots()
 
 
 func _setup_camera() -> void:
@@ -626,6 +634,87 @@ func _on_practice_obstacles_toggled(enabled: bool) -> void:
 		arena.set_practice_obstacles_enabled(enabled)
 
 
+func _on_practice_bots_toggled(enabled: bool) -> void:
+	if not GameManager.practice_mode:
+		return
+	if enabled:
+		_add_practice_bots()
+	else:
+		_remove_practice_bots()
+
+
+func _add_practice_bots() -> void:
+	if not GameManager.practice_mode or arena == null or _practice_bots_added:
+		return
+
+	var trapper_bot_index := 100
+	var escapist_bot_index := 101
+
+	GameManager.team_assignments[trapper_bot_index] = GameManager.get_trapping_team()
+	GameManager.role_assignments[trapper_bot_index] = Enums.Role.TRAPPER
+	GameManager.character_selections[trapper_bot_index] = Enums.TrapperCharacter.ARANA
+
+	GameManager.team_assignments[escapist_bot_index] = GameManager.escapist_team
+	GameManager.role_assignments[escapist_bot_index] = Enums.Role.ESCAPIST
+	GameManager.escapist_selections[escapist_bot_index] = Enums.EscapistAnimal.RABBIT
+
+	if trapper_bot_index not in _active_player_indices:
+		_active_player_indices.append(trapper_bot_index)
+	if escapist_bot_index not in _active_player_indices:
+		_active_player_indices.append(escapist_bot_index)
+	_active_player_indices.sort()
+
+	_spawn_practice_bot(trapper_bot_index)
+	_spawn_practice_bot(escapist_bot_index)
+	_practice_bots_added = true
+
+
+func _spawn_practice_bot(player_index: int) -> void:
+	if arena == null:
+		return
+	var role: Enums.Role = GameManager.get_player_role(player_index)
+	var team: Enums.Team = GameManager.get_player_team(player_index)
+	if role == Enums.Role.TRAPPER:
+		var trapper := TrapperScene.instantiate() as Trapper
+		trapper.player_index = player_index
+		trapper.team = team
+		trapper.player_color = Enums.role_color(Enums.Role.TRAPPER)
+		trapper.trapper_character = GameManager.get_player_character(player_index)
+		trapper.position = arena.get_map_center()
+		trapper.setup(arena.get_map_size())
+		var map_size := arena.get_map_size()
+		var path_a := Vector2(map_size.x * 0.68, map_size.y * 0.32)
+		var path_b := Vector2(map_size.x * 0.84, map_size.y * 0.32)
+		trapper.configure_spider_bot(path_a, path_b)
+		trapper.unfreeze_character()
+		character_container.add_child(trapper)
+		characters.append(trapper)
+		GameManager.register_player_character(player_index, trapper)
+	elif role == Enums.Role.ESCAPIST:
+		var esc := EscapistScene.instantiate() as Escapist
+		esc.player_index = player_index
+		esc.team = team
+		esc.escapist_animal = GameManager.get_player_escapist_animal(player_index)
+		esc.player_color = Enums.escapist_animal_color(esc.escapist_animal)
+		var map_size := arena.get_map_size()
+		esc.position = Vector2(map_size.x * 0.78, map_size.y * 0.72)
+		esc.aim_direction = Vector2.RIGHT
+		esc.died.connect(_on_escapist_character_died)
+		character_container.add_child(esc)
+		characters.append(esc)
+		GameManager.register_player_character(player_index, esc)
+
+
+func _remove_practice_bots() -> void:
+	for bot_index: int in [100, 101]:
+		var character := GameManager.player_characters.get(bot_index, null) as Node2D
+		if character and is_instance_valid(character):
+			characters.erase(character)
+			character.queue_free()
+	_clear_practice_bots()
+	_practice_bots_added = false
+
+
 func _restart_practice_character_select() -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
@@ -638,7 +727,9 @@ func _restart_practice_character_select() -> void:
 	menu_music.use_menu_volume()
 	menu_music.start_music()
 	_is_practice_flow = true
+	_clear_practice_bots()
 	GameManager.prepare_practice_character_select()
+	_practice_bots_added = false
 	_active_player_indices.clear()
 	for pi: int in GameManager.team_assignments:
 		_active_player_indices.append(pi)
@@ -648,6 +739,16 @@ func _restart_practice_character_select() -> void:
 	_show_escapist_select(true)
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
+
+
+func _clear_practice_bots() -> void:
+	for bot_index: int in [100, 101]:
+		GameManager.team_assignments.erase(bot_index)
+		GameManager.role_assignments.erase(bot_index)
+		GameManager.character_selections.erase(bot_index)
+		GameManager.escapist_selections.erase(bot_index)
+		GameManager.player_characters.erase(bot_index)
+		_active_player_indices.erase(bot_index)
 
 
 func _reset_to_team_setup() -> void:

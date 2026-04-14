@@ -25,6 +25,16 @@ var _last_mark_position: Vector2 = Vector2.ZERO
 var _bot_target: Vector2 = Vector2.ZERO
 var _bot_move_timer: float = 0.0
 var _bot_ability_timer: float = 2.0  # Delay before first ability use
+var _bot_mode: StringName = &"generic"
+var _bot_path_a: Vector2 = Vector2.ZERO
+var _bot_path_b: Vector2 = Vector2.ZERO
+var _bot_path_target: Vector2 = Vector2.ZERO
+var _bot_elapsed: float = 0.0
+var _bot_next_ability_index: int = 0
+var _bot_ability_schedule: Array[float] = [1.2, 3.8, 6.4]
+var _bot_active_placement_index: int = -1
+var _bot_placement_timer: float = 0.0
+var _bot_cycle_delay: float = 0.0
 
 # Button mappings for the 3 abilities
 const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  # A, RB, X
@@ -33,6 +43,15 @@ const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  #
 func setup(map_size: Vector2) -> void:
 	_map_bounds = Rect2(Vector2.ZERO, map_size)
 	bot_ai_enabled = GameManager.settings_overrides.get(&"bot_ai", false) as bool
+	_bot_mode = &"generic"
+	_bot_path_a = Vector2.ZERO
+	_bot_path_b = Vector2.ZERO
+	_bot_path_target = Vector2.ZERO
+	_bot_elapsed = 0.0
+	_bot_next_ability_index = 0
+	_bot_active_placement_index = -1
+	_bot_placement_timer = 0.0
+	_bot_cycle_delay = 0.0
 	_spent_ability_indices.clear()
 	_set_reload_timer = 0.0
 	_floating_text = ""
@@ -40,6 +59,23 @@ func setup(map_size: Vector2) -> void:
 	_animal_mark_alpha = 0.78
 	_last_mark_position = position
 	_setup_abilities()
+
+
+func configure_spider_bot(path_a: Vector2, path_b: Vector2) -> void:
+	bot_ai_enabled = true
+	_bot_mode = &"spider"
+	_bot_path_a = path_a
+	_bot_path_b = path_b
+	_bot_path_target = path_b
+	_bot_elapsed = 0.0
+	_bot_next_ability_index = 0
+	_bot_active_placement_index = -1
+	_bot_placement_timer = 0.0
+	_bot_cycle_delay = 0.0
+	_bot_move_timer = 0.0
+	_bot_ability_timer = 1.2
+	position = path_a
+	_last_mark_position = position
 
 
 func _setup_abilities() -> void:
@@ -145,6 +181,11 @@ func _process(delta: float) -> void:
 
 
 func _process_bot(delta: float) -> void:
+	_bot_elapsed += delta
+	if _bot_mode == &"spider":
+		_process_spider_bot(delta)
+		return
+
 	# Move toward random target
 	_bot_move_timer -= delta
 	if _bot_move_timer <= 0.0:
@@ -176,7 +217,70 @@ func _process_bot(delta: float) -> void:
 			if _abilities[idx].is_placing:
 				for _j in _abilities[idx].points_required:
 					_abilities[idx].activate()
-		_bot_ability_timer = randf_range(3.0, 8.0)
+			_bot_ability_timer = randf_range(3.0, 8.0)
+
+
+func _process_spider_bot(delta: float) -> void:
+	var move_speed := Constants.TRAPPER_CURSOR_SPEED * 0.6
+	var next_position := position.move_toward(_bot_path_target, move_speed * delta)
+	if _is_bot_position_clear(next_position):
+		position = next_position
+	else:
+		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
+	if position.distance_to(_bot_path_target) <= 8.0:
+		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
+
+	if _bot_active_placement_index >= 0:
+		_bot_placement_timer -= delta
+		if _bot_placement_timer <= 0.0:
+			var active_ability: TrapperAbility = _abilities[_bot_active_placement_index]
+			active_ability.activate()
+			_bot_placement_timer = 0.22
+			if not active_ability.is_placing:
+				_bot_active_placement_index = -1
+				_bot_next_ability_index += 1
+				if _bot_next_ability_index >= _abilities.size():
+					_bot_cycle_delay = 2.0
+		return
+
+	if _bot_next_ability_index >= _abilities.size():
+		_bot_cycle_delay = maxf(_bot_cycle_delay - delta, 0.0)
+		if _bot_cycle_delay <= 0.0:
+			_bot_next_ability_index = 0
+			_bot_elapsed = 0.0
+		return
+	var schedule_time := _bot_ability_schedule[_bot_next_ability_index] if _bot_next_ability_index < _bot_ability_schedule.size() else 9999.0
+	if _bot_elapsed < schedule_time:
+		return
+	var ability := _abilities[_bot_next_ability_index]
+	if not ability.can_activate():
+		return
+	ability.activate()
+	if ability.is_placing:
+		_bot_active_placement_index = _bot_next_ability_index
+		_bot_placement_timer = 0.22
+	else:
+		_bot_next_ability_index += 1
+		if _bot_next_ability_index >= _abilities.size():
+			_bot_cycle_delay = 2.0
+
+
+func _is_bot_position_clear(candidate: Vector2) -> bool:
+	var world := get_world_2d()
+	if world == null:
+		return true
+
+	var shape := CircleShape2D.new()
+	shape.radius = Constants.CHARACTER_RADIUS
+
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape
+	query.transform = Transform2D(0.0, candidate)
+	query.collision_mask = Constants.LAYER_WALLS | Constants.LAYER_CHARACTERS
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+
+	return world.direct_space_state.intersect_shape(query, 1).is_empty()
 
 
 func _on_ability_escape_charge_used(_ability: TrapperAbility, ability_index: int) -> void:

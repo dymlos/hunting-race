@@ -32,6 +32,8 @@ func can_activate() -> bool:
 	if _skills_cooldowns_enabled():
 		if _cooldown_remaining > 0.0:
 			return false
+		if GameManager.current_state == Enums.GameState.PRACTICE:
+			return true
 		if _get_available_uses() <= 0:
 			return false
 		if _active_objects.size() >= _get_active_limit():

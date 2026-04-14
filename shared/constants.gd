@@ -152,10 +152,11 @@ const RABBIT_LEAP_MAX_CHARGE: float = 1.2
 const RABBIT_LEAP_DURATION: float = 0.16
 const RABBIT_LEAP_VISUAL_HEIGHT: float = 34.0
 
-const RAT_RESCUE_RANGE: float = 260.0
-const RAT_RESCUE_WIDTH: float = 48.0
-const RAT_RESCUE_PULL_DIST: float = 130.0
-const RAT_RESCUE_DURATION: float = 0.18
+const RAT_RESCUE_RANGE: float = 620.0
+const RAT_RESCUE_WIDTH: float = 42.0
+const RAT_RESCUE_PULL_STOP_DISTANCE: float = 38.0
+const RAT_RESCUE_HOOK_SPEED: float = 1800.0
+const RAT_RESCUE_PULL_SPEED: float = 1050.0
 
 const SQUIRREL_ACORN_SPEED: float = 620.0
 const SQUIRREL_ACORN_LIFETIME: float = 2.4
