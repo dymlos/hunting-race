@@ -150,6 +150,7 @@ const RABBIT_LEAP_MIN_DIST: float = 90.0
 const RABBIT_LEAP_MAX_DIST: float = 260.0
 const RABBIT_LEAP_MAX_CHARGE: float = 1.2
 const RABBIT_LEAP_DURATION: float = 0.16
+const RABBIT_LEAP_VISUAL_HEIGHT: float = 34.0
 
 const RAT_RESCUE_RANGE: float = 260.0
 const RAT_RESCUE_WIDTH: float = 48.0

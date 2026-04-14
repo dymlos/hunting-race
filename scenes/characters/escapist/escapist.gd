@@ -176,7 +176,7 @@ func _handle_rabbit_ability(delta: float) -> void:
 		var distance := lerpf(Constants.RABBIT_LEAP_MIN_DIST, Constants.RABBIT_LEAP_MAX_DIST, ratio)
 		var direction := _get_ability_direction()
 		AudioManager.play_skill(&"RabbitLeap")
-		movement.start_dash(direction, distance, Callable(), Constants.RABBIT_LEAP_DURATION)
+		movement.start_dash(direction, distance, Callable(), Constants.RABBIT_LEAP_DURATION, true)
 		_rabbit_charging = false
 		if _skills_cooldowns_enabled():
 			_ability_available = false
@@ -289,6 +289,14 @@ func _get_animal_mark_alpha() -> float:
 func _make_animal_mark_color(base_color: Color, alpha_scale: float = 1.0) -> Color:
 	var alpha := _get_animal_mark_alpha() * alpha_scale
 	return Color(base_color, alpha)
+
+
+func _get_rabbit_jump_lift() -> float:
+	if escapist_animal != Enums.EscapistAnimal.RABBIT or not movement:
+		return 0.0
+	if not movement.is_airborne_dashing:
+		return 0.0
+	return sin(movement.get_dash_progress() * PI) * Constants.RABBIT_LEAP_VISUAL_HEIGHT
 
 
 func _draw_animal_mark(base_color: Color) -> void:
@@ -438,6 +446,7 @@ func _draw() -> void:
 	var animal_color := Enums.escapist_animal_color(escapist_animal)
 	var team_color := Enums.team_color(team)
 	var draw_color := animal_color
+	var jump_lift := _get_rabbit_jump_lift()
 
 	# Poison tint
 	if poison and poison.is_poisoned:
@@ -447,6 +456,14 @@ func _draw() -> void:
 	# Inverted controls indicator
 	if controls_inverted:
 		draw_color = draw_color.lerp(Color(1.0, 0.0, 1.0), 0.3)
+
+	if jump_lift > 0.0:
+		var lift_ratio := jump_lift / Constants.RABBIT_LEAP_VISUAL_HEIGHT
+		_draw_filled_ellipse(Vector2(0.0, 7.0), Vector2(13.0 + lift_ratio * 5.0, 4.2),
+			Color(0.0, 0.0, 0.0, lerpf(0.24, 0.08, lift_ratio)), 20)
+		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 12.0 + lift_ratio * 8.0,
+			0.0, TAU, 28, Color(animal_color, lerpf(0.32, 0.08, lift_ratio)), 1.6)
+		draw_set_transform(Vector2(0.0, -jump_lift), 0.0, Vector2.ONE)
 
 	# Animal mark with outer team ring
 	_draw_animal_mark(draw_color)
@@ -490,6 +507,9 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 5.0,
 			-PI / 2.0, -PI / 2.0 + TAU * ratio, 12,
 			Color(0.2, 0.9, 0.1, 0.6), 2.0)
+
+	if jump_lift > 0.0:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 class AcornProjectile extends Node2D:

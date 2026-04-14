@@ -185,6 +185,8 @@ func _start_practice_setup() -> void:
 	_cleanup_round()
 	_active_player_indices.clear()
 	GameManager.reset_match()
+	GameManager.settings_overrides[&"skill_cooldowns_enabled"] = false
+	GameManager.settings_overrides[&"practice_obstacles_enabled"] = true
 	_is_practice_flow = true
 	if arena:
 		arena.queue_free()

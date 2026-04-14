@@ -18,10 +18,15 @@ var body: CharacterBody2D
 
 # Dash state
 var is_dashing: bool = false
+var is_airborne_dashing: bool = false
 var _dash_direction: Vector2 = Vector2.ZERO
+var _dash_total_distance: float = 0.0
 var _dash_remaining: float = 0.0
 var _dash_speed: float = 0.0
 var _dash_callback: Callable
+var _dash_original_collision_layer: int = 0
+var _dash_original_collision_mask: int = 0
+var _dash_has_collision_override: bool = false
 
 # Sticky wall stun
 var _sticky_stun_timer: float = 0.0
@@ -179,35 +184,105 @@ func apply_impulse(impulse: Vector2) -> void:
 	_external_velocity += impulse
 
 
-func start_dash(direction: Vector2, distance: float, on_complete: Callable = Callable(), duration: float = 0.1) -> void:
+func start_dash(direction: Vector2, distance: float, on_complete: Callable = Callable(),
+		duration: float = 0.1, ignore_collisions: bool = false) -> void:
 	if body is Escapist and (body as Escapist).is_effect_immune():
 		return
+	if is_dashing:
+		_restore_dash_collision()
 	_dash_direction = direction.normalized()
+	_dash_total_distance = distance
 	_dash_remaining = distance
 	_dash_speed = distance / duration
 	_dash_callback = on_complete
 	is_dashing = true
+	is_airborne_dashing = ignore_collisions
+	_apply_dash_collision(ignore_collisions)
+
+
+func get_dash_progress() -> float:
+	if _dash_total_distance <= 0.0:
+		return 0.0
+	return clampf(1.0 - (_dash_remaining / _dash_total_distance), 0.0, 1.0)
+
+
+func _apply_dash_collision(ignore_collisions: bool) -> void:
+	if not body:
+		return
+	_dash_original_collision_layer = body.collision_layer
+	_dash_original_collision_mask = body.collision_mask
+	_dash_has_collision_override = true
+	if ignore_collisions:
+		body.collision_layer = 0
+		body.collision_mask = 0
+		return
 	# Pass through characters during dash
 	body.set_collision_mask_value(2, false)
 	body.set_collision_layer_value(2, false)
 
 
+func _restore_dash_collision() -> void:
+	if not body or not _dash_has_collision_override:
+		return
+	body.collision_layer = _dash_original_collision_layer
+	body.collision_mask = _dash_original_collision_mask
+	_dash_has_collision_override = false
+
+
 func _end_dash() -> void:
+	if is_airborne_dashing:
+		_resolve_airborne_landing()
 	is_dashing = false
+	is_airborne_dashing = false
+	_dash_total_distance = 0.0
 	_dash_remaining = 0.0
 	_dash_speed = 0.0
 	body.velocity = Vector2.ZERO
-	# Restore character collision
-	body.set_collision_mask_value(2, true)
-	body.set_collision_layer_value(2, true)
+	_restore_dash_collision()
 	var callback := _dash_callback
 	_dash_callback = Callable()
 	if callback.is_valid():
 		callback.call()
 
 
+func _resolve_airborne_landing() -> void:
+	if not body or _is_landing_clear(body.global_position):
+		return
+	var start_position := body.global_position
+	var step := Constants.CHARACTER_RADIUS * 0.75
+	for i in range(1, 18):
+		var candidate := start_position + _dash_direction * step * float(i)
+		if _is_landing_clear(candidate):
+			body.global_position = candidate
+			return
+	for i in range(1, 28):
+		var candidate := start_position - _dash_direction * step * float(i)
+		if _is_landing_clear(candidate):
+			body.global_position = candidate
+			return
+
+
+func _is_landing_clear(position: Vector2) -> bool:
+	if not body or not body.get_world_2d():
+		return true
+	var shape := CircleShape2D.new()
+	shape.radius = Constants.CHARACTER_RADIUS
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape
+	query.transform = Transform2D(0.0, position)
+	query.collision_mask = Constants.LAYER_WALLS
+	query.exclude = [body.get_rid()]
+	return body.get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
 func freeze() -> void:
 	can_move = false
+	is_dashing = false
+	is_airborne_dashing = false
+	_dash_total_distance = 0.0
+	_dash_remaining = 0.0
+	_dash_speed = 0.0
+	_restore_dash_collision()
 	velocity = Vector2.ZERO
 	_external_velocity = Vector2.ZERO
 
