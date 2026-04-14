@@ -201,9 +201,9 @@ func _use_rat_rescue() -> void:
 	get_parent().add_child(tail)
 	_active_rat_tail = tail
 	tail.finished.connect(_on_rat_tail_finished)
+	AudioManager.play_skill(&"RatWhipOut")
 	if _skills_cooldowns_enabled():
 		_ability_available = false
-	AudioManager.play_skill(&"RatRescue")
 
 
 func _on_rat_tail_finished(tail: Node) -> void:
@@ -601,6 +601,7 @@ class RatTailHook extends Node2D:
 		_is_returning = true
 		_distance = _owner_rat.global_position.distance_to(_hook_end_position)
 		_fade_timer = maxf(0.18, _distance / Constants.RAT_RESCUE_HOOK_SPEED)
+		AudioManager.play_skill(&"RatWhipReturn")
 		queue_redraw()
 
 	func _find_hooked_ally_between(hook_start: Vector2, hook_end: Vector2) -> Escapist:

@@ -58,8 +58,10 @@ func _make_voice(skill_name: StringName) -> Dictionary:
 	match name:
 		"RabbitLeap":
 			voice.merge({"duration": 0.34, "freq": 520.0, "freq2": 960.0, "volume": 0.24, "style": &"sweep"}, true)
-		"RatRescue":
-			voice.merge({"duration": 0.36, "freq": 260.0, "freq2": 190.0, "volume": 0.22, "style": &"twang"}, true)
+		"RatWhipOut":
+			voice.merge({"duration": 0.20, "freq": 720.0, "freq2": 240.0, "volume": 0.24, "style": &"whip"}, true)
+		"RatWhipReturn":
+			voice.merge({"duration": 0.18, "freq": 840.0, "freq2": 180.0, "volume": 0.22, "style": &"whip"}, true)
 		"SquirrelAcorn":
 			voice.merge({"duration": 0.24, "freq": 760.0, "freq2": 1120.0, "volume": 0.20, "style": &"wood"}, true)
 		"FlyCounter":
@@ -118,6 +120,8 @@ func _current_freq(voice: Dictionary, ratio: float) -> float:
 			return lerpf(freq, freq2, ratio)
 		&"twang", &"mud":
 			return lerpf(freq, freq2, ratio)
+		&"whip":
+			return lerpf(freq, freq2, ratio)
 	return freq
 
 
@@ -130,6 +134,10 @@ func _voice_sample(voice: Dictionary, ratio: float) -> float:
 			return (sin(phase * TAU_F) + sin(phase2 * TAU_F) * 0.22) * env
 		&"twang":
 			return (sin(phase * TAU_F) + _soft_square(phase2) * 0.28) * _fast_env(ratio)
+		&"whip":
+			var snap := sin(phase * TAU_F * 2.0)
+			var crack := _soft_square(fmod(phase2 + ratio * 0.35, 1.0))
+			return (snap * 0.82 + crack * 0.38) * _click_env(ratio)
 		&"wood":
 			return (sin(phase * TAU_F) * 0.7 + sin(phase2 * TAU_F) * 0.35) * _click_env(ratio)
 		&"buzz":
