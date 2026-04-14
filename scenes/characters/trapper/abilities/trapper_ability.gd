@@ -124,7 +124,8 @@ func reset_round_uses() -> void:
 func _get_available_uses() -> int:
 	if GameManager.current_state == Enums.GameState.HUNT:
 		return _strategy_uses_remaining
-	if GameManager.current_state == Enums.GameState.ESCAPE:
+	if GameManager.current_state == Enums.GameState.ESCAPE \
+			or GameManager.current_state == Enums.GameState.PRACTICE:
 		return _charges_remaining
 	return 0
 
@@ -136,7 +137,8 @@ func _consume_use() -> bool:
 		_strategy_uses_remaining -= 1
 		_strategy_uses_spent += 1
 		return true
-	if GameManager.current_state == Enums.GameState.ESCAPE:
+	if GameManager.current_state == Enums.GameState.ESCAPE \
+			or GameManager.current_state == Enums.GameState.PRACTICE:
 		if _charges_remaining <= 0:
 			return false
 		_charges_remaining -= 1
@@ -146,7 +148,8 @@ func _consume_use() -> bool:
 
 
 func _start_cooldown_if_needed() -> void:
-	if GameManager.current_state == Enums.GameState.ESCAPE:
+	if GameManager.current_state == Enums.GameState.ESCAPE \
+			or GameManager.current_state == Enums.GameState.PRACTICE:
 		_cooldown_remaining = cooldown
 	else:
 		_cooldown_remaining = 0.0

@@ -4,6 +4,8 @@ extends Node2D
 
 const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
 const CoverScreenScene := preload("res://scenes/ui/cover_screen.tscn")
+const ModeSelectScene := preload("res://scenes/ui/mode_select.gd")
+const PracticeSetupScene := preload("res://scenes/ui/practice_setup.gd")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const EscapistSelectScene := preload("res://scenes/ui/escapist_select.tscn")
 const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
@@ -32,6 +34,8 @@ var _view_stack: Array[Control] = []
 
 # UI instances
 var cover_screen: CoverScreen
+var mode_select: ModeSelect
+var practice_setup: PracticeSetup
 var team_setup: TeamSetup
 var stage_select: StageSelect
 var escapist_select: EscapistSelect
@@ -42,6 +46,7 @@ var phase_overlay: PhaseOverlay
 var game_hud: GameHud
 var menu_music: MenuMusicPlayer
 var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
+var _is_practice_flow: bool = false
 
 
 func _ready() -> void:
@@ -55,6 +60,18 @@ func _ready() -> void:
 	ui_layer.add_child(cover_screen)
 	cover_screen.hide()
 	cover_screen.start_requested.connect(_on_cover_start_requested)
+
+	mode_select = ModeSelectScene.new() as ModeSelect
+	ui_layer.add_child(mode_select)
+	mode_select.hide()
+	mode_select.official_requested.connect(_start_team_setup)
+	mode_select.practice_requested.connect(_start_practice_setup)
+
+	practice_setup = PracticeSetupScene.new() as PracticeSetup
+	ui_layer.add_child(practice_setup)
+	practice_setup.hide()
+	practice_setup.practice_ready.connect(_on_practice_ready)
+	practice_setup.back_requested.connect(_start_mode_select)
 
 	team_setup = TeamSetupScene.instantiate() as TeamSetup
 	ui_layer.add_child(team_setup)
@@ -92,6 +109,7 @@ func _ready() -> void:
 	pause_menu.resume_requested.connect(_resume_from_pause)
 	pause_menu.settings_requested.connect(_open_settings)
 	pause_menu.reset_requested.connect(_reset_to_team_setup)
+	pause_menu.practice_requested.connect(_start_practice_setup)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
@@ -135,7 +153,60 @@ func _start_cover_screen() -> void:
 
 
 func _on_cover_start_requested() -> void:
-	_start_team_setup()
+	_start_mode_select()
+
+
+func _start_mode_select() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	_active_player_indices.clear()
+	_is_practice_flow = false
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	menu_music.use_menu_volume()
+	menu_music.start_music()
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	mode_select.open()
+	push_view(mode_select)
+
+
+func _start_practice_setup() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	_active_player_indices.clear()
+	GameManager.reset_match()
+	_is_practice_flow = true
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	menu_music.use_menu_volume()
+	menu_music.start_music()
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	practice_setup.setup()
+	push_view(practice_setup)
+
+
+func _on_practice_ready(team_assignments: Dictionary, role_assignments: Dictionary) -> void:
+	_is_practice_flow = true
+	GameManager.set_practice_assignments(team_assignments, role_assignments)
+	_active_player_indices.clear()
+	for pi: int in team_assignments:
+		_active_player_indices.append(pi)
+	_active_player_indices.sort()
+	_show_escapist_select(true)
 
 
 func _start_team_setup() -> void:
@@ -143,6 +214,7 @@ func _start_team_setup() -> void:
 	_clear_pause_menu()
 	_cleanup_round()
 	_active_player_indices.clear()
+	_is_practice_flow = false
 	if arena:
 		arena.queue_free()
 		arena = null
@@ -159,6 +231,7 @@ func _start_team_setup() -> void:
 
 
 func _on_teams_ready(t_assignments: Dictionary) -> void:
+	_is_practice_flow = false
 	GameManager.set_team_assignments(t_assignments)
 	_active_player_indices.clear()
 	for pi: int in t_assignments:
@@ -200,7 +273,7 @@ func _show_character_select(allow_back: bool) -> void:
 
 func _on_escapists_ready(selections: Dictionary) -> void:
 	GameManager.set_escapist_selections(selections)
-	_show_character_select(_is_first_round)
+	_show_character_select(_is_practice_flow or _is_first_round)
 
 
 func _on_characters_ready(selections: Dictionary) -> void:
@@ -211,6 +284,10 @@ func _on_characters_ready(selections: Dictionary) -> void:
 
 	for pi in _active_player_indices:
 		_prev_start_pressed[pi] = true
+
+	if _is_practice_flow:
+		_start_practice_session()
+		return
 
 	if _is_first_round:
 		_setup_arena()
@@ -225,6 +302,9 @@ func _on_character_back() -> void:
 
 
 func _on_escapist_back() -> void:
+	if _is_practice_flow:
+		_start_practice_setup()
+		return
 	replace_view(stage_select)
 	stage_select.setup()
 
@@ -247,6 +327,22 @@ func _setup_arena() -> void:
 	arena.load_map(map_data)
 	arena.goal_entered.connect(_on_goal_entered)
 	_setup_camera()
+
+
+func _setup_practice_arena() -> void:
+	if arena:
+		arena.queue_free()
+	arena = ArenaScene.instantiate() as Arena
+	arena_container.add_child(arena)
+	arena.load_map(MapData.get_practice_map())
+	_setup_camera()
+
+
+func _start_practice_session() -> void:
+	_setup_practice_arena()
+	menu_music.use_round_volume()
+	game_hud.show()
+	GameManager.start_practice()
 
 
 func _setup_camera() -> void:
@@ -341,6 +437,11 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 			_freeze_all()
 		Enums.GameState.MATCH_END:
 			_freeze_all()
+		Enums.GameState.PRACTICE:
+			menu_music.use_round_volume()
+			_spawn_characters()
+			_unfreeze_all()
+			phase_overlay.clear()
 
 
 func _on_round_ended(escapist_team: Enums.Team, points_scored: int) -> void:
@@ -371,7 +472,10 @@ func _process(_delta: float) -> void:
 	if state == Enums.GameState.HUNT:
 		phase_overlay.show_hunt_countdown(GameManager.get_observation_time())
 
-	if state == Enums.GameState.OBSERVATION or state == Enums.GameState.HUNT or state == Enums.GameState.ESCAPE:
+	if state == Enums.GameState.OBSERVATION \
+			or state == Enums.GameState.HUNT \
+			or state == Enums.GameState.ESCAPE \
+			or state == Enums.GameState.PRACTICE:
 		_check_pause_input()
 
 	if state == Enums.GameState.ESCAPE:

@@ -17,6 +17,7 @@ var player_characters: Dictionary = {}         # {player_index: Node2D}
 var settings_overrides: Dictionary = {}        # {StringName: Variant} — from settings menu
 var player_score_history: Dictionary = {}
 var _round_stats: Dictionary = {}
+var practice_mode: bool = false
 
 # Which team is currently playing as escapists
 var escapist_team: Enums.Team = Enums.Team.TEAM_1
@@ -64,6 +65,13 @@ func _process(delta: float) -> void:
 
 func set_team_assignments(assignments: Dictionary) -> void:
 	team_assignments = assignments.duplicate()
+
+
+func set_practice_assignments(assignments: Dictionary, roles: Dictionary) -> void:
+	practice_mode = true
+	team_assignments = assignments.duplicate()
+	role_assignments = roles.duplicate()
+	escapist_team = Enums.Team.TEAM_1
 
 
 func set_character_selections(selections: Dictionary) -> void:
@@ -137,6 +145,7 @@ func get_round_leg_label() -> String:
 
 
 func start_observation() -> void:
+	practice_mode = false
 	_awaiting_character_select = false
 	round_number += 1
 	hunt_active = false
@@ -175,6 +184,8 @@ func get_hunt_time() -> float:
 
 
 func register_escapist_scored(player_index: int) -> void:
+	if current_state == Enums.GameState.PRACTICE:
+		return
 	if not hunt_active:
 		return
 	var team := get_player_team(player_index)
@@ -190,6 +201,8 @@ func register_escapist_scored(player_index: int) -> void:
 
 
 func register_escapist_died(player_index: int) -> void:
+	if current_state == Enums.GameState.PRACTICE:
+		return
 	if not hunt_active:
 		return
 	var team := get_player_team(player_index)
@@ -204,10 +217,9 @@ func register_escapist_died(player_index: int) -> void:
 func register_trap_contact(player_index: int) -> void:
 	if not hunt_active:
 		return
-	if not _round_stats.has(player_index):
-		return
-	var stats: Dictionary = _round_stats[player_index]
-	stats["trap_contacts"] = (stats.get("trap_contacts", 0) as int) + 1
+	if _round_stats.has(player_index):
+		var stats: Dictionary = _round_stats[player_index]
+		stats["trap_contacts"] = (stats.get("trap_contacts", 0) as int) + 1
 	var character: Node = player_characters.get(player_index, null) as Node
 	if character and is_instance_valid(character) and character.has_method("notify_trap_contact"):
 		character.call("notify_trap_contact")
@@ -271,6 +283,7 @@ func unpause_game() -> void:
 
 
 func reset_match() -> void:
+	practice_mode = false
 	round_number = 0
 	match_scores = [0, 0]
 	hunt_active = false
@@ -284,6 +297,22 @@ func reset_match() -> void:
 	role_assignments.clear()
 	character_selections.clear()
 	_change_state(Enums.GameState.TEAM_SETUP)
+
+
+func start_practice() -> void:
+	practice_mode = true
+	_awaiting_character_select = false
+	round_number = 0
+	match_scores = [0, 0]
+	hunt_active = true
+	trap_lifetime_active = true
+	_living_escapists = 0
+	for pi: int in role_assignments:
+		if role_assignments[pi] == Enums.Role.ESCAPIST:
+			_living_escapists += 1
+	_round_stats.clear()
+	player_characters.clear()
+	_change_state(Enums.GameState.PRACTICE)
 
 
 func _change_state(new_state: Enums.GameState) -> void:

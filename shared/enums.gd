@@ -7,6 +7,7 @@ enum GameState {
 	ESCAPE,
 	ROUND_END,
 	MATCH_END,
+	PRACTICE,
 	PAUSED,
 }
 

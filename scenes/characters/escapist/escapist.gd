@@ -52,6 +52,10 @@ func kill() -> void:
 	if is_effect_immune():
 		return
 	GameManager.register_respawn_penalty(player_index, &"death")
+	if GameManager.current_state == Enums.GameState.PRACTICE:
+		_return_to_spawn_with_death_message()
+		_reset_ability()
+		return
 	is_dead = true
 	input_locked = true
 	movement.freeze()

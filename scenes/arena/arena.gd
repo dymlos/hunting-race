@@ -107,6 +107,8 @@ func _create_static_wall(pos: Vector2, wall_size: Vector2) -> StaticBody2D:
 
 func _build_goals() -> void:
 	var goal_rect: Rect2 = _map_data.get("goal", Rect2())
+	if goal_rect.size.x <= 0.0 or goal_rect.size.y <= 0.0:
+		return
 	_goal_zones.append(_create_goal_zone(goal_rect))
 
 
@@ -542,12 +544,29 @@ func _draw() -> void:
 
 	# Goal zone
 	var goal_rect: Rect2 = _map_data.get("goal", Rect2())
-	var goal_color := Color(0.2, 1.0, 0.5)  # Green — matches escapist color
-	draw_rect(goal_rect, Color(goal_color, 0.2))
-	draw_rect(goal_rect, goal_color, false, 2.0)
+	if goal_rect.size.x > 0.0 and goal_rect.size.y > 0.0:
+		var goal_color := Color(0.2, 1.0, 0.5)
+		draw_rect(goal_rect, Color(goal_color, 0.2))
+		draw_rect(goal_rect, goal_color, false, 2.0)
+
+	if _map_data.get("show_respawn_marker", false) as bool:
+		_draw_respawn_marker()
 
 	# Hazards
 	_draw_hazards()
+
+
+func _draw_respawn_marker() -> void:
+	var spawns: Array = _map_data.get("spawns", [])
+	if spawns.is_empty():
+		return
+	var spawn: Vector2 = spawns[0] as Vector2
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 360.0)
+	var color := Color(0.25, 0.85, 1.0, 0.45 + pulse * 0.25)
+	draw_circle(spawn, 30.0 + pulse * 4.0, Color(color, 0.12))
+	draw_arc(spawn, 30.0 + pulse * 4.0, 0.0, TAU, 32, color, 2.0)
+	draw_line(spawn + Vector2(-18.0, 0.0), spawn + Vector2(18.0, 0.0), color, 2.0)
+	draw_line(spawn + Vector2(0.0, -18.0), spawn + Vector2(0.0, 18.0), color, 2.0)
 
 
 func _draw_hazards() -> void:

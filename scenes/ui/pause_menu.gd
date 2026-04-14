@@ -3,15 +3,17 @@ extends Control
 
 signal resume_requested
 signal settings_requested
+signal practice_requested
 signal reset_requested
 
 var input_blocked: bool = false
 
 var _selected_index: int = 0
 var _nav_cooldown: float = 0.0
+var _showing_ability_guide: bool = false
 
 const NAV_COOLDOWN: float = 0.2
-const OPTIONS: Array[String] = ["Resume", "Settings", "Return to Setup"]
+const OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Practice Mode", "Return to Setup"]
 
 
 func _ready() -> void:
@@ -21,6 +23,7 @@ func _ready() -> void:
 func open() -> void:
 	_selected_index = 0
 	_nav_cooldown = 0.0
+	_showing_ability_guide = false
 	show()
 	queue_redraw()
 
@@ -33,6 +36,15 @@ func _process(delta: float) -> void:
 
 	for device_id: int in Input.get_connected_joypads():
 		if not InputManager.is_assigned_device(device_id):
+			continue
+
+		if _showing_ability_guide:
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A) \
+					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B) \
+					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
+				_showing_ability_guide = false
+				queue_redraw()
+				return
 			continue
 
 		var stick_y := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)
@@ -58,6 +70,10 @@ func _process(delta: float) -> void:
 				resume_requested.emit()
 			elif _selected_index == 1:
 				settings_requested.emit()
+			elif _selected_index == 2:
+				_showing_ability_guide = true
+			elif _selected_index == 3:
+				practice_requested.emit()
 			else:
 				reset_requested.emit()
 			return
@@ -72,8 +88,11 @@ func _draw() -> void:
 	var cy := screen.y / 2.0
 
 	draw_rect(Rect2(Vector2.ZERO, screen), Color(0, 0, 0, 0.72))
+	if _showing_ability_guide:
+		_draw_ability_guide(font, screen)
+		return
 
-	var panel_size := Vector2(460, 260)
+	var panel_size := Vector2(500, 340)
 	var panel_pos := Vector2(cx - panel_size.x / 2.0, cy - panel_size.y / 2.0)
 	var panel_rect := Rect2(panel_pos, panel_size)
 	draw_rect(panel_rect, Color(0.08, 0.08, 0.08, 0.95))
@@ -92,7 +111,7 @@ func _draw() -> void:
 		var display := "%s%s" % [prefix, text]
 		var size := 24
 		var width := font.get_string_size(display, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-		draw_string(font, Vector2(cx - width / 2.0, panel_pos.y + 125 + i * 42),
+		draw_string(font, Vector2(cx - width / 2.0, panel_pos.y + 118 + i * 42),
 			display, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 	var hint := "UP/DOWN select | A or START confirm | B resume | SELECT setup"
@@ -100,3 +119,149 @@ func _draw() -> void:
 	var hint_w := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size).x
 	draw_string(font, Vector2(cx - hint_w / 2.0, panel_pos.y + panel_size.y - 24),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size, Color(0.55, 0.55, 0.55))
+
+
+func _draw_ability_guide(font: Font, screen: Vector2) -> void:
+	var panel_margin := 50.0
+	var panel := Rect2(Vector2(panel_margin, 42.0),
+		Vector2(screen.x - panel_margin * 2.0, screen.y - 84.0))
+	draw_rect(panel, Color(0.06, 0.06, 0.06, 0.96))
+	draw_rect(panel, Color(0.75, 0.75, 0.75, 0.75), false, 2.0)
+
+	var title := "ABILITY GUIDE"
+	draw_string(font, panel.position + Vector2(28.0, 42.0),
+		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
+	draw_string(font, panel.position + Vector2(28.0, 68.0),
+		"Escapists use A. Trappers use A, RB, and X. B cancels multi-point trap placement.",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.68, 0.68, 0.68))
+
+	var left_x := panel.position.x + 30.0
+	var right_x := panel.position.x + panel.size.x * 0.48
+	var top_y := panel.position.y + 112.0
+	_draw_escapist_guide(font, Vector2(left_x, top_y), panel.size.x * 0.4)
+	_draw_trapper_guide(font, Vector2(right_x, top_y), panel.size.x * 0.46)
+
+	var hint := "A / B / START close"
+	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	draw_string(font, Vector2(panel.position.x + panel.size.x - hint_width - 28.0,
+			panel.position.y + panel.size.y - 20.0),
+		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.YELLOW)
+
+
+func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:
+	draw_string(font, pos, "ESCAPISTS", HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+		Enums.role_color(Enums.Role.ESCAPIST))
+	var y := pos.y + 32.0
+	for animal_data: Dictionary in EscapistAnimals.get_all():
+		var ability: Dictionary = animal_data["ability"] as Dictionary
+		var color: Color = animal_data["color"] as Color
+		var header := "%s  [%s] %s" % [
+			animal_data["name"] as String,
+			ability["button"] as String,
+			ability["name"] as String,
+		]
+		draw_string(font, Vector2(pos.x, y), header,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, color)
+		y += 17.0
+		y += _draw_wrapped_text(font, ability["desc"] as String,
+			Vector2(pos.x + 12.0, y), width - 12.0, 12,
+			Color(0.68, 0.68, 0.68), 15.0, 2)
+		y += 12.0
+
+
+func _draw_trapper_guide(font: Font, pos: Vector2, width: float) -> void:
+	draw_string(font, pos, "TRAPPERS", HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+		Enums.role_color(Enums.Role.TRAPPER))
+	var y := pos.y + 32.0
+	for trapper_data: Dictionary in _get_trapper_guide_data():
+		var color: Color = trapper_data["color"] as Color
+		draw_string(font, Vector2(pos.x, y), trapper_data["name"] as String,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, color)
+		y += 17.0
+		var abilities: Array = trapper_data["abilities"] as Array
+		for ability: Dictionary in abilities:
+			var line := "[%s] %s - %s" % [
+				ability["button"] as String,
+				ability["name"] as String,
+				ability["desc"] as String,
+			]
+			y += _draw_wrapped_text(font, line, Vector2(pos.x + 12.0, y),
+				width - 12.0, 11, Color(0.68, 0.68, 0.68), 13.0, 2)
+		y += 11.0
+
+
+func _draw_wrapped_text(font: Font, text: String, position: Vector2,
+		max_width: float, font_size: int, color: Color, line_height: float,
+		max_lines: int) -> float:
+	var words := text.split(" ", false)
+	var lines: Array[String] = []
+	var current := ""
+
+	for word: String in words:
+		var candidate := word if current.is_empty() else "%s %s" % [current, word]
+		if font.get_string_size(candidate, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x <= max_width \
+				or current.is_empty():
+			current = candidate
+		else:
+			lines.append(current)
+			current = word
+
+	if not current.is_empty():
+		lines.append(current)
+
+	if lines.size() > max_lines:
+		lines = lines.slice(0, max_lines)
+		var last_line := lines[max_lines - 1]
+		while not last_line.is_empty():
+			var trimmed := "%s..." % last_line
+			if font.get_string_size(trimmed, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x <= max_width:
+				lines[max_lines - 1] = trimmed
+				break
+			last_line = last_line.substr(0, last_line.length() - 1).strip_edges()
+
+	for i in lines.size():
+		draw_string(font, position + Vector2(0.0, float(i) * line_height),
+			lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+
+	return float(lines.size()) * line_height
+
+
+func _get_trapper_guide_data() -> Array[Dictionary]:
+	return [
+		{
+			"name": "SPIDER",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ARANA),
+			"abilities": [
+				{"button": "A", "name": "Expansive Web", "desc": "Place 3 points to create a slowing web."},
+				{"button": "RB", "name": "Elastic Web", "desc": "Place 2 points to bounce escapists back."},
+				{"button": "X", "name": "Persistent Venom", "desc": "Poison puddle. Ally touch cures before death."},
+			],
+		},
+		{
+			"name": "MUSHROOM",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.HONGO),
+			"abilities": [
+				{"button": "A", "name": "Confusing Mushroom", "desc": "Inverts movement on contact."},
+				{"button": "RB", "name": "Toxic Spore Zone", "desc": "Slows inside and poisons on exit."},
+				{"button": "X", "name": "Fungal Teleport", "desc": "Place 2 linked portals."},
+			],
+		},
+		{
+			"name": "SCORPION",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ESCORPION),
+			"abilities": [
+				{"button": "A", "name": "Buried Stinger", "desc": "Hidden trap with poison and stun."},
+				{"button": "RB", "name": "Quicksand", "desc": "Pulls targets inward; center is lethal."},
+				{"button": "X", "name": "Crushing Pincers", "desc": "Place 2 walls that close and crush."},
+			],
+		},
+		{
+			"name": "OCTOPUS",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.PULPO),
+			"abilities": [
+				{"button": "A", "name": "Ink Stain", "desc": "Creates a dark visibility blocker."},
+				{"button": "RB", "name": "Binding Tentacle", "desc": "Roots one target, links two if chained."},
+				{"button": "X", "name": "Water Current", "desc": "Place 2 points for directional push."},
+			],
+		},
+	]

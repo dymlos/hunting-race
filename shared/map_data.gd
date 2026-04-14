@@ -637,5 +637,22 @@ static func get_gauntlet_map() -> Dictionary:
 	}
 
 
+static func get_practice_map() -> Dictionary:
+	var w := 1600.0
+	var h := 900.0
+	var spawn := Vector2(w / 2.0, h / 2.0)
+
+	return {
+		"name": "Practice Room",
+		"description": "A clean room for testing movement, traps, and skills.",
+		"size": Vector2(w, h),
+		"walls": [],
+		"hazards": [],
+		"spawns": [spawn],
+		"goal": Rect2(),
+		"show_respawn_marker": true,
+	}
+
+
 static func get_all() -> Array[Dictionary]:
 	return [get_gauntlet_map()]

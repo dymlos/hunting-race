@@ -180,7 +180,8 @@ func _process_bot(delta: float) -> void:
 
 
 func _on_ability_escape_charge_used(_ability: TrapperAbility, ability_index: int) -> void:
-	if GameManager.current_state != Enums.GameState.ESCAPE:
+	if GameManager.current_state != Enums.GameState.ESCAPE \
+			and GameManager.current_state != Enums.GameState.PRACTICE:
 		return
 	_spent_ability_indices[ability_index] = true
 	if _spent_ability_indices.size() >= _abilities.size() and _set_reload_timer <= 0.0:
@@ -190,7 +191,8 @@ func _on_ability_escape_charge_used(_ability: TrapperAbility, ability_index: int
 func _update_set_reload(delta: float) -> void:
 	if _set_reload_timer <= 0.0:
 		return
-	if GameManager.current_state != Enums.GameState.ESCAPE:
+	if GameManager.current_state != Enums.GameState.ESCAPE \
+			and GameManager.current_state != Enums.GameState.PRACTICE:
 		_set_reload_timer = 0.0
 		_spent_ability_indices.clear()
 		return

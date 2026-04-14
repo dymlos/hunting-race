@@ -20,6 +20,10 @@ func _draw() -> void:
 	var bar_h := 68.0
 	draw_rect(Rect2(0, 0, screen.x, bar_h), Color(0, 0, 0, 0.5))
 
+	if GameManager.current_state == Enums.GameState.PRACTICE:
+		_draw_practice_hud(font, screen, bar_h)
+		return
+
 	# Round indicator
 	var round_text := "Round %d" % GameManager.get_competitive_round_number()
 	var leg_text := GameManager.get_round_leg_label()
@@ -74,8 +78,22 @@ func _draw() -> void:
 		Enums.GameState.ESCAPE: phase = "ESCAPE"
 		Enums.GameState.ROUND_END: phase = "ROUND END"
 		Enums.GameState.MATCH_END: phase = "MATCH END"
+		Enums.GameState.PRACTICE: phase = "PRACTICE"
 		Enums.GameState.PAUSED: phase = "PAUSED"
 
 	if not phase.is_empty():
 		draw_string(font, Vector2(screen.x - 120, 20), phase,
 			HORIZONTAL_ALIGNMENT_RIGHT, -1, 14, Color.YELLOW)
+
+
+func _draw_practice_hud(font: Font, screen: Vector2, bar_h: float) -> void:
+	var title := "PRACTICE MODE"
+	draw_string(font, Vector2(24.0, 30.0),
+		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.25, 0.85, 1.0))
+
+	var detail := "Free training | START pause"
+	draw_string(font, Vector2(24.0, 54.0),
+		detail, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.7, 0.7, 0.7))
+
+	draw_string(font, Vector2(screen.x - 130.0, 28.0),
+		"PRACTICE", HORIZONTAL_ALIGNMENT_RIGHT, -1, 14, Color.YELLOW)
