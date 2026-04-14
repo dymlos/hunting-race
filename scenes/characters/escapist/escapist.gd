@@ -402,6 +402,21 @@ func _draw_fly_mark(base_color: Color) -> void:
 	]), body_color)
 
 
+func _draw_player_label(label: String, position: Vector2, font_size: int, label_color: Color) -> void:
+	var shadow_color := Color(0.0, 0.0, 0.0, 0.85)
+	for offset in [
+		Vector2(-1.0, 0.0),
+		Vector2(1.0, 0.0),
+		Vector2(0.0, -1.0),
+		Vector2(0.0, 1.0),
+	]:
+		draw_string(ThemeDB.fallback_font, position + offset,
+			label, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, shadow_color)
+	for offset in [Vector2.ZERO, Vector2(0.55, 0.0), Vector2(-0.55, 0.0)]:
+		draw_string(ThemeDB.fallback_font, position + offset,
+			label, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, label_color)
+
+
 func _draw() -> void:
 	var animal_color := Enums.escapist_animal_color(escapist_animal)
 	var team_color := Enums.team_color(team)
@@ -425,16 +440,7 @@ func _draw() -> void:
 	var label := "P%d" % (player_index + 1)
 	if player_index >= 100:
 		label = "BOT"
-	draw_string(ThemeDB.fallback_font, Vector2(-10, -Constants.CHARACTER_RADIUS - 6),
-		label, HORIZONTAL_ALIGNMENT_CENTER, -1, 10, team_color)
-	draw_string(ThemeDB.fallback_font, Vector2(-10, Constants.CHARACTER_RADIUS + 14),
-		"ESC", HORIZONTAL_ALIGNMENT_CENTER, -1, 8, draw_color)
-
-	var animal_name := Enums.escapist_animal_name(escapist_animal)
-	var animal_w := ThemeDB.fallback_font.get_string_size(animal_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
-	draw_string(ThemeDB.fallback_font, Vector2(-animal_w / 2.0, Constants.CHARACTER_RADIUS + 25),
-		animal_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(animal_color, 0.75))
-
+	_draw_player_label(label, Vector2(-10, -Constants.CHARACTER_RADIUS - 6), 12, team_color)
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / Constants.FLOATING_TEXT_DURATION, 0.0, 1.0)
 		var text_size := 18

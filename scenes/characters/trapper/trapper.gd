@@ -18,6 +18,8 @@ var _set_reload_timer: float = 0.0
 var _floating_text: String = ""
 var _floating_text_timer: float = 0.0
 var _floating_text_color: Color = Color.WHITE
+var _animal_mark_alpha: float = 0.78
+var _last_mark_position: Vector2 = Vector2.ZERO
 
 # Bot AI state
 var _bot_target: Vector2 = Vector2.ZERO
@@ -35,6 +37,8 @@ func setup(map_size: Vector2) -> void:
 	_set_reload_timer = 0.0
 	_floating_text = ""
 	_floating_text_timer = 0.0
+	_animal_mark_alpha = 0.78
+	_last_mark_position = position
 	_setup_abilities()
 
 
@@ -103,12 +107,14 @@ func _process(delta: float) -> void:
 	_update_floating_text(delta)
 
 	if input_locked:
+		_update_animal_mark_alpha(delta)
 		queue_redraw()
 		return
 
 	if player_index >= 100:
 		if bot_ai_enabled:
 			_process_bot(delta)
+		_update_animal_mark_alpha(delta)
 		queue_redraw()
 		return
 
@@ -134,6 +140,7 @@ func _process(delta: float) -> void:
 			if ability.is_placing:
 				ability.cancel_placement()
 
+	_update_animal_mark_alpha(delta)
 	queue_redraw()
 
 
@@ -212,14 +219,141 @@ func _update_floating_text(delta: float) -> void:
 	queue_redraw()
 
 
+func _update_animal_mark_alpha(delta: float) -> void:
+	var speed := 0.0
+	if delta > 0.0:
+		speed = position.distance_to(_last_mark_position) / delta
+	_last_mark_position = position
+	var move_ratio := clampf(speed / maxf(Constants.TRAPPER_CURSOR_SPEED, 1.0), 0.0, 1.0)
+	_animal_mark_alpha = lerpf(0.78, 0.34, move_ratio)
+
+
+func _draw_filled_ellipse(center: Vector2, radii: Vector2, fill_color: Color, point_count: int = 18) -> void:
+	var points := PackedVector2Array()
+	for i in range(point_count):
+		var angle := TAU * float(i) / float(point_count)
+		points.append(center + Vector2(cos(angle) * radii.x, sin(angle) * radii.y))
+	draw_colored_polygon(points, fill_color)
+
+
+func _draw_trapper_character_mark(size: float, base_color: Color) -> void:
+	var mark_color := Color(base_color, _animal_mark_alpha)
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			_draw_spider_mark(size, mark_color)
+		Enums.TrapperCharacter.HONGO:
+			_draw_mushroom_mark(size, mark_color)
+		Enums.TrapperCharacter.ESCORPION:
+			_draw_scorpion_mark(size, mark_color)
+		Enums.TrapperCharacter.PULPO:
+			_draw_octopus_mark(size, mark_color)
+
+
+func _draw_spider_mark(size: float, mark_color: Color) -> void:
+	for side in [-1.0, 1.0]:
+		draw_polyline(PackedVector2Array([
+			Vector2(side * 3.0, size * 0.45),
+			Vector2(side * 8.5, size + 4.0),
+			Vector2(side * 14.0, size + 2.0),
+		]), mark_color, 1.8)
+		draw_polyline(PackedVector2Array([
+			Vector2(side * 1.8, size * 0.7),
+			Vector2(side * 5.5, size + 8.0),
+			Vector2(side * 10.5, size + 10.0),
+		]), mark_color, 1.8)
+		draw_polyline(PackedVector2Array([
+			Vector2(side * 5.0, size * 0.2),
+			Vector2(side * 11.0, size + 1.0),
+			Vector2(side * 14.5, size - 3.5),
+		]), mark_color, 1.8)
+
+
+func _draw_mushroom_mark(size: float, mark_color: Color) -> void:
+	var cap := PackedVector2Array([
+		Vector2(-15.0, -size - 2.0),
+		Vector2(-12.0, -size - 9.0),
+		Vector2(-5.0, -size - 13.0),
+		Vector2(5.0, -size - 13.0),
+		Vector2(12.0, -size - 9.0),
+		Vector2(15.0, -size - 2.0),
+		Vector2(8.0, -size + 2.5),
+		Vector2(-8.0, -size + 2.5),
+	])
+	draw_colored_polygon(cap, mark_color)
+	draw_arc(Vector2.ZERO, size * 0.52, PI * 0.2, PI * 0.8, 8, mark_color, 2.0)
+	draw_circle(Vector2(-5.5, -size - 6.0), 1.7, Color(1.0, 1.0, 1.0, 0.35))
+	draw_circle(Vector2(4.5, -size - 8.0), 1.5, Color(1.0, 1.0, 1.0, 0.35))
+
+
+func _draw_scorpion_mark(size: float, mark_color: Color) -> void:
+	draw_arc(Vector2(size + 2.0, -1.0), 8.5, -PI * 0.2, PI * 1.15, 16, mark_color, 2.5)
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(size + 9.0, -11.0),
+		Vector2(size + 16.5, -13.0),
+		Vector2(size + 12.5, -6.0),
+	]), mark_color)
+	draw_polyline(PackedVector2Array([
+		Vector2(-size * 0.45, size * 0.3),
+		Vector2(-size - 4.5, size * 0.7),
+		Vector2(-size - 7.0, size * 0.25),
+	]), mark_color, 2.0)
+	draw_polyline(PackedVector2Array([
+		Vector2(size * 0.45, size * 0.3),
+		Vector2(size + 4.5, size * 0.7),
+		Vector2(size + 7.0, size * 0.25),
+	]), mark_color, 2.0)
+
+
+func _draw_octopus_mark(size: float, mark_color: Color) -> void:
+	_draw_filled_ellipse(Vector2(0.0, size * 0.55), Vector2(7.5, 5.0), mark_color)
+	for x in [-8.0, -3.0, 3.0, 8.0]:
+		var side := -1.0 if x < 0.0 else 1.0
+		draw_polyline(PackedVector2Array([
+			Vector2(x * 0.45, size * 0.75),
+			Vector2(x, size + 8.0),
+			Vector2(x + side * 3.0, size + 11.5),
+		]), mark_color, 2.0)
+
+
+func _draw_escape_charge_blocks(size: float) -> void:
+	var block_size := Vector2(4.0, 4.0)
+	var block_gap := 2.0
+	var total_width := float(_abilities.size()) * block_size.x + float(maxi(_abilities.size() - 1, 0)) * block_gap
+	var start_x := -total_width / 2.0
+	var y := size + 12.0
+	for i in _abilities.size():
+		var ability: TrapperAbility = _abilities[i]
+		if ability.get_charges_remaining() <= 0:
+			continue
+		var rect := Rect2(Vector2(start_x + float(i) * (block_size.x + block_gap), y), block_size)
+		draw_rect(rect, Color(ability.get_display_color(), 0.78))
+
+
+func _draw_player_label(label: String, position: Vector2, font_size: int, label_color: Color) -> void:
+	var shadow_color := Color(0.0, 0.0, 0.0, 0.85)
+	for offset in [
+		Vector2(-1.0, 0.0),
+		Vector2(1.0, 0.0),
+		Vector2(0.0, -1.0),
+		Vector2(0.0, 1.0),
+	]:
+		draw_string(ThemeDB.fallback_font, position + offset,
+			label, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, shadow_color)
+	for offset in [Vector2.ZERO, Vector2(0.55, 0.0), Vector2(-0.55, 0.0)]:
+		draw_string(ThemeDB.fallback_font, position + offset,
+			label, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, label_color)
+
+
 func _draw() -> void:
 	var char_color := Enums.trapper_character_color(trapper_character)
 	if trapper_character == Enums.TrapperCharacter.NONE:
 		char_color = player_color
+	var team_color := Enums.team_color(team)
 
 	# Crosshair cursor
 	var size := 12.0
 	var color := Color(char_color, 0.8)
+	_draw_trapper_character_mark(size, char_color)
 	draw_line(Vector2(-size, 0), Vector2(size, 0), color, 2.0)
 	draw_line(Vector2(0, -size), Vector2(0, size), color, 2.0)
 	draw_arc(Vector2.ZERO, size * 0.7, 0, TAU, 12, color, 1.5)
@@ -228,15 +362,7 @@ func _draw() -> void:
 	var label := "P%d" % (player_index + 1)
 	if player_index >= 100:
 		label = "BOT"
-	draw_string(ThemeDB.fallback_font, Vector2(-10, -size - 4),
-		label, HORIZONTAL_ALIGNMENT_CENTER, -1, 10, color)
-
-	# Character name
-	var char_name := Enums.trapper_character_name(trapper_character)
-	if char_name != "None":
-		var name_w := ThemeDB.fallback_font.get_string_size(char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
-		draw_string(ThemeDB.fallback_font, Vector2(-name_w / 2.0, -size - 14),
-			char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(char_color, 0.6))
+	_draw_player_label(label, Vector2(-10, -size - 4), 12, team_color)
 
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / Constants.FLOATING_TEXT_DURATION, 0.0, 1.0)
@@ -252,19 +378,10 @@ func _draw() -> void:
 			Color(_floating_text_color, text_alpha))
 
 	# Ability indicators
-	var indicator_y := size + 14.0
+	_draw_escape_charge_blocks(size)
 	for i in _abilities.size():
 		var ability: TrapperAbility = _abilities[i]
 		var a_color := ability.get_display_color()
-
-		# Active count and remaining charge
-		var use_text := "S%d C%d" % [
-			ability.get_strategy_uses_remaining(),
-			ability.get_charges_remaining(),
-		]
-		var count_text := "A%d %s" % [ability.get_active_count(), use_text]
-		draw_string(ThemeDB.fallback_font, Vector2(-10, indicator_y),
-			count_text, HORIZONTAL_ALIGNMENT_CENTER, -1, 7, Color(a_color, 0.7))
 
 		# Cooldown arc
 		var ratio := ability.get_cooldown_ratio()
@@ -273,8 +390,6 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, arc_radius,
 				-PI / 2.0, -PI / 2.0 + TAU * (1.0 - ratio),
 				12, Color(a_color, 0.4), 2.0)
-
-		indicator_y += 10.0
 
 	# Draw ability placement previews
 	for ability: TrapperAbility in _abilities:
