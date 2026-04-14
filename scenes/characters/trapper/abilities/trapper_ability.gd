@@ -29,12 +29,13 @@ func setup(p_trapper: Trapper) -> void:
 
 
 func can_activate() -> bool:
-	if _cooldown_remaining > 0.0:
-		return false
-	if _get_available_uses() <= 0:
-		return false
-	if _active_objects.size() >= _get_active_limit():
-		return false
+	if _skills_cooldowns_enabled():
+		if _cooldown_remaining > 0.0:
+			return false
+		if _get_available_uses() <= 0:
+			return false
+		if _active_objects.size() >= _get_active_limit():
+			return false
 	return true
 
 
@@ -85,6 +86,8 @@ func cancel_placement() -> void:
 
 
 func update(delta: float) -> void:
+	if not _skills_cooldowns_enabled():
+		_cooldown_remaining = 0.0
 	if _cooldown_remaining > 0.0:
 		_cooldown_remaining -= delta
 
@@ -126,6 +129,8 @@ func _get_available_uses() -> int:
 		return _strategy_uses_remaining
 	if GameManager.current_state == Enums.GameState.ESCAPE \
 			or GameManager.current_state == Enums.GameState.PRACTICE:
+		if GameManager.current_state == Enums.GameState.PRACTICE or not _skills_cooldowns_enabled():
+			return max_charges
 		return _charges_remaining
 	return 0
 
@@ -137,19 +142,22 @@ func _consume_use() -> bool:
 		_strategy_uses_remaining -= 1
 		_strategy_uses_spent += 1
 		return true
-	if GameManager.current_state == Enums.GameState.ESCAPE \
-			or GameManager.current_state == Enums.GameState.PRACTICE:
-		if _charges_remaining <= 0:
-			return false
-		_charges_remaining -= 1
-		escape_charge_used.emit(self)
+	if GameManager.current_state == Enums.GameState.PRACTICE:
+		return true
+	if GameManager.current_state == Enums.GameState.ESCAPE:
+		if _skills_cooldowns_enabled():
+			if _charges_remaining <= 0:
+				return false
+			_charges_remaining -= 1
+			escape_charge_used.emit(self)
 		return true
 	return false
 
 
 func _start_cooldown_if_needed() -> void:
-	if GameManager.current_state == Enums.GameState.ESCAPE \
-			or GameManager.current_state == Enums.GameState.PRACTICE:
+	if _skills_cooldowns_enabled() and (
+			GameManager.current_state == Enums.GameState.ESCAPE \
+			or GameManager.current_state == Enums.GameState.PRACTICE):
 		_cooldown_remaining = cooldown
 	else:
 		_cooldown_remaining = 0.0
@@ -178,6 +186,8 @@ func get_active_count() -> int:
 
 
 func get_charges_remaining() -> int:
+	if GameManager.current_state == Enums.GameState.PRACTICE or not _skills_cooldowns_enabled():
+		return max_charges
 	return _charges_remaining
 
 
@@ -188,6 +198,10 @@ func get_strategy_uses_remaining() -> int:
 func refill_charges() -> void:
 	_charges_remaining = max_charges
 	_cooldown_remaining = 0.0
+
+
+func _skills_cooldowns_enabled() -> bool:
+	return GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
 
 
 func is_placement_valid(cursor_pos: Vector2) -> bool:

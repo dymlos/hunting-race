@@ -299,6 +299,16 @@ func reset_match() -> void:
 	_change_state(Enums.GameState.TEAM_SETUP)
 
 
+func prepare_practice_character_select() -> void:
+	practice_mode = true
+	hunt_active = false
+	trap_lifetime_active = false
+	_awaiting_character_select = true
+	player_characters.clear()
+	_round_stats.clear()
+	_change_state(Enums.GameState.TEAM_SETUP)
+
+
 func start_practice() -> void:
 	practice_mode = true
 	_awaiting_character_select = false

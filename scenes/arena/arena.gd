@@ -27,6 +27,18 @@ func load_map(map_data: Dictionary) -> void:
 	queue_redraw()
 
 
+func set_practice_obstacles_enabled(enabled: bool) -> void:
+	if (_map_data.get("name", "") as String) != "Practice Room":
+		return
+	_active_hazards = _duplicate_hazards(_base_hazards)
+	if enabled:
+		for hazard_def in _get_practice_obstacle_hazards():
+			_active_hazards.append(hazard_def)
+	_clear_hazards()
+	_build_hazards()
+	queue_redraw()
+
+
 func get_map_size() -> Vector2:
 	return _map_data.get("size", Vector2(1600, 900)) as Vector2
 
@@ -76,6 +88,48 @@ func _duplicate_hazards(hazards: Array) -> Array[Dictionary]:
 		if hazard_def is Dictionary:
 			copies.append((hazard_def as Dictionary).duplicate(true))
 	return copies
+
+
+func _get_practice_obstacle_hazards() -> Array[Dictionary]:
+	var map_size := get_map_size()
+	var center := map_size / 2.0
+	return [
+		{
+			"type": "ice_box",
+			"pos": center + Vector2(-310.0, -170.0),
+			"size": Vector2(190.0, 24.0),
+		},
+		{
+			"type": "ice_box",
+			"pos": center + Vector2(180.0, 150.0),
+			"size": Vector2(210.0, 24.0),
+		},
+		{
+			"type": "ice_box",
+			"pos": center + Vector2(-70.0, -300.0),
+			"size": Vector2(24.0, 190.0),
+		},
+		{
+			"type": "ice_box",
+			"pos": center + Vector2(330.0, -70.0),
+			"size": Vector2(24.0, 190.0),
+		},
+		{
+			"type": "sticky_wall",
+			"pos": center + Vector2(-390.0, 120.0),
+			"size": Vector2(170.0, 18.0),
+		},
+		{
+			"type": "sticky_wall",
+			"pos": center + Vector2(60.0, -205.0),
+			"size": Vector2(18.0, 170.0),
+		},
+		{
+			"type": "sticky_wall",
+			"pos": center + Vector2(250.0, 255.0),
+			"size": Vector2(180.0, 18.0),
+		},
+	]
 
 
 func _build_walls() -> void:

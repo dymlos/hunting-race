@@ -148,7 +148,7 @@ func score() -> void:
 
 
 func _handle_ability_input(_delta: float) -> void:
-	if not _ability_available or is_dead or has_scored:
+	if (is_dead or has_scored) or (_skills_cooldowns_enabled() and not _ability_available):
 		return
 
 	match escapist_animal:
@@ -175,10 +175,11 @@ func _handle_rabbit_ability(delta: float) -> void:
 		var ratio := _rabbit_charge_time / Constants.RABBIT_LEAP_MAX_CHARGE
 		var distance := lerpf(Constants.RABBIT_LEAP_MIN_DIST, Constants.RABBIT_LEAP_MAX_DIST, ratio)
 		var direction := _get_ability_direction()
+		AudioManager.play_skill(&"RabbitLeap")
 		movement.start_dash(direction, distance, Callable(), Constants.RABBIT_LEAP_DURATION)
 		_rabbit_charging = false
-		_ability_available = false
-		AudioManager.play_skill(&"RabbitLeap")
+		if _skills_cooldowns_enabled():
+			_ability_available = false
 
 
 func _use_rat_rescue() -> void:
@@ -191,7 +192,8 @@ func _use_rat_rescue() -> void:
 	ally.movement.slippery = false
 	ally.movement.clear_speed_modifiers()
 	ally.movement.start_dash(direction, Constants.RAT_RESCUE_PULL_DIST, Callable(), Constants.RAT_RESCUE_DURATION)
-	_ability_available = false
+	if _skills_cooldowns_enabled():
+		_ability_available = false
 	AudioManager.play_skill(&"RatRescue")
 
 
@@ -199,13 +201,15 @@ func _use_squirrel_acorn() -> void:
 	var acorn := AcornProjectile.new()
 	acorn.setup(global_position, _get_ability_direction())
 	get_parent().add_child(acorn)
-	_ability_available = false
+	if _skills_cooldowns_enabled():
+		_ability_available = false
 	AudioManager.play_skill(&"SquirrelAcorn")
 
 
 func _use_fly_counter() -> void:
 	_fly_counter_timer = Constants.FLY_COUNTER_DURATION
-	_ability_available = false
+	if _skills_cooldowns_enabled():
+		_ability_available = false
 	AudioManager.play_skill(&"FlyCounter")
 
 
@@ -231,6 +235,10 @@ func _reset_ability() -> void:
 	_effect_immunity_timer = 0.0
 	if movement:
 		movement.remove_speed_modifier(&"fly_boost")
+
+
+func _skills_cooldowns_enabled() -> bool:
+	return GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
 
 
 func _get_ability_direction() -> Vector2:

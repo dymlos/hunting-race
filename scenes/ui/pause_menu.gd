@@ -4,6 +4,8 @@ extends Control
 signal resume_requested
 signal settings_requested
 signal practice_requested
+signal practice_character_select_requested
+signal practice_obstacles_toggled(enabled: bool)
 signal reset_requested
 
 var input_blocked: bool = false
@@ -13,7 +15,8 @@ var _nav_cooldown: float = 0.0
 var _showing_ability_guide: bool = false
 
 const NAV_COOLDOWN: float = 0.2
-const OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Practice Mode", "Return to Setup"]
+const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Practice Mode", "Return to Setup"]
+const PRACTICE_OPTIONS: Array[String] = ["Resume", "Ability Guide", "Cooldowns", "Practice Obstacles", "Change Characters", "Return to Setup"]
 
 
 func _ready() -> void:
@@ -47,13 +50,14 @@ func _process(delta: float) -> void:
 				return
 			continue
 
+		var options := _get_options()
 		var stick_y := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)
 		if _nav_cooldown <= 0.0:
 			if stick_y > 0.5:
-				_selected_index = (_selected_index + 1) % OPTIONS.size()
+				_selected_index = (_selected_index + 1) % options.size()
 				_nav_cooldown = NAV_COOLDOWN
 			elif stick_y < -0.5:
-				_selected_index = (_selected_index - 1 + OPTIONS.size()) % OPTIONS.size()
+				_selected_index = (_selected_index - 1 + options.size()) % options.size()
 				_nav_cooldown = NAV_COOLDOWN
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
@@ -66,16 +70,7 @@ func _process(delta: float) -> void:
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A) \
 				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
-			if _selected_index == 0:
-				resume_requested.emit()
-			elif _selected_index == 1:
-				settings_requested.emit()
-			elif _selected_index == 2:
-				_showing_ability_guide = true
-			elif _selected_index == 3:
-				practice_requested.emit()
-			else:
-				reset_requested.emit()
+			_activate_option(options[_selected_index])
 			return
 
 	queue_redraw()
@@ -92,7 +87,8 @@ func _draw() -> void:
 		_draw_ability_guide(font, screen)
 		return
 
-	var panel_size := Vector2(500, 340)
+	var options := _get_options()
+	var panel_size := Vector2(520, 154 + options.size() * 39 + 48)
 	var panel_pos := Vector2(cx - panel_size.x / 2.0, cy - panel_size.y / 2.0)
 	var panel_rect := Rect2(panel_pos, panel_size)
 	draw_rect(panel_rect, Color(0.08, 0.08, 0.08, 0.95))
@@ -104,14 +100,14 @@ func _draw() -> void:
 	draw_string(font, Vector2(cx - title_w / 2.0, panel_pos.y + 58),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color.WHITE)
 
-	for i in OPTIONS.size():
-		var text := OPTIONS[i]
+	for i in options.size():
+		var text := _get_option_label(options[i])
 		var color := Color.YELLOW if i == _selected_index else Color(0.78, 0.78, 0.78)
 		var prefix := "> " if i == _selected_index else "  "
 		var display := "%s%s" % [prefix, text]
 		var size := 24
 		var width := font.get_string_size(display, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-		draw_string(font, Vector2(cx - width / 2.0, panel_pos.y + 118 + i * 42),
+		draw_string(font, Vector2(cx - width / 2.0, panel_pos.y + 114 + i * 39),
 			display, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 	var hint := "UP/DOWN select | A or START confirm | B resume | SELECT setup"
@@ -146,6 +142,58 @@ func _draw_ability_guide(font: Font, screen: Vector2) -> void:
 	draw_string(font, Vector2(panel.position.x + panel.size.x - hint_width - 28.0,
 			panel.position.y + panel.size.y - 20.0),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.YELLOW)
+
+
+func _get_options() -> Array[String]:
+	if GameManager.practice_mode:
+		return PRACTICE_OPTIONS
+	return OFFICIAL_OPTIONS
+
+
+func _get_option_label(option: String) -> String:
+	match option:
+		"Cooldowns":
+			var enabled := GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
+			return "Cooldowns: < %s >" % ("On" if enabled else "Off")
+		"Practice Obstacles":
+			var enabled := GameManager.settings_overrides.get(&"practice_obstacles_enabled", false) as bool
+			return "Obstacles: < %s >" % ("On" if enabled else "Off")
+	return option
+
+
+func _activate_option(option: String) -> void:
+	match option:
+		"Resume":
+			resume_requested.emit()
+		"Settings":
+			settings_requested.emit()
+		"Ability Guide":
+			_showing_ability_guide = true
+			queue_redraw()
+		"Cooldowns":
+			_toggle_skill_cooldowns()
+		"Practice Mode":
+			practice_requested.emit()
+		"Practice Obstacles":
+			_toggle_practice_obstacles()
+		"Change Characters":
+			practice_character_select_requested.emit()
+		"Return to Setup":
+			reset_requested.emit()
+
+
+func _toggle_skill_cooldowns() -> void:
+	var enabled := GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
+	GameManager.settings_overrides[&"skill_cooldowns_enabled"] = not enabled
+	queue_redraw()
+
+
+func _toggle_practice_obstacles() -> void:
+	var enabled := GameManager.settings_overrides.get(&"practice_obstacles_enabled", false) as bool
+	var next_enabled := not enabled
+	GameManager.settings_overrides[&"practice_obstacles_enabled"] = next_enabled
+	practice_obstacles_toggled.emit(next_enabled)
+	queue_redraw()
 
 
 func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:

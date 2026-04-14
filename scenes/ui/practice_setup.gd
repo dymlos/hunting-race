@@ -117,7 +117,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(cx - title_width / 2.0, 72.0),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color.WHITE)
 
-	var sub := "Join freely. Pick Escapist or Trapper. No bots, no hazards."
+	var sub := "Join freely. Pick Escapist or Trapper. Optional obstacles in pause."
 	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - sub_width / 2.0, 104.0),
 		sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.65, 0.65, 0.65))

@@ -110,6 +110,8 @@ func _ready() -> void:
 	pause_menu.settings_requested.connect(_open_settings)
 	pause_menu.reset_requested.connect(_reset_to_team_setup)
 	pause_menu.practice_requested.connect(_start_practice_setup)
+	pause_menu.practice_character_select_requested.connect(_restart_practice_character_select)
+	pause_menu.practice_obstacles_toggled.connect(_on_practice_obstacles_toggled)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
@@ -335,6 +337,8 @@ func _setup_practice_arena() -> void:
 	arena = ArenaScene.instantiate() as Arena
 	arena_container.add_child(arena)
 	arena.load_map(MapData.get_practice_map())
+	var obstacles_enabled := GameManager.settings_overrides.get(&"practice_obstacles_enabled", false) as bool
+	arena.set_practice_obstacles_enabled(obstacles_enabled)
 	_setup_camera()
 
 
@@ -606,6 +610,35 @@ func _resume_from_pause() -> void:
 	_clear_pause_menu()
 	_apply_runtime_settings()
 	GameManager.unpause_game()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _on_practice_obstacles_toggled(enabled: bool) -> void:
+	if arena and GameManager.practice_mode:
+		arena.set_practice_obstacles_enabled(enabled)
+
+
+func _restart_practice_character_select() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	menu_music.use_menu_volume()
+	menu_music.start_music()
+	_is_practice_flow = true
+	GameManager.prepare_practice_character_select()
+	_active_player_indices.clear()
+	for pi: int in GameManager.team_assignments:
+		_active_player_indices.append(pi)
+	_active_player_indices.sort()
+	while not _view_stack.is_empty():
+		pop_view()
+	_show_escapist_select(true)
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
 

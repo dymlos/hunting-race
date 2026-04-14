@@ -1,7 +1,7 @@
 extends Node
 
 const MIX_RATE: int = 22050
-const BUFFER_LENGTH: float = 0.25
+const BUFFER_LENGTH: float = 0.08
 const TAU_F: float = PI * 2.0
 
 var _player: AudioStreamPlayer
