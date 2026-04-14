@@ -231,9 +231,9 @@ func _use_squirrel_acorn() -> void:
 	var acorn := AcornProjectile.new()
 	acorn.setup(global_position, _get_ability_direction())
 	get_parent().add_child(acorn)
+	AudioManager.play_skill(&"AcornThrow")
 	if _skills_cooldowns_enabled():
 		_ability_available = false
-	AudioManager.play_skill(&"SquirrelAcorn")
 
 
 func _use_fly_counter() -> void:
@@ -671,6 +671,8 @@ class AcornProjectile extends Node2D:
 	var _lifetime: float = Constants.SQUIRREL_ACORN_LIFETIME
 	var _bounces_left: int = Constants.SQUIRREL_ACORN_BOUNCES
 	var _color: Color = Enums.escapist_animal_color(Enums.EscapistAnimal.SQUIRREL)
+	var _is_stuck: bool = false
+	var _stuck_timer: float = 0.0
 
 	func setup(start_position: Vector2, direction: Vector2) -> void:
 		global_position = start_position
@@ -678,6 +680,14 @@ class AcornProjectile extends Node2D:
 		add_to_group("projectiles")
 
 	func _process(delta: float) -> void:
+		if _is_stuck:
+			_stuck_timer -= delta
+			if _stuck_timer <= 0.0:
+				queue_free()
+				return
+			queue_redraw()
+			return
+
 		_lifetime -= delta
 		if _lifetime <= 0.0:
 			queue_free()
@@ -696,8 +706,12 @@ class AcornProjectile extends Node2D:
 			global_position = hit["position"] as Vector2
 			var collider := hit["collider"] as Node
 			if collider and collider.is_in_group("traps"):
+				AudioManager.play_skill(&"AcornBreakTrap")
 				collider.queue_free()
 				queue_free()
+				return
+			if collider and collider.is_in_group("sticky_walls"):
+				_stick_to_wall(hit["position"] as Vector2)
 				return
 			_bounces_left -= 1
 			if _bounces_left < 0:
@@ -709,7 +723,18 @@ class AcornProjectile extends Node2D:
 
 		queue_redraw()
 
+	func _stick_to_wall(stick_position: Vector2) -> void:
+		global_position = stick_position
+		_velocity = Vector2.ZERO
+		_is_stuck = true
+		_stuck_timer = Constants.STICKY_WALL_STUN
+		queue_redraw()
+
 	func _draw() -> void:
 		draw_circle(Vector2.ZERO, Constants.SQUIRREL_ACORN_RADIUS, Color(_color, 0.85))
 		draw_arc(Vector2.ZERO, Constants.SQUIRREL_ACORN_RADIUS + 2.0, 0, TAU, 12,
 			Color(1.0, 1.0, 1.0, 0.45), 1.0)
+		if _is_stuck:
+			var pulse := 0.65 + 0.35 * sin(Time.get_ticks_msec() / 90.0)
+			draw_arc(Vector2.ZERO, Constants.SQUIRREL_ACORN_RADIUS + 5.0, 0, TAU, 14,
+				Color(Constants.STICKY_WALL_COLOR, 0.55 * pulse), 2.0)

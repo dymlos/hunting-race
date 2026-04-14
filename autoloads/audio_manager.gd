@@ -62,8 +62,10 @@ func _make_voice(skill_name: StringName) -> Dictionary:
 			voice.merge({"duration": 0.20, "freq": 720.0, "freq2": 240.0, "volume": 0.24, "style": &"whip"}, true)
 		"RatWhipReturn":
 			voice.merge({"duration": 0.18, "freq": 840.0, "freq2": 180.0, "volume": 0.22, "style": &"whip"}, true)
-		"SquirrelAcorn":
-			voice.merge({"duration": 0.24, "freq": 760.0, "freq2": 1120.0, "volume": 0.20, "style": &"wood"}, true)
+		"AcornThrow":
+			voice.merge({"duration": 0.22, "freq": 980.0, "freq2": 430.0, "volume": 0.22, "style": &"throw"}, true)
+		"AcornBreakTrap":
+			voice.merge({"duration": 0.18, "freq": 520.0, "freq2": 1460.0, "volume": 0.24, "style": &"wood_crack"}, true)
 		"FlyCounter":
 			voice.merge({"duration": 0.42, "freq": 430.0, "freq2": 830.0, "volume": 0.17, "style": &"buzz"}, true)
 		"FlyBoost":
@@ -118,7 +120,7 @@ func _current_freq(voice: Dictionary, ratio: float) -> float:
 	match voice["style"]:
 		&"sweep", &"rise", &"shimmer":
 			return lerpf(freq, freq2, ratio)
-		&"twang", &"mud":
+		&"twang", &"mud", &"throw":
 			return lerpf(freq, freq2, ratio)
 		&"whip":
 			return lerpf(freq, freq2, ratio)
@@ -140,6 +142,12 @@ func _voice_sample(voice: Dictionary, ratio: float) -> float:
 			return (snap * 0.82 + crack * 0.38) * _click_env(ratio)
 		&"wood":
 			return (sin(phase * TAU_F) * 0.7 + sin(phase2 * TAU_F) * 0.35) * _click_env(ratio)
+		&"throw":
+			var air := sin((phase + ratio * 0.18) * TAU_F)
+			return (air * 0.75 + sin(phase2 * TAU_F) * 0.18) * _fast_env(ratio)
+		&"wood_crack":
+			var crack := _soft_square(fmod(phase2 + ratio * 0.47, 1.0))
+			return (sin(phase * TAU_F) * 0.35 + crack * 0.58) * _click_env(ratio)
 		&"buzz":
 			var wobble := sin(ratio * TAU_F * 8.0) * 0.15
 			return (_soft_square(fmod(phase + wobble, 1.0)) * 0.55 + sin(phase2 * TAU_F) * 0.18) * env
