@@ -154,6 +154,7 @@ const RABBIT_LEAP_VISUAL_HEIGHT: float = 34.0
 
 const RAT_RESCUE_RANGE: float = 620.0
 const RAT_RESCUE_WIDTH: float = 42.0
+const RAT_RESCUE_HOLD_DURATION: float = 5.0
 const RAT_RESCUE_PULL_STOP_DISTANCE: float = 38.0
 const RAT_RESCUE_HOOK_SPEED: float = 1800.0
 const RAT_RESCUE_PULL_SPEED: float = 1050.0

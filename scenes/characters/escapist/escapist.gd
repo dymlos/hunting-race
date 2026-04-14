@@ -149,7 +149,16 @@ func score() -> void:
 
 
 func _handle_ability_input(_delta: float) -> void:
-	if (is_dead or has_scored) or (_skills_cooldowns_enabled() and not _ability_available):
+	if is_dead or has_scored:
+		return
+
+	if escapist_animal == Enums.EscapistAnimal.RAT \
+			and is_instance_valid(_active_rat_tail) \
+			and InputManager.is_action_just_pressed(player_index, &"dash"):
+		(_active_rat_tail as RatTailHook).retract()
+		return
+
+	if _skills_cooldowns_enabled() and not _ability_available:
 		return
 
 	match escapist_animal:
@@ -185,6 +194,7 @@ func _handle_rabbit_ability(delta: float) -> void:
 
 func _use_rat_rescue() -> void:
 	if is_instance_valid(_active_rat_tail):
+		(_active_rat_tail as RatTailHook).retract()
 		return
 	var tail := RatTailHook.new()
 	tail.setup(self, _get_ability_direction())
@@ -516,8 +526,11 @@ class RatTailHook extends Node2D:
 	var _owner_rat: Escapist
 	var _direction: Vector2 = Vector2.RIGHT
 	var _distance: float = 0.0
+	var _hook_end_position: Vector2 = Vector2.ZERO
 	var _target: Escapist = null
 	var _is_returning: bool = false
+	var _is_holding: bool = false
+	var _hold_timer: float = Constants.RAT_RESCUE_HOLD_DURATION
 	var _fade_timer: float = 0.18
 	var _color: Color = Enums.escapist_animal_color(Enums.EscapistAnimal.RAT)
 
@@ -527,6 +540,7 @@ class RatTailHook extends Node2D:
 		if _direction.length_squared() < 0.01:
 			_direction = Vector2.RIGHT
 		global_position = _owner_rat.global_position
+		_hook_end_position = _owner_rat.global_position
 		z_index = 8
 
 	func _process(delta: float) -> void:
@@ -536,15 +550,20 @@ class RatTailHook extends Node2D:
 		if _is_returning:
 			_update_return(delta)
 			return
+		if _is_holding:
+			_update_hold(delta)
+			return
 
 		var previous_distance := _distance
 		_distance = minf(_distance + Constants.RAT_RESCUE_HOOK_SPEED * delta, Constants.RAT_RESCUE_RANGE)
-		var ally := _find_hooked_ally(previous_distance, _distance)
+		var hook_start := _owner_rat.global_position + _direction * previous_distance
+		_hook_end_position = _owner_rat.global_position + _direction * _distance
+		var ally := _find_hooked_ally_between(hook_start, _hook_end_position)
 		if ally != null:
 			_hook_ally(ally)
 			return
 		if _distance >= Constants.RAT_RESCUE_RANGE:
-			_is_returning = true
+			_is_holding = true
 		queue_redraw()
 
 	func _update_return(delta: float) -> void:
@@ -552,20 +571,44 @@ class RatTailHook extends Node2D:
 		if is_instance_valid(_target):
 			_distance = _owner_rat.global_position.distance_to(_target.global_position)
 		else:
-			_distance = maxf(_distance - Constants.RAT_RESCUE_HOOK_SPEED * delta, 0.0)
+			_hook_end_position = _hook_end_position.move_toward(
+				_owner_rat.global_position,
+				Constants.RAT_RESCUE_HOOK_SPEED * delta
+			)
+			_distance = _owner_rat.global_position.distance_to(_hook_end_position)
 		if _fade_timer <= 0.0 or _distance <= Constants.RAT_RESCUE_PULL_STOP_DISTANCE:
 			_finish()
 			return
 		queue_redraw()
 
-	func _find_hooked_ally(from_distance: float, to_distance: float) -> Escapist:
+	func _update_hold(delta: float) -> void:
+		_hold_timer -= delta
+		var ally := _find_hooked_ally_between(_owner_rat.global_position, _hook_end_position)
+		if ally != null:
+			_hook_ally(ally)
+			return
+		if _hold_timer <= 0.0:
+			retract()
+			return
+		queue_redraw()
+
+	func retract() -> void:
+		if _is_returning:
+			return
+		if not _is_holding:
+			_hook_end_position = _owner_rat.global_position + _direction * _distance
+		_is_holding = false
+		_is_returning = true
+		_distance = _owner_rat.global_position.distance_to(_hook_end_position)
+		_fade_timer = maxf(0.18, _distance / Constants.RAT_RESCUE_HOOK_SPEED)
+		queue_redraw()
+
+	func _find_hooked_ally_between(hook_start: Vector2, hook_end: Vector2) -> Escapist:
 		var tree := get_tree()
 		if not tree:
 			return null
-		var hook_start := _owner_rat.global_position + _direction * from_distance
-		var hook_end := _owner_rat.global_position + _direction * to_distance
 		var best: Escapist = null
-		var best_distance := Constants.RAT_RESCUE_RANGE
+		var best_distance := 999999.0
 		for node: Node in tree.get_nodes_in_group("characters"):
 			if node == _owner_rat or not (node is Escapist):
 				continue
@@ -584,6 +627,7 @@ class RatTailHook extends Node2D:
 	func _hook_ally(ally: Escapist) -> void:
 		_target = ally
 		_distance = _owner_rat.global_position.distance_to(ally.global_position)
+		_hook_end_position = ally.global_position
 		_is_returning = true
 		_fade_timer = maxf(0.18, _distance / Constants.RAT_RESCUE_PULL_SPEED)
 		_owner_rat._complete_rat_rescue(ally)
@@ -606,12 +650,14 @@ class RatTailHook extends Node2D:
 		if not is_instance_valid(_owner_rat):
 			return
 		var start := _owner_rat.global_position - global_position
-		var end := start + _direction * _distance
+		var end := _hook_end_position - global_position
 		if is_instance_valid(_target):
 			end = _target.global_position - global_position
 		var alpha := 0.72
 		if _is_returning and not is_instance_valid(_target):
 			alpha = clampf(_fade_timer / 0.18, 0.0, 1.0) * 0.72
+		elif _is_holding:
+			alpha = 0.62 + 0.1 * sin(Time.get_ticks_msec() / 110.0)
 		var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 80.0)
 		var line_color := Color(_color, alpha * pulse)
 		draw_line(start, end, Color(0.0, 0.0, 0.0, alpha * 0.45), 7.0)

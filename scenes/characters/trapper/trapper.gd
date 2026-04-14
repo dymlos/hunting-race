@@ -35,6 +35,7 @@ var _bot_ability_schedule: Array[float] = [1.2, 3.8, 6.4]
 var _bot_active_placement_index: int = -1
 var _bot_placement_timer: float = 0.0
 var _bot_cycle_delay: float = 0.0
+var _bot_placement_points: Array[Vector2] = []
 
 # Button mappings for the 3 abilities
 const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  # A, RB, X
@@ -52,6 +53,7 @@ func setup(map_size: Vector2) -> void:
 	_bot_active_placement_index = -1
 	_bot_placement_timer = 0.0
 	_bot_cycle_delay = 0.0
+	_bot_placement_points.clear()
 	_spent_ability_indices.clear()
 	_set_reload_timer = 0.0
 	_floating_text = ""
@@ -72,6 +74,7 @@ func configure_spider_bot(path_a: Vector2, path_b: Vector2) -> void:
 	_bot_active_placement_index = -1
 	_bot_placement_timer = 0.0
 	_bot_cycle_delay = 0.0
+	_bot_placement_points.clear()
 	_bot_move_timer = 0.0
 	_bot_ability_timer = 1.2
 	position = path_a
@@ -222,26 +225,31 @@ func _process_bot(delta: float) -> void:
 
 func _process_spider_bot(delta: float) -> void:
 	var move_speed := Constants.TRAPPER_CURSOR_SPEED * 0.6
-	var next_position := position.move_toward(_bot_path_target, move_speed * delta)
-	if _is_bot_position_clear(next_position):
-		position = next_position
-	else:
-		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
-	if position.distance_to(_bot_path_target) <= 8.0:
-		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
 
 	if _bot_active_placement_index >= 0:
+		var active_ability: TrapperAbility = _abilities[_bot_active_placement_index]
+		if not _bot_placement_points.is_empty():
+			var placement_target: Vector2 = _bot_placement_points[0]
+			_move_bot_toward(placement_target, move_speed * 1.15 * delta)
+			if position.distance_to(placement_target) <= 8.0:
+				active_ability.activate()
+				_bot_placement_points.pop_front()
+				if not active_ability.is_placing:
+					_finish_bot_ability_placement()
+			return
+
 		_bot_placement_timer -= delta
 		if _bot_placement_timer <= 0.0:
-			var active_ability: TrapperAbility = _abilities[_bot_active_placement_index]
 			active_ability.activate()
 			_bot_placement_timer = 0.22
 			if not active_ability.is_placing:
-				_bot_active_placement_index = -1
-				_bot_next_ability_index += 1
-				if _bot_next_ability_index >= _abilities.size():
-					_bot_cycle_delay = 2.0
+				_finish_bot_ability_placement()
 		return
+
+	if not _move_bot_toward(_bot_path_target, move_speed * delta):
+		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
+	if position.distance_to(_bot_path_target) <= 8.0:
+		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
 
 	if _bot_next_ability_index >= _abilities.size():
 		_bot_cycle_delay = maxf(_bot_cycle_delay - delta, 0.0)
@@ -255,6 +263,10 @@ func _process_spider_bot(delta: float) -> void:
 	var ability := _abilities[_bot_next_ability_index]
 	if not ability.can_activate():
 		return
+	if _bot_next_ability_index == 0 or _bot_next_ability_index == 1:
+		_bot_placement_points = _get_spider_bot_placement_points(_bot_next_ability_index)
+		_bot_active_placement_index = _bot_next_ability_index
+		return
 	ability.activate()
 	if ability.is_placing:
 		_bot_active_placement_index = _bot_next_ability_index
@@ -263,6 +275,60 @@ func _process_spider_bot(delta: float) -> void:
 		_bot_next_ability_index += 1
 		if _bot_next_ability_index >= _abilities.size():
 			_bot_cycle_delay = 2.0
+
+
+func _finish_bot_ability_placement() -> void:
+	_bot_active_placement_index = -1
+	_bot_placement_points.clear()
+	_bot_next_ability_index += 1
+	if _bot_next_ability_index >= _abilities.size():
+		_bot_cycle_delay = 2.0
+
+
+func _get_spider_bot_placement_points(ability_index: int) -> Array[Vector2]:
+	var forward := (_bot_path_b - _bot_path_a).normalized()
+	if forward.length_squared() < 0.01:
+		forward = Vector2.RIGHT
+	var side := Vector2(-forward.y, forward.x)
+	var center := position
+	if ability_index == 1:
+		return [
+			_find_clear_bot_point(center - side * 105.0, center),
+			_find_clear_bot_point(center + side * 105.0, center),
+		]
+	return [
+		_find_clear_bot_point(center + side * 82.0, center),
+		_find_clear_bot_point(center - forward * 82.0 - side * 62.0, center),
+		_find_clear_bot_point(center + forward * 82.0 - side * 62.0, center),
+	]
+
+
+func _find_clear_bot_point(preferred: Vector2, fallback: Vector2) -> Vector2:
+	var candidate := _clamp_bot_point(preferred)
+	if _is_bot_position_clear(candidate):
+		return candidate
+	for radius: float in [32.0, 64.0, 96.0]:
+		for i in range(8):
+			var offset: Vector2 = Vector2.RIGHT.rotated(TAU * float(i) / 8.0) * radius
+			candidate = _clamp_bot_point(preferred + offset)
+			if _is_bot_position_clear(candidate):
+				return candidate
+	return _clamp_bot_point(fallback)
+
+
+func _clamp_bot_point(point: Vector2) -> Vector2:
+	return Vector2(
+		clampf(point.x, _map_bounds.position.x + 24.0, _map_bounds.end.x - 24.0),
+		clampf(point.y, _map_bounds.position.y + 24.0, _map_bounds.end.y - 24.0)
+	)
+
+
+func _move_bot_toward(target: Vector2, step: float) -> bool:
+	var next_position := position.move_toward(target, step)
+	if not _is_bot_position_clear(next_position):
+		return false
+	position = next_position
+	return true
 
 
 func _is_bot_position_clear(candidate: Vector2) -> bool:
