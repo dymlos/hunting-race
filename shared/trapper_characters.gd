@@ -44,9 +44,9 @@ static func get_all() -> Array[Dictionary]:
 			"subtitle": "Desorientación y manipulación",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.PULPO),
 			"abilities": [
-				{"name": "Mancha de tinta", "desc": "Zona de visibilidad nula", "button": "A"},
-				{"name": "Tentáculo enlazador", "desc": "Captura y une a dos conejos", "button": "RB"},
-				{"name": "Corriente de agua", "desc": "Flujo direccional entre puntos", "button": "X"},
+				{"name": "Ink Stain", "desc": "Heavy vision blocker", "button": "A"},
+				{"name": "Binding Tentacle", "desc": "Timed capture, longer if linked", "button": "RB"},
+				{"name": "Water Current", "desc": "Strong directional push", "button": "X"},
 			],
 		},
 	]

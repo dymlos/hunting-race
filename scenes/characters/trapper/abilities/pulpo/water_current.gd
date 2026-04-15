@@ -92,15 +92,18 @@ class CurrentZone extends Area2D:
 			queue_redraw()
 			return
 
-		# Apply current force to all bodies inside
 		for body: Node in _bodies_inside:
 			if not is_instance_valid(body) or not body is BaseCharacter:
 				continue
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				continue
-			# Strong push in flow direction
-			character.movement.velocity += _flow_dir * Constants.PULPO_CURRENT_FORCE * delta
+			character.movement.apply_vortex_pull(
+				_flow_dir,
+				Constants.PULPO_CURRENT_FORCE,
+				Constants.PULPO_CURRENT_FORCE * 8.0,
+				Constants.PULPO_CURRENT_FORCE * 4.0,
+				delta)
 
 		queue_redraw()
 

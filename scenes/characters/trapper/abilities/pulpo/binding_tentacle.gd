@@ -38,6 +38,7 @@ class TentacleNode extends Area2D:
 
 	var _captured_a: Escapist  # First victim
 	var _captured_b: Escapist  # Second victim (helper)
+	var _capture_timer: float = 0.0
 	var _link_timer: float = 0.0
 	var _original_locked_a: bool = false
 	var _original_locked_b: bool = false
@@ -75,6 +76,14 @@ class TentacleNode extends Area2D:
 					_release_all()
 					_state = TentacleState.WAITING
 					_captured_a = null
+					_capture_timer = 0.0
+				else:
+					_capture_timer -= delta
+					if _capture_timer <= 0.0:
+						_release_all()
+						_state = TentacleState.DONE
+						queue_free()
+						return
 
 			TentacleState.LINKED:
 				_link_timer -= delta
@@ -111,6 +120,7 @@ class TentacleNode extends Area2D:
 			TentacleState.WAITING:
 				_captured_a = esc
 				_captured_a.movement.freeze()
+				_capture_timer = Constants.PULPO_TENTACLE_CAPTURE_DURATION
 				_state = TentacleState.CAPTURED_ONE
 			TentacleState.CAPTURED_ONE:
 				if esc == _captured_a:
@@ -118,7 +128,9 @@ class TentacleNode extends Area2D:
 				_captured_b = esc
 				# Unfreeze first victim, both now linked
 				_captured_a.movement.unfreeze()
-				_link_timer = Constants.PULPO_TENTACLE_LINK_DURATION
+				_link_timer = minf(
+					Constants.PULPO_TENTACLE_MAX_LINK_DURATION,
+					maxf(_capture_timer, 0.0) + Constants.PULPO_TENTACLE_LINK_DURATION)
 				_state = TentacleState.LINKED
 
 	func _apply_linked_movement(delta: float) -> void:

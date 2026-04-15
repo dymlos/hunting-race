@@ -135,18 +135,22 @@ const ESCORPION_PINCERS_CRUSH_MARGIN: float = 2.0
 
 # --- Pulpo ---
 const PULPO_INK_RADIUS: float = 80.0
+const PULPO_INK_ALPHA: float = 0.97
+const PULPO_INK_VISIBLE_RADIUS: float = 14.0
 const PULPO_INK_LIFETIME: float = 15.0
 const PULPO_INK_COOLDOWN: float = 10.0
 const PULPO_INK_MAX: int = 2
 
 const PULPO_TENTACLE_RADIUS: float = 25.0
+const PULPO_TENTACLE_CAPTURE_DURATION: float = 5.0
 const PULPO_TENTACLE_LINK_DURATION: float = 5.0
+const PULPO_TENTACLE_MAX_LINK_DURATION: float = 9.0
 const PULPO_TENTACLE_LIFETIME: float = 30.0
 const PULPO_TENTACLE_COOLDOWN: float = 14.0
 const PULPO_TENTACLE_MAX: int = 1
 
 const PULPO_CURRENT_WIDTH: float = 40.0
-const PULPO_CURRENT_FORCE: float = 250.0
+const PULPO_CURRENT_FORCE: float = 520.0
 const PULPO_CURRENT_LIFETIME: float = 20.0
 const PULPO_CURRENT_COOLDOWN: float = 8.0
 const PULPO_CURRENT_MAX: int = 2

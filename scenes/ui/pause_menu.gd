@@ -328,9 +328,9 @@ func _get_trapper_guide_data() -> Array[Dictionary]:
 			"name": "OCTOPUS",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.PULPO),
 			"abilities": [
-				{"button": "A", "name": "Ink Stain", "desc": "Creates a dark visibility blocker."},
-				{"button": "RB", "name": "Binding Tentacle", "desc": "Roots one target, links two if chained."},
-				{"button": "X", "name": "Water Current", "desc": "Place 2 points for directional push."},
+				{"button": "A", "name": "Ink Stain", "desc": "Covers most vision inside the ink."},
+				{"button": "RB", "name": "Binding Tentacle", "desc": "Timed capture that lasts longer when linked."},
+				{"button": "X", "name": "Water Current", "desc": "Place 2 points for a strong directional push."},
 			],
 		},
 	]

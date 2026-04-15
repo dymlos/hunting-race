@@ -81,7 +81,7 @@ class InkZone extends Area2D:
 		var pulse := 0.85 + 0.15 * sin(Time.get_ticks_msec() / 600.0)
 
 		# Main dark fog — opaque black circle
-		draw_circle(Vector2.ZERO, r * pulse, Color(0.02, 0.01, 0.04, 0.88))
+		draw_circle(Vector2.ZERO, r * pulse, Color(0.02, 0.01, 0.04, Constants.PULPO_INK_ALPHA))
 
 		# Slightly lighter border
 		draw_arc(Vector2.ZERO, r * pulse, 0, TAU, 20,
@@ -90,15 +90,15 @@ class InkZone extends Area2D:
 		# Cut out small visibility circles around affected escapists inside
 		# Since we can't actually subtract in _draw, we draw a lighter hole
 		# to simulate the "flashlight" effect
-		var visible_radius := 25.0
+		var visible_radius := Constants.PULPO_INK_VISIBLE_RADIUS
 		for body: Node in _bodies_inside:
 			if not is_instance_valid(body):
 				continue
 			var local_pos: Vector2 = (body as Node2D).global_position - global_position
 			# Draw a slightly brighter circle to simulate visibility
-			draw_circle(local_pos, visible_radius, Color(0.05, 0.03, 0.08, 0.6))
+			draw_circle(local_pos, visible_radius, Color(0.03, 0.02, 0.045, 0.92))
 			draw_arc(local_pos, visible_radius, 0, TAU, 10,
-				Color(0.2, 0.1, 0.3, 0.3), 1.5)
+				Color(0.18, 0.1, 0.26, 0.08), 1.2)
 
 		# Ink splatter spots
 		for i in 4:
