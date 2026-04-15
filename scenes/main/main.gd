@@ -125,6 +125,7 @@ func _ready() -> void:
 	pause_menu.resume_requested.connect(_resume_from_pause)
 	pause_menu.settings_requested.connect(_open_settings)
 	pause_menu.reset_requested.connect(_reset_to_team_setup)
+	pause_menu.round_reset_requested.connect(_restart_current_round)
 	pause_menu.practice_requested.connect(_start_practice_setup)
 	pause_menu.practice_character_select_requested.connect(_restart_practice_character_select)
 	pause_menu.practice_obstacles_toggled.connect(_on_practice_obstacles_toggled)
@@ -640,6 +641,17 @@ func _resume_from_pause() -> void:
 	_clear_pause_menu()
 	_apply_runtime_settings()
 	GameManager.unpause_game()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _restart_current_round() -> void:
+	if GameManager.practice_mode:
+		return
+	get_tree().paused = false
+	_clear_pause_menu()
+	phase_overlay.clear()
+	GameManager.restart_current_round()
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
 

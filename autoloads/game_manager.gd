@@ -40,6 +40,8 @@ var _pre_pause_state: Enums.GameState = Enums.GameState.ESCAPE
 
 var is_unpausing: bool = false
 var _awaiting_character_select: bool = false
+var _round_start_match_scores: Array[int] = [0, 0]
+var _round_start_player_score_history: Dictionary = {}
 
 
 func _process(delta: float) -> void:
@@ -156,6 +158,7 @@ func start_observation() -> void:
 	_escape_timer_running = false
 	_round_points = 0
 	assign_round_roles()
+	_store_round_start_score_snapshot()
 	# Count escapists
 	_living_escapists = 0
 	for pi: int in role_assignments:
@@ -163,6 +166,33 @@ func start_observation() -> void:
 			_living_escapists += 1
 	_prepare_round_stats()
 	_phase_timer = settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float
+	_change_state(Enums.GameState.OBSERVATION)
+	round_started.emit(round_number)
+
+
+func restart_current_round() -> void:
+	if practice_mode:
+		return
+	if current_state != Enums.GameState.PAUSED:
+		return
+	if _pre_pause_state != Enums.GameState.OBSERVATION \
+			and _pre_pause_state != Enums.GameState.HUNT \
+			and _pre_pause_state != Enums.GameState.ESCAPE:
+		return
+	_restore_round_start_score_snapshot()
+	hunt_active = false
+	trap_lifetime_active = false
+	_escape_timer_running = false
+	_round_points = 0
+	_awaiting_character_select = false
+	assign_round_roles()
+	_living_escapists = 0
+	for pi: int in role_assignments:
+		if role_assignments[pi] == Enums.Role.ESCAPIST:
+			_living_escapists += 1
+	_prepare_round_stats()
+	_phase_timer = settings_overrides.get(&"observation_duration", Constants.OBSERVATION_DURATION) as float
+	_pre_pause_state = Enums.GameState.OBSERVATION
 	_change_state(Enums.GameState.OBSERVATION)
 	round_started.emit(round_number)
 
@@ -307,6 +337,8 @@ func reset_match() -> void:
 	player_characters.clear()
 	player_score_history.clear()
 	_round_stats.clear()
+	_round_start_match_scores = [0, 0]
+	_round_start_player_score_history.clear()
 	escapist_selections.clear()
 	role_assignments.clear()
 	character_selections.clear()
@@ -458,6 +490,22 @@ func _prepare_round_stats() -> void:
 		}
 		if not player_score_history.has(pi):
 			player_score_history[pi] = []
+
+
+func _store_round_start_score_snapshot() -> void:
+	_round_start_match_scores = [match_scores[0], match_scores[1]]
+	_round_start_player_score_history.clear()
+	for pi: int in player_score_history:
+		var history: Array = player_score_history[pi] as Array
+		_round_start_player_score_history[pi] = history.duplicate(true)
+
+
+func _restore_round_start_score_snapshot() -> void:
+	match_scores = [_round_start_match_scores[0], _round_start_match_scores[1]]
+	player_score_history.clear()
+	for pi: int in _round_start_player_score_history:
+		var history: Array = _round_start_player_score_history[pi] as Array
+		player_score_history[pi] = history.duplicate(true)
 
 
 func _finalize_unresolved_escapists() -> void:

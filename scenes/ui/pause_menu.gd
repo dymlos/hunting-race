@@ -8,6 +8,7 @@ signal practice_character_select_requested
 signal practice_obstacles_toggled(enabled: bool)
 signal practice_bots_toggled(enabled: bool)
 signal reset_requested
+signal round_reset_requested
 
 var input_blocked: bool = false
 
@@ -16,7 +17,7 @@ var _nav_cooldown: float = 0.0
 var _showing_ability_guide: bool = false
 
 const NAV_COOLDOWN: float = 0.2
-const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Practice Mode", "Return to Setup"]
+const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Restart Round", "Practice Mode", "Return to Setup"]
 const PRACTICE_OPTIONS: Array[String] = ["Resume", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
 
 
@@ -183,6 +184,8 @@ func _activate_option(option: String) -> void:
 			_toggle_skill_cooldowns()
 		"Practice Mode":
 			practice_requested.emit()
+		"Restart Round":
+			round_reset_requested.emit()
 		"Practice Obstacles":
 			_toggle_practice_obstacles()
 		"Practice Bots":
