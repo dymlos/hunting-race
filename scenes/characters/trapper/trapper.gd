@@ -11,7 +11,7 @@ var input_locked: bool = true
 var trapper_character: Enums.TrapperCharacter = Enums.TrapperCharacter.NONE
 var bot_ai_enabled: bool = false
 
-var _abilities: Array[TrapperAbility] = []  # 3 abilities: [A, RB, X]
+var _abilities: Array[TrapperAbility] = []  # 3 abilities: [A, X, Y]
 var _map_bounds: Rect2 = Rect2()
 var _spent_ability_indices: Dictionary = {}
 var _set_reload_timer: float = 0.0
@@ -40,7 +40,7 @@ var _bot_blocked_timer: float = 0.0
 var _bot_cycle_count: int = 0
 
 # Button mappings for the 3 abilities
-const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  # A, RB, X
+const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"interact", &"ability"]  # A, X, Y
 
 
 func setup(map_size: Vector2) -> void:
@@ -125,9 +125,9 @@ func _get_ability_classes() -> Array[GDScript]:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
 			return [
-				preload("res://scenes/characters/trapper/abilities/arana/expansive_web.gd"),
-				preload("res://scenes/characters/trapper/abilities/arana/elastic_web.gd"),
 				preload("res://scenes/characters/trapper/abilities/arana/persistent_venom.gd"),
+				preload("res://scenes/characters/trapper/abilities/arana/elastic_web.gd"),
+				preload("res://scenes/characters/trapper/abilities/arana/expansive_web.gd"),
 			]
 		Enums.TrapperCharacter.HONGO:
 			return [
@@ -333,7 +333,7 @@ func _finish_bot_ability_placement() -> void:
 
 func _bot_needs_placement_points(ability_index: int) -> bool:
 	if _bot_mode == &"spider":
-		return ability_index == 0 or ability_index == 1
+		return ability_index == 1 or ability_index == 2
 	if _bot_mode == &"scorpion":
 		return ability_index == 2
 	if _bot_mode == &"mushroom":

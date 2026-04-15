@@ -22,14 +22,10 @@ var _edge_suppress_frames: int = 0
 # Abstract action names to JoyButton mappings
 const ACTION_MAP: Dictionary = {
 	&"dash": JOY_BUTTON_A,
-	&"ability": JOY_BUTTON_RIGHT_SHOULDER,
+	&"ability": JOY_BUTTON_Y,
 	&"cancel": JOY_BUTTON_B,
 	&"interact": JOY_BUTTON_X,
 }
-
-# Trigger axes (RT/LT are axes on most controllers)
-const TRIGGER_THRESHOLD: float = 0.5
-
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -80,8 +76,6 @@ func _process(_delta: float) -> void:
 		var state: Dictionary = {}
 		for button: int in range(JOY_BUTTON_MAX):
 			state[button] = Input.is_joy_button_pressed(device_id, button as JoyButton)
-		state[&"rt_axis"] = Input.get_joy_axis(device_id, JOY_AXIS_TRIGGER_RIGHT) > TRIGGER_THRESHOLD
-		state[&"lt_axis"] = Input.get_joy_axis(device_id, JOY_AXIS_TRIGGER_LEFT) > TRIGGER_THRESHOLD
 		_curr_button_state[device_id] = state
 
 	if _edge_suppress_frames > 0:
@@ -205,8 +199,6 @@ func _get_button_state(device_id: int, action: StringName) -> bool:
 	if not _curr_button_state.has(device_id):
 		return false
 	var state: Dictionary = _curr_button_state[device_id]
-	if action == &"rt_axis" or action == &"lt_axis":
-		return state.get(action, false)
 	var button: int = ACTION_MAP.get(action, -1)
 	if button < 0:
 		return false
@@ -217,8 +209,6 @@ func _get_prev_button_state(device_id: int, action: StringName) -> bool:
 	if not _prev_button_state.has(device_id):
 		return false
 	var state: Dictionary = _prev_button_state[device_id]
-	if action == &"rt_axis" or action == &"lt_axis":
-		return state.get(action, false)
 	var button: int = ACTION_MAP.get(action, -1)
 	if button < 0:
 		return false
