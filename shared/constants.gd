@@ -19,6 +19,8 @@ const TRAP_LETHAL_COOLDOWN: float = 8.0
 const TRAP_LETHAL_RADIUS: float = 20.0
 const TRAPPER_SET_RELOAD_DELAY: float = 4.0
 const FLOATING_TEXT_DURATION: float = 2.8
+const TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE: float = 90.0
+const TRAPPER_MOVING_ESCAPIST_SPEED_THRESHOLD: float = 20.0
 
 # --- Phase durations ---
 const OBSERVATION_DURATION: float = 5.0
@@ -27,7 +29,7 @@ const ROUND_END_DURATION: float = 3.0
 
 # --- Match ---
 const SCORE_TO_WIN: int = 3
-const HUNT_DURATION: float = 30.0
+const HUNT_DURATION: float = 60.0
 
 # --- Scoring ---
 const SCORE_ESCAPE_BASE: int = 100

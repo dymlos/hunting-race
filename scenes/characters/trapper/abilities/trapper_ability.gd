@@ -48,6 +48,8 @@ func activate() -> void:
 		return
 
 	if points_required <= 1:
+		if not _is_placement_safe(trapper.global_position):
+			return
 		if not _consume_use():
 			return
 		_spawn_object(trapper.global_position)
@@ -60,12 +62,17 @@ func activate() -> void:
 			_placement_points.clear()
 
 		var pos := trapper.global_position
+		if not _is_placement_safe(pos):
+			return
 
 		# Enforce max distance from previous point
 		if max_point_distance > 0.0 and not _placement_points.is_empty():
 			var prev: Vector2 = _placement_points.back()
 			if pos.distance_to(prev) > max_point_distance:
 				return  # Too far — don't place this point
+
+		if not _is_placement_segment_safe(pos):
+			return
 
 		if _placement_points.size() + 1 >= points_required and _get_available_uses() <= 0:
 			return
@@ -208,6 +215,10 @@ func _skills_cooldowns_enabled() -> bool:
 
 func is_placement_valid(cursor_pos: Vector2) -> bool:
 	## Whether the cursor is within valid distance of the last placed point.
+	if not _is_placement_safe(cursor_pos):
+		return false
+	if not _is_placement_segment_safe(cursor_pos):
+		return false
 	if max_point_distance <= 0.0:
 		return true
 	if _placement_points.is_empty():
@@ -232,3 +243,64 @@ func draw_preview(trapper_node: Trapper) -> void:
 	if max_point_distance > 0.0:
 		trapper_node.draw_arc(last_local, max_point_distance, 0, TAU, 24,
 			Color(color, 0.15), 1.0)
+
+
+func _is_placement_safe(pos: Vector2) -> bool:
+	if not _should_protect_moving_escapists():
+		return true
+	return not _is_near_moving_enemy_escapist(pos)
+
+
+func _is_placement_segment_safe(pos: Vector2) -> bool:
+	if not _should_protect_moving_escapists():
+		return true
+	if _placement_points.is_empty():
+		return true
+	var previous: Vector2 = _placement_points.back()
+	for node: Node in trapper.get_tree().get_nodes_in_group("characters"):
+		if not node is Escapist:
+			continue
+		var esc := node as Escapist
+		if not _is_moving_enemy_escapist(esc):
+			continue
+		var distance := _distance_point_to_segment(esc.global_position, previous, pos)
+		if distance < Constants.TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE:
+			return false
+	return true
+
+
+func _should_protect_moving_escapists() -> bool:
+	if GameManager.practice_mode:
+		return false
+	return GameManager.current_state == Enums.GameState.HUNT \
+		or GameManager.current_state == Enums.GameState.ESCAPE
+
+
+func _is_near_moving_enemy_escapist(pos: Vector2) -> bool:
+	for node: Node in trapper.get_tree().get_nodes_in_group("characters"):
+		if not node is Escapist:
+			continue
+		var esc := node as Escapist
+		if not _is_moving_enemy_escapist(esc):
+			continue
+		if esc.global_position.distance_to(pos) < Constants.TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE:
+			return true
+	return false
+
+
+func _is_moving_enemy_escapist(esc: Escapist) -> bool:
+	if esc.team == trapper.team or esc.is_dead or esc.has_scored:
+		return false
+	var speed := esc.velocity.length()
+	if esc.movement != null:
+		speed = maxf(speed, esc.movement.velocity.length())
+	return speed >= Constants.TRAPPER_MOVING_ESCAPIST_SPEED_THRESHOLD
+
+
+func _distance_point_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
+	var segment := b - a
+	var length_sq := segment.length_squared()
+	if length_sq <= 0.01:
+		return point.distance_to(a)
+	var t := clampf((point - a).dot(segment) / length_sq, 0.0, 1.0)
+	return point.distance_to(a + segment * t)
