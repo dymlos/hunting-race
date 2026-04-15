@@ -1,7 +1,7 @@
 class_name ElasticWeb
 extends TrapperAbility
 
-## Araña Ability 2 (RB): Taut web between 2 points that bounces escapists backward.
+## Spider Ability 2 (RB): Taut web between 2 points that bounces escapists backward.
 
 
 func setup(p_trapper: Trapper) -> void:

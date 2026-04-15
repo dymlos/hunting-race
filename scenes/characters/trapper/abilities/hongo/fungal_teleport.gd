@@ -1,7 +1,7 @@
 class_name FungalTeleport
 extends TrapperAbility
 
-## Hongo Ability 3 (X): Place two linked mushroom portals. Stepping in one
+## Mushroom Ability 3 (X): Place two linked mushroom portals. Stepping in one
 ## teleports to the other. Per-player cooldown prevents loops.
 
 

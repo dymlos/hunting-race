@@ -1,7 +1,7 @@
 class_name WaterCurrent
 extends TrapperAbility
 
-## Pulpo Ability 3 (X): Directional flow between 2 points. Escapists inside
+## Octopus Ability 3 (X): Directional flow between 2 points. Escapists inside
 ## are pushed in the flow direction, overriding their movement in that axis.
 
 

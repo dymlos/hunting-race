@@ -1,7 +1,7 @@
 class_name InkStain
 extends TrapperAbility
 
-## Pulpo Ability 1 (A): Large dark zone. Escapists inside cannot see their
+## Octopus Ability 1 (A): Large dark zone. Escapists inside cannot see their
 ## surroundings — a black fog covers the zone with a tiny visible radius
 ## around each escapist inside.
 

@@ -1,7 +1,7 @@
 class_name CrushingPincers
 extends TrapperAbility
 
-## Escorpión Ability 3 (X): Two walls placed at 2 points. When an escapist enters
+## Scorpion Ability 3 (X): Two walls placed at 2 points. When an escapist enters
 ## the zone between them, the walls close and crush. Uses existing crush detection.
 
 

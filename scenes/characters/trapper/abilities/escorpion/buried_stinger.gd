@@ -1,7 +1,7 @@
 class_name BuriedStinger
 extends TrapperAbility
 
-## Escorpión Ability 1 (A): Nearly invisible trap. Poison + stun on contact. Single-use.
+## Scorpion Ability 1 (A): Nearly invisible single-use poison trap.
 
 
 func setup(p_trapper: Trapper) -> void:

@@ -1,7 +1,7 @@
 class_name ConfusingMushroom
 extends TrapperAbility
 
-## Hongo Ability 1 (A): Mushroom that inverts controls on contact. Single-use.
+## Mushroom Ability 1 (A): Mushroom that inverts controls on contact. Single-use.
 
 
 func setup(p_trapper: Trapper) -> void:

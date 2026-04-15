@@ -296,41 +296,4 @@ func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 
 
 func _get_trapper_guide_data() -> Array[Dictionary]:
-	return [
-		{
-			"name": "SPIDER",
-			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ARANA),
-			"abilities": [
-				{"button": "A", "name": "Expansive Web", "desc": "Place 3 points to create a slowing web."},
-				{"button": "RB", "name": "Elastic Web", "desc": "Place 2 points to bounce escapists back."},
-				{"button": "X", "name": "Persistent Venom", "desc": "Poison puddle. Ally touch cures before death."},
-			],
-		},
-		{
-			"name": "MUSHROOM",
-			"color": Enums.trapper_character_color(Enums.TrapperCharacter.HONGO),
-			"abilities": [
-				{"button": "A", "name": "Confusing Mushroom", "desc": "Inverts movement on contact."},
-				{"button": "RB", "name": "Toxic Spore Zone", "desc": "Slows inside and poisons on exit."},
-				{"button": "X", "name": "Fungal Teleport", "desc": "Place 2 linked portals."},
-			],
-		},
-		{
-			"name": "SCORPION",
-			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ESCORPION),
-			"abilities": [
-				{"button": "A", "name": "Buried Stinger", "desc": "Hidden trap with poison that drains faster when the target moves fast."},
-				{"button": "RB", "name": "Quicksand", "desc": "Pulls targets inward; center is lethal."},
-				{"button": "X", "name": "Crushing Pincers", "desc": "Place 2 walls that close and crush."},
-			],
-		},
-		{
-			"name": "OCTOPUS",
-			"color": Enums.trapper_character_color(Enums.TrapperCharacter.PULPO),
-			"abilities": [
-				{"button": "A", "name": "Ink Stain", "desc": "Covers most vision inside the ink."},
-				{"button": "RB", "name": "Binding Tentacle", "desc": "Timed capture that lasts longer when linked."},
-				{"button": "X", "name": "Water Current", "desc": "Place 2 points for a strong directional push."},
-			],
-		},
-	]
+	return TrapperCharacters.get_all()

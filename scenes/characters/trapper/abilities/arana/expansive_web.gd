@@ -1,7 +1,7 @@
 class_name ExpansiveWeb
 extends TrapperAbility
 
-## Araña Ability 1 (A): Weave a web between 3 points forming a slow zone.
+## Spider Ability 1 (A): Weave a web between 3 points forming a slow zone.
 
 
 func setup(p_trapper: Trapper) -> void:

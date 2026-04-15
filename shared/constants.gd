@@ -64,7 +64,7 @@ const LAYER_CHARACTERS: int = 2
 const LAYER_GOAL_ZONES: int = 16
 const LAYER_TRAPS: int = 32
 
-# --- Araña ---
+# --- Spider ---
 const ARANA_WEB_SLOW: float = 0.3
 const ARANA_WEB_LIFETIME: float = 25.0
 const ARANA_WEB_COOLDOWN: float = 12.0
@@ -83,7 +83,7 @@ const ARANA_VENOM_LIFETIME: float = 30.0
 const ARANA_VENOM_COOLDOWN: float = 8.0
 const ARANA_VENOM_MAX: int = 2
 
-# --- Hongo ---
+# --- Mushroom ---
 const HONGO_CONFUSE_LIFETIME: float = 25.0
 const HONGO_CONFUSE_COOLDOWN: float = 10.0
 const HONGO_CONFUSE_MAX: int = 2
@@ -102,7 +102,7 @@ const HONGO_TELEPORT_COOLDOWN: float = 12.0
 const HONGO_TELEPORT_MAX: int = 1
 const HONGO_TELEPORT_PLAYER_COOLDOWN: float = 3.0
 
-# --- Escorpión ---
+# --- Scorpion ---
 const ESCORPION_STINGER_RADIUS: float = 18.0
 const ESCORPION_STINGER_LIFETIME: float = 40.0
 const ESCORPION_STINGER_COOLDOWN: float = 6.0
@@ -133,7 +133,7 @@ const ESCORPION_PINCERS_TOOTH_WIDTH: float = 10.0
 const ESCORPION_PINCERS_TOOTH_DEPTH: float = 10.0
 const ESCORPION_PINCERS_CRUSH_MARGIN: float = 2.0
 
-# --- Pulpo ---
+# --- Octopus ---
 const PULPO_INK_RADIUS: float = 80.0
 const PULPO_INK_ALPHA: float = 0.97
 const PULPO_INK_VISIBLE_RADIUS: float = 14.0

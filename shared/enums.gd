@@ -73,10 +73,10 @@ static func role_name(role: Role) -> String:
 
 static func trapper_character_name(tc: TrapperCharacter) -> String:
 	match tc:
-		TrapperCharacter.ARANA: return "ARAÑA"
-		TrapperCharacter.HONGO: return "HONGO"
-		TrapperCharacter.ESCORPION: return "ESCORPIÓN"
-		TrapperCharacter.PULPO: return "PULPO"
+		TrapperCharacter.ARANA: return "SPIDER"
+		TrapperCharacter.HONGO: return "MUSHROOM"
+		TrapperCharacter.ESCORPION: return "SCORPION"
+		TrapperCharacter.PULPO: return "OCTOPUS"
 	return "None"
 
 

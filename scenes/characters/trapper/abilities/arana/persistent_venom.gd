@@ -1,7 +1,7 @@
 class_name PersistentVenom
 extends TrapperAbility
 
-## Araña Ability 3 (X): Poison puddle. Stepping on it poisons the escapist.
+## Spider Ability 3 (X): Poison puddle. Stepping on it poisons the escapist.
 ## Ally touch cures; otherwise death after timer.
 
 

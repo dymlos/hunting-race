@@ -1,7 +1,7 @@
 class_name Quicksand
 extends TrapperAbility
 
-## Escorpión Ability 2 (RB): Circular zone that pulls escapists toward center.
+## Scorpion Ability 2 (RB): Circular zone that pulls escapists toward center.
 ## Reaching the center = death. Escape by moving in circles (tangential movement
 ## reduces pull strength).
 

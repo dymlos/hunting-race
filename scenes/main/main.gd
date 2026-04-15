@@ -18,6 +18,21 @@ const EscapistScene := preload("res://scenes/characters/escapist/escapist.tscn")
 const TrapperScene := preload("res://scenes/characters/trapper/trapper.tscn")
 const MenuMusicPlayerScene := preload("res://scenes/audio/menu_music_player.gd")
 
+const PRACTICE_SPIDER_BOT_INDEX := 100
+const PRACTICE_ALLY_BOT_INDEX := 101
+const PRACTICE_PATROL_BOT_INDEX := 102
+const PRACTICE_SCORPION_BOT_INDEX := 103
+const PRACTICE_MUSHROOM_BOT_INDEX := 104
+const PRACTICE_OCTOPUS_BOT_INDEX := 105
+const PRACTICE_BOT_INDICES := [
+	PRACTICE_SPIDER_BOT_INDEX,
+	PRACTICE_ALLY_BOT_INDEX,
+	PRACTICE_PATROL_BOT_INDEX,
+	PRACTICE_SCORPION_BOT_INDEX,
+	PRACTICE_MUSHROOM_BOT_INDEX,
+	PRACTICE_OCTOPUS_BOT_INDEX,
+]
+
 var arena: Arena
 var characters: Array[Node2D] = []  # Mix of Escapist and Trapper nodes
 var _active_player_indices: Array[int] = []
@@ -647,42 +662,37 @@ func _add_practice_bots() -> void:
 	if not GameManager.practice_mode or arena == null or _practice_bots_added:
 		return
 
-	var trapper_bot_index := 100
-	var escapist_bot_index := 101
-	var patrol_bot_index := 102
-	var scorpion_bot_index := 103
+	_register_practice_trapper_bot(PRACTICE_SPIDER_BOT_INDEX, Enums.TrapperCharacter.ARANA)
+	_register_practice_trapper_bot(PRACTICE_SCORPION_BOT_INDEX, Enums.TrapperCharacter.ESCORPION)
+	_register_practice_trapper_bot(PRACTICE_MUSHROOM_BOT_INDEX, Enums.TrapperCharacter.HONGO)
+	_register_practice_trapper_bot(PRACTICE_OCTOPUS_BOT_INDEX, Enums.TrapperCharacter.PULPO)
+	_register_practice_escapist_bot(PRACTICE_ALLY_BOT_INDEX)
+	_register_practice_escapist_bot(PRACTICE_PATROL_BOT_INDEX)
 
-	GameManager.team_assignments[trapper_bot_index] = GameManager.get_trapping_team()
-	GameManager.role_assignments[trapper_bot_index] = Enums.Role.TRAPPER
-	GameManager.character_selections[trapper_bot_index] = Enums.TrapperCharacter.ARANA
-
-	GameManager.team_assignments[scorpion_bot_index] = GameManager.get_trapping_team()
-	GameManager.role_assignments[scorpion_bot_index] = Enums.Role.TRAPPER
-	GameManager.character_selections[scorpion_bot_index] = Enums.TrapperCharacter.ESCORPION
-
-	GameManager.team_assignments[escapist_bot_index] = GameManager.escapist_team
-	GameManager.role_assignments[escapist_bot_index] = Enums.Role.ESCAPIST
-	GameManager.escapist_selections[escapist_bot_index] = Enums.EscapistAnimal.RABBIT
-
-	GameManager.team_assignments[patrol_bot_index] = GameManager.escapist_team
-	GameManager.role_assignments[patrol_bot_index] = Enums.Role.ESCAPIST
-	GameManager.escapist_selections[patrol_bot_index] = Enums.EscapistAnimal.RABBIT
-
-	if trapper_bot_index not in _active_player_indices:
-		_active_player_indices.append(trapper_bot_index)
-	if escapist_bot_index not in _active_player_indices:
-		_active_player_indices.append(escapist_bot_index)
-	if patrol_bot_index not in _active_player_indices:
-		_active_player_indices.append(patrol_bot_index)
-	if scorpion_bot_index not in _active_player_indices:
-		_active_player_indices.append(scorpion_bot_index)
+	for bot_index: int in PRACTICE_BOT_INDICES:
+		if bot_index not in _active_player_indices:
+			_active_player_indices.append(bot_index)
 	_active_player_indices.sort()
 
-	_spawn_practice_bot(trapper_bot_index)
-	_spawn_practice_bot(scorpion_bot_index)
-	_spawn_practice_bot(escapist_bot_index)
-	_spawn_practice_bot(patrol_bot_index)
+	_spawn_practice_bot(PRACTICE_SPIDER_BOT_INDEX)
+	_spawn_practice_bot(PRACTICE_SCORPION_BOT_INDEX)
+	_spawn_practice_bot(PRACTICE_MUSHROOM_BOT_INDEX)
+	_spawn_practice_bot(PRACTICE_OCTOPUS_BOT_INDEX)
+	_spawn_practice_bot(PRACTICE_ALLY_BOT_INDEX)
+	_spawn_practice_bot(PRACTICE_PATROL_BOT_INDEX)
 	_practice_bots_added = true
+
+
+func _register_practice_trapper_bot(player_index: int, character: Enums.TrapperCharacter) -> void:
+	GameManager.team_assignments[player_index] = GameManager.get_trapping_team()
+	GameManager.role_assignments[player_index] = Enums.Role.TRAPPER
+	GameManager.character_selections[player_index] = character
+
+
+func _register_practice_escapist_bot(player_index: int) -> void:
+	GameManager.team_assignments[player_index] = GameManager.escapist_team
+	GameManager.role_assignments[player_index] = Enums.Role.ESCAPIST
+	GameManager.escapist_selections[player_index] = Enums.EscapistAnimal.RABBIT
 
 
 func _spawn_practice_bot(player_index: int) -> void:
@@ -699,14 +709,25 @@ func _spawn_practice_bot(player_index: int) -> void:
 		trapper.position = arena.get_map_center()
 		trapper.setup(arena.get_map_size())
 		var map_size := arena.get_map_size()
-		if trapper.trapper_character == Enums.TrapperCharacter.ESCORPION:
-			var path_a := Vector2(map_size.x * 0.10, map_size.y * 0.72)
-			var path_b := Vector2(map_size.x * 0.28, map_size.y * 0.72)
-			trapper.configure_scorpion_bot(path_a, path_b)
-		else:
-			var path_a := Vector2(map_size.x * 0.68, map_size.y * 0.32)
-			var path_b := Vector2(map_size.x * 0.84, map_size.y * 0.32)
-			trapper.configure_spider_bot(path_a, path_b)
+		var path_a := Vector2.ZERO
+		var path_b := Vector2.ZERO
+		match trapper.trapper_character:
+			Enums.TrapperCharacter.ARANA:
+				path_a = Vector2(map_size.x * 0.68, map_size.y * 0.32)
+				path_b = Vector2(map_size.x * 0.84, map_size.y * 0.32)
+				trapper.configure_spider_bot(path_a, path_b)
+			Enums.TrapperCharacter.HONGO:
+				path_a = Vector2(map_size.x * 0.10, map_size.y * 0.18)
+				path_b = Vector2(map_size.x * 0.28, map_size.y * 0.18)
+				trapper.configure_mushroom_bot(path_a, path_b)
+			Enums.TrapperCharacter.ESCORPION:
+				path_a = Vector2(map_size.x * 0.10, map_size.y * 0.72)
+				path_b = Vector2(map_size.x * 0.28, map_size.y * 0.72)
+				trapper.configure_scorpion_bot(path_a, path_b)
+			Enums.TrapperCharacter.PULPO:
+				path_a = Vector2(map_size.x * 0.70, map_size.y * 0.54)
+				path_b = Vector2(map_size.x * 0.92, map_size.y * 0.54)
+				trapper.configure_octopus_bot(path_a, path_b)
 		trapper.unfreeze_character()
 		character_container.add_child(trapper)
 		characters.append(trapper)
@@ -720,7 +741,7 @@ func _spawn_practice_bot(player_index: int) -> void:
 		var map_size := arena.get_map_size()
 		esc.position = Vector2(map_size.x * 0.78, map_size.y * 0.72)
 		esc.aim_direction = Vector2.RIGHT
-		if player_index == 102:
+		if player_index == PRACTICE_PATROL_BOT_INDEX:
 			var path_a := Vector2(map_size.x * 0.70, map_size.y * 0.84)
 			var path_b := Vector2(map_size.x * 0.93, map_size.y * 0.84)
 			esc.configure_patrol_bot(path_a, path_b)
@@ -732,7 +753,7 @@ func _spawn_practice_bot(player_index: int) -> void:
 
 
 func _remove_practice_bots() -> void:
-	for bot_index: int in [100, 101, 102, 103]:
+	for bot_index: int in PRACTICE_BOT_INDICES:
 		var character := GameManager.player_characters.get(bot_index, null) as Node2D
 		if character and is_instance_valid(character):
 			characters.erase(character)
@@ -768,7 +789,7 @@ func _restart_practice_character_select() -> void:
 
 
 func _clear_practice_bots() -> void:
-	for bot_index: int in [100, 101, 102, 103]:
+	for bot_index: int in PRACTICE_BOT_INDICES:
 		GameManager.team_assignments.erase(bot_index)
 		GameManager.role_assignments.erase(bot_index)
 		GameManager.character_selections.erase(bot_index)

@@ -75,6 +75,18 @@ func configure_scorpion_bot(path_a: Vector2, path_b: Vector2) -> void:
 	_configure_path_bot(path_a, path_b)
 
 
+func configure_mushroom_bot(path_a: Vector2, path_b: Vector2) -> void:
+	bot_ai_enabled = true
+	_bot_mode = &"mushroom"
+	_configure_path_bot(path_a, path_b)
+
+
+func configure_octopus_bot(path_a: Vector2, path_b: Vector2) -> void:
+	bot_ai_enabled = true
+	_bot_mode = &"octopus"
+	_configure_path_bot(path_a, path_b)
+
+
 func _configure_path_bot(path_a: Vector2, path_b: Vector2) -> void:
 	_bot_path_a = path_a
 	_bot_path_b = path_b
@@ -195,7 +207,10 @@ func _process(delta: float) -> void:
 
 func _process_bot(delta: float) -> void:
 	_bot_elapsed += delta
-	if _bot_mode == &"spider" or _bot_mode == &"scorpion":
+	if _bot_mode == &"spider" \
+			or _bot_mode == &"scorpion" \
+			or _bot_mode == &"mushroom" \
+			or _bot_mode == &"octopus":
 		_process_path_trap_bot(delta)
 		return
 
@@ -300,12 +315,20 @@ func _bot_needs_placement_points(ability_index: int) -> bool:
 		return ability_index == 0 or ability_index == 1
 	if _bot_mode == &"scorpion":
 		return ability_index == 2
+	if _bot_mode == &"mushroom":
+		return ability_index == 2
+	if _bot_mode == &"octopus":
+		return ability_index == 2
 	return false
 
 
 func _get_bot_placement_points(ability_index: int) -> Array[Vector2]:
 	if _bot_mode == &"scorpion":
 		return _get_scorpion_bot_placement_points(ability_index)
+	if _bot_mode == &"mushroom":
+		return _get_mushroom_bot_placement_points(ability_index)
+	if _bot_mode == &"octopus":
+		return _get_octopus_bot_placement_points(ability_index)
 	return _get_spider_bot_placement_points(ability_index)
 
 
@@ -336,6 +359,30 @@ func _get_scorpion_bot_placement_points(_ability_index: int) -> Array[Vector2]:
 	return [
 		_find_clear_bot_point(center - side * 54.0, center),
 		_find_clear_bot_point(center + side * 54.0, center),
+	]
+
+
+func _get_mushroom_bot_placement_points(_ability_index: int) -> Array[Vector2]:
+	var forward := (_bot_path_b - _bot_path_a).normalized()
+	if forward.length_squared() < 0.01:
+		forward = Vector2.RIGHT
+	var side := Vector2(-forward.y, forward.x)
+	var center := position
+	return [
+		_find_clear_bot_point(center - forward * 92.0 - side * 42.0, center),
+		_find_clear_bot_point(center + forward * 92.0 + side * 42.0, center),
+	]
+
+
+func _get_octopus_bot_placement_points(_ability_index: int) -> Array[Vector2]:
+	var forward := (_bot_path_b - _bot_path_a).normalized()
+	if forward.length_squared() < 0.01:
+		forward = Vector2.RIGHT
+	var side := Vector2(-forward.y, forward.x)
+	var center := position
+	return [
+		_find_clear_bot_point(center - forward * 118.0 + side * 18.0, center),
+		_find_clear_bot_point(center + forward * 118.0 + side * 18.0, center),
 	]
 
 

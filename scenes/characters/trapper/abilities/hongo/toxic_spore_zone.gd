@@ -1,7 +1,7 @@
 class_name ToxicSporeZone
 extends TrapperAbility
 
-## Hongo Ability 2 (RB): Toxic area — slow while inside, poison on exit.
+## Mushroom Ability 2 (RB): Toxic area that slows inside and poisons on exit.
 
 
 func setup(p_trapper: Trapper) -> void:

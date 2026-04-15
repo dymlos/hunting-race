@@ -1,7 +1,7 @@
 class_name BindingTentacle
 extends TrapperAbility
 
-## Pulpo Ability 2 (RB): Capture point. First escapist is rooted. If a second
+## Octopus Ability 2 (RB): Capture point. First escapist is rooted. If a second
 ## escapist comes to help, both get linked and must move with averaged input.
 
 
