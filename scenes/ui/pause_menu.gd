@@ -17,7 +17,7 @@ var _showing_ability_guide: bool = false
 
 const NAV_COOLDOWN: float = 0.2
 const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Practice Mode", "Return to Setup"]
-const PRACTICE_OPTIONS: Array[String] = ["Resume", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Return to Setup"]
+const PRACTICE_OPTIONS: Array[String] = ["Resume", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
 
 
 func _ready() -> void:
@@ -62,7 +62,10 @@ func _process(delta: float) -> void:
 				_nav_cooldown = NAV_COOLDOWN
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
-			reset_requested.emit()
+			if GameManager.practice_mode:
+				practice_requested.emit()
+			else:
+				reset_requested.emit()
 			return
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
@@ -112,6 +115,8 @@ func _draw() -> void:
 			display, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 	var hint := "UP/DOWN select | A or START confirm | B resume | SELECT setup"
+	if GameManager.practice_mode:
+		hint = "UP/DOWN select | A or START confirm | B resume | SELECT practice setup"
 	var hint_size := 13
 	var hint_w := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size).x
 	draw_string(font, Vector2(cx - hint_w / 2.0, panel_pos.y + panel_size.y - 24),
@@ -184,6 +189,8 @@ func _activate_option(option: String) -> void:
 			_toggle_practice_bots()
 		"Change Characters":
 			practice_character_select_requested.emit()
+		"Restart Practice Setup":
+			practice_requested.emit()
 		"Return to Setup":
 			reset_requested.emit()
 
@@ -312,7 +319,7 @@ func _get_trapper_guide_data() -> Array[Dictionary]:
 			"name": "SCORPION",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ESCORPION),
 			"abilities": [
-				{"button": "A", "name": "Buried Stinger", "desc": "Hidden trap with poison and stun."},
+				{"button": "A", "name": "Buried Stinger", "desc": "Hidden trap with poison that drains faster when the target moves fast."},
 				{"button": "RB", "name": "Quicksand", "desc": "Pulls targets inward; center is lethal."},
 				{"button": "X", "name": "Crushing Pincers", "desc": "Place 2 walls that close and crush."},
 			],

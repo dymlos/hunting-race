@@ -650,10 +650,15 @@ func _add_practice_bots() -> void:
 	var trapper_bot_index := 100
 	var escapist_bot_index := 101
 	var patrol_bot_index := 102
+	var scorpion_bot_index := 103
 
 	GameManager.team_assignments[trapper_bot_index] = GameManager.get_trapping_team()
 	GameManager.role_assignments[trapper_bot_index] = Enums.Role.TRAPPER
 	GameManager.character_selections[trapper_bot_index] = Enums.TrapperCharacter.ARANA
+
+	GameManager.team_assignments[scorpion_bot_index] = GameManager.get_trapping_team()
+	GameManager.role_assignments[scorpion_bot_index] = Enums.Role.TRAPPER
+	GameManager.character_selections[scorpion_bot_index] = Enums.TrapperCharacter.ESCORPION
 
 	GameManager.team_assignments[escapist_bot_index] = GameManager.escapist_team
 	GameManager.role_assignments[escapist_bot_index] = Enums.Role.ESCAPIST
@@ -669,9 +674,12 @@ func _add_practice_bots() -> void:
 		_active_player_indices.append(escapist_bot_index)
 	if patrol_bot_index not in _active_player_indices:
 		_active_player_indices.append(patrol_bot_index)
+	if scorpion_bot_index not in _active_player_indices:
+		_active_player_indices.append(scorpion_bot_index)
 	_active_player_indices.sort()
 
 	_spawn_practice_bot(trapper_bot_index)
+	_spawn_practice_bot(scorpion_bot_index)
 	_spawn_practice_bot(escapist_bot_index)
 	_spawn_practice_bot(patrol_bot_index)
 	_practice_bots_added = true
@@ -691,9 +699,14 @@ func _spawn_practice_bot(player_index: int) -> void:
 		trapper.position = arena.get_map_center()
 		trapper.setup(arena.get_map_size())
 		var map_size := arena.get_map_size()
-		var path_a := Vector2(map_size.x * 0.68, map_size.y * 0.32)
-		var path_b := Vector2(map_size.x * 0.84, map_size.y * 0.32)
-		trapper.configure_spider_bot(path_a, path_b)
+		if trapper.trapper_character == Enums.TrapperCharacter.ESCORPION:
+			var path_a := Vector2(map_size.x * 0.10, map_size.y * 0.72)
+			var path_b := Vector2(map_size.x * 0.28, map_size.y * 0.72)
+			trapper.configure_scorpion_bot(path_a, path_b)
+		else:
+			var path_a := Vector2(map_size.x * 0.68, map_size.y * 0.32)
+			var path_b := Vector2(map_size.x * 0.84, map_size.y * 0.32)
+			trapper.configure_spider_bot(path_a, path_b)
 		trapper.unfreeze_character()
 		character_container.add_child(trapper)
 		characters.append(trapper)
@@ -719,7 +732,7 @@ func _spawn_practice_bot(player_index: int) -> void:
 
 
 func _remove_practice_bots() -> void:
-	for bot_index: int in [100, 101, 102]:
+	for bot_index: int in [100, 101, 102, 103]:
 		var character := GameManager.player_characters.get(bot_index, null) as Node2D
 		if character and is_instance_valid(character):
 			characters.erase(character)
@@ -755,7 +768,7 @@ func _restart_practice_character_select() -> void:
 
 
 func _clear_practice_bots() -> void:
-	for bot_index: int in [100, 101, 102]:
+	for bot_index: int in [100, 101, 102, 103]:
 		GameManager.team_assignments.erase(bot_index)
 		GameManager.role_assignments.erase(bot_index)
 		GameManager.character_selections.erase(bot_index)

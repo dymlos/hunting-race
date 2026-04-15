@@ -71,19 +71,6 @@ class StingerTrap extends Area2D:
 			if esc.is_effect_immune():
 				queue_free()
 				return
-			# Stun
-			if esc.has_node("StatusEffectComponent"):
-				var status := esc.get_node("StatusEffectComponent") as StatusEffectComponent
-				status.apply_effect(Enums.CCType.STUN, Constants.ESCORPION_STINGER_STUN)
-			else:
-				# Fallback: freeze movement directly
-				esc.movement.freeze()
-				esc.get_tree().create_timer(Constants.ESCORPION_STINGER_STUN).timeout.connect(
-					func():
-						if is_instance_valid(esc):
-							esc.movement.unfreeze()
-				)
-			# Poison
 			esc.poison.apply_poison()
 			queue_free()  # Single-use
 
@@ -93,10 +80,10 @@ class StingerTrap extends Area2D:
 		var r := Constants.ESCORPION_STINGER_RADIUS
 
 		# Faint circle — hard to spot
-		draw_circle(Vector2.ZERO, r * 0.5, Color(_color, 0.05 * pulse))
+		draw_circle(Vector2.ZERO, r * 0.5, Color(_color, 0.11 * pulse))
 		# Tiny shimmer dots
 		var angle := Time.get_ticks_msec() / 1000.0
 		for i in 3:
 			var a := angle + i * TAU / 3.0
 			var offset := Vector2.from_angle(a) * r * 0.3
-			draw_circle(offset, 1.5, Color(_color, 0.08 * pulse))
+			draw_circle(offset, 1.5, Color(_color, 0.14 * pulse))

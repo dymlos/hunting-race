@@ -59,6 +59,7 @@ class PincersNode extends Node2D:
 	enum PincerState { OPEN, CLOSING, CLOSED, RESETTING }
 	var _state: PincerState = PincerState.OPEN
 	var _state_timer: float = 0.0
+	var _close_time: float = Constants.ESCORPION_PINCERS_CLOSE_TIME
 
 	func setup(team: Enums.Team, point_a: Vector2, point_b: Vector2) -> void:
 		owner_team = team
@@ -73,8 +74,8 @@ class PincersNode extends Node2D:
 		var perp_angle := _wall_angle + PI / 2.0
 
 		# Create two wall segments
-		_wall_a = _create_wall(point_a - _center, perp_angle)
-		_wall_b = _create_wall(point_b - _center, perp_angle)
+		_wall_a = _create_wall(point_a - _center, perp_angle, -1.0)
+		_wall_b = _create_wall(point_b - _center, perp_angle, 1.0)
 		add_child(_wall_a)
 		add_child(_wall_b)
 
@@ -93,21 +94,42 @@ class PincersNode extends Node2D:
 		add_child(_trigger)
 		_trigger.body_entered.connect(_on_trigger_entered)
 
-	func _create_wall(local_pos: Vector2, angle: float) -> AnimatableBody2D:
+	func _create_wall(local_pos: Vector2, angle: float, inward_sign: float) -> AnimatableBody2D:
 		var wall := AnimatableBody2D.new()
 		wall.position = local_pos
 		wall.rotation = angle
 
 		var shape := RectangleShape2D.new()
-		shape.size = Vector2(Constants.ESCORPION_PINCERS_WALL_LENGTH, 8.0)
+		shape.size = Vector2(
+			Constants.ESCORPION_PINCERS_WALL_LENGTH,
+			Constants.ESCORPION_PINCERS_WALL_THICKNESS)
 		var col := CollisionShape2D.new()
 		col.shape = shape
 		wall.add_child(col)
+		_add_teeth_collisions(wall, inward_sign)
 
 		wall.collision_layer = Constants.LAYER_WALLS
 		wall.collision_mask = 0
 
 		return wall
+
+	func _add_teeth_collisions(wall: AnimatableBody2D, inward_sign: float) -> void:
+		var count := Constants.ESCORPION_PINCERS_TEETH_COUNT
+		var spacing := Constants.ESCORPION_PINCERS_WALL_LENGTH / float(count + 1)
+		var base_y := inward_sign * Constants.ESCORPION_PINCERS_WALL_THICKNESS / 2.0
+		var tip_y := inward_sign * (
+			Constants.ESCORPION_PINCERS_WALL_THICKNESS / 2.0
+			+ Constants.ESCORPION_PINCERS_TOOTH_DEPTH)
+		for i in range(count):
+			var center_x := -Constants.ESCORPION_PINCERS_WALL_LENGTH / 2.0 + spacing * float(i + 1)
+			var half_width := Constants.ESCORPION_PINCERS_TOOTH_WIDTH / 2.0
+			var tooth := CollisionPolygon2D.new()
+			tooth.polygon = PackedVector2Array([
+				Vector2(center_x - half_width, base_y),
+				Vector2(center_x + half_width, base_y),
+				Vector2(center_x, tip_y),
+			])
+			wall.add_child(tooth)
 
 	func _process(delta: float) -> void:
 		if GameManager.trap_lifetime_active:
@@ -118,17 +140,22 @@ class PincersNode extends Node2D:
 
 		match _state:
 			PincerState.CLOSING:
+				if _should_break_from_blocker():
+					queue_free()
+					return
 				_state_timer -= delta
-				var ratio := 1.0 - clampf(_state_timer / Constants.ESCORPION_PINCERS_CLOSE_TIME, 0.0, 1.0)
+				var ratio := 1.0 - clampf(_state_timer / _close_time, 0.0, 1.0)
 				var local_a := _pos_a - _center
 				var local_b := _pos_b - _center
 				_wall_a.position = local_a.lerp(Vector2.ZERO, ratio)
 				_wall_b.position = local_b.lerp(Vector2.ZERO, ratio)
+				_crush_targets_between_pincers()
 				if _state_timer <= 0.0:
 					_state = PincerState.CLOSED
 					_state_timer = Constants.ESCORPION_PINCERS_RESET_TIME
 
 			PincerState.CLOSED:
+				_crush_targets_between_pincers()
 				_state_timer -= delta
 				if _state_timer <= 0.0:
 					_state = PincerState.RESETTING
@@ -158,8 +185,69 @@ class PincersNode extends Node2D:
 			if character.team == owner_team:
 				return
 			GameManager.register_trap_contact(character.player_index)
+			_close_time = _get_close_time()
+			if _should_break_from_blocker():
+				queue_free()
+				return
 			_state = PincerState.CLOSING
-			_state_timer = Constants.ESCORPION_PINCERS_CLOSE_TIME
+			_state_timer = _close_time
+
+	func _get_close_time() -> float:
+		var dist := _pos_a.distance_to(_pos_b)
+		var distance_ratio := inverse_lerp(
+			Constants.ESCORPION_PINCERS_SLOW_DISTANCE,
+			Constants.ESCORPION_PINCERS_FAST_DISTANCE,
+			dist)
+		distance_ratio = clampf(distance_ratio, 0.0, 1.0)
+		return lerpf(
+			Constants.ESCORPION_PINCERS_MAX_CLOSE_TIME,
+			Constants.ESCORPION_PINCERS_MIN_CLOSE_TIME,
+			distance_ratio)
+
+	func _should_break_from_blocker() -> bool:
+		if _pos_a.distance_to(_pos_b) < Constants.ESCORPION_PINCERS_BREAK_DISTANCE:
+			return false
+
+		var space_state := get_world_2d().direct_space_state
+		var query := PhysicsRayQueryParameters2D.create(
+			_wall_a.global_position,
+			_wall_b.global_position,
+			Constants.LAYER_WALLS | Constants.LAYER_TRAPS)
+		query.collide_with_areas = true
+		query.collide_with_bodies = true
+		query.exclude = [_wall_a.get_rid(), _wall_b.get_rid()]
+		return not space_state.intersect_ray(query).is_empty()
+
+	func _crush_targets_between_pincers() -> void:
+		var wall_distance := _wall_a.global_position.distance_to(_wall_b.global_position)
+		var crush_distance := Constants.CHARACTER_RADIUS * 2.0 \
+			+ Constants.ESCORPION_PINCERS_WALL_THICKNESS \
+			+ Constants.ESCORPION_PINCERS_CRUSH_MARGIN
+		if wall_distance > crush_distance:
+			return
+
+		var close_axis := (_wall_b.global_position - _wall_a.global_position).normalized()
+		if close_axis.length_squared() <= 0.01:
+			return
+		var wall_axis := close_axis.rotated(PI / 2.0)
+		var center := (_wall_a.global_position + _wall_b.global_position) / 2.0
+		var half_gap := wall_distance / 2.0 + Constants.CHARACTER_RADIUS
+		var half_length := Constants.ESCORPION_PINCERS_WALL_LENGTH / 2.0 \
+			+ Constants.CHARACTER_RADIUS \
+			+ Constants.ESCORPION_PINCERS_TOOTH_DEPTH
+
+		for node: Node in get_tree().get_nodes_in_group("characters"):
+			if not node is Escapist:
+				continue
+			var esc := node as Escapist
+			if esc.team == owner_team or esc.is_dead or esc.has_scored:
+				continue
+			var offset := esc.global_position - center
+			if absf(offset.dot(close_axis)) > half_gap:
+				continue
+			if absf(offset.dot(wall_axis)) > half_length:
+				continue
+			esc.movement.crushed.emit()
 
 	func _draw() -> void:
 		var local_a := _wall_a.position
@@ -174,11 +262,36 @@ class PincersNode extends Node2D:
 			wall_color = Color(1.0, 0.1, 0.05)
 
 		# Wall A
-		draw_line(local_a - perp * half_len, local_a + perp * half_len, wall_color, 6.0)
+		draw_line(
+			local_a - perp * half_len,
+			local_a + perp * half_len,
+			wall_color,
+			Constants.ESCORPION_PINCERS_WALL_THICKNESS)
 		# Wall B
-		draw_line(local_b - perp * half_len, local_b + perp * half_len, wall_color, 6.0)
+		draw_line(
+			local_b - perp * half_len,
+			local_b + perp * half_len,
+			wall_color,
+			Constants.ESCORPION_PINCERS_WALL_THICKNESS)
+		_draw_teeth(local_a, perp, Vector2.from_angle(_wall_angle), wall_color)
+		_draw_teeth(local_b, perp, -Vector2.from_angle(_wall_angle), wall_color)
 
 		# Danger zone between walls (when open)
 		if _state == PincerState.OPEN:
 			var zone_color := Color(_color, 0.05 + 0.03 * sin(Time.get_ticks_msec() / 300.0))
 			draw_line(local_a, local_b, zone_color, Constants.ESCORPION_PINCERS_WALL_LENGTH * 0.3)
+
+	func _draw_teeth(wall_pos: Vector2, wall_axis: Vector2, inward_dir: Vector2, color: Color) -> void:
+		var count := Constants.ESCORPION_PINCERS_TEETH_COUNT
+		var spacing := Constants.ESCORPION_PINCERS_WALL_LENGTH / float(count + 1)
+		var base_offset := inward_dir * Constants.ESCORPION_PINCERS_WALL_THICKNESS / 2.0
+		var tip_offset := inward_dir * (
+			Constants.ESCORPION_PINCERS_WALL_THICKNESS / 2.0
+			+ Constants.ESCORPION_PINCERS_TOOTH_DEPTH)
+		for i in range(count):
+			var center := -Constants.ESCORPION_PINCERS_WALL_LENGTH / 2.0 + spacing * float(i + 1)
+			var half_width := Constants.ESCORPION_PINCERS_TOOTH_WIDTH / 2.0
+			var base_left := wall_pos + wall_axis * (center - half_width) + base_offset
+			var base_right := wall_pos + wall_axis * (center + half_width) + base_offset
+			var tip := wall_pos + wall_axis * center + tip_offset
+			draw_colored_polygon(PackedVector2Array([base_left, base_right, tip]), color)

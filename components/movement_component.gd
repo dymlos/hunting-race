@@ -184,6 +184,25 @@ func apply_impulse(impulse: Vector2) -> void:
 	_external_velocity += impulse
 
 
+func apply_vortex_pull(direction: Vector2, target_speed: float, acceleration: float,
+		inertia_dampen: float, delta: float) -> void:
+	if not can_move:
+		return
+	if body is Escapist and (body as Escapist).is_effect_immune():
+		return
+	var pull_dir := direction.normalized()
+	if pull_dir.length_squared() <= 0.01:
+		return
+
+	var current_pull := _external_velocity.dot(pull_dir)
+	var needed_pull := maxf(target_speed - current_pull, 0.0)
+	_external_velocity += pull_dir * minf(needed_pull, acceleration * delta)
+
+	var outward_speed := velocity.dot(-pull_dir)
+	if outward_speed > 0.0:
+		velocity += pull_dir * minf(outward_speed, inertia_dampen * delta)
+
+
 func start_dash(direction: Vector2, distance: float, on_complete: Callable = Callable(),
 		duration: float = 0.1, ignore_collisions: bool = false) -> void:
 	_start_dash(direction, distance, on_complete, duration, ignore_collisions, false, false)

@@ -66,6 +66,16 @@ func setup(map_size: Vector2) -> void:
 func configure_spider_bot(path_a: Vector2, path_b: Vector2) -> void:
 	bot_ai_enabled = true
 	_bot_mode = &"spider"
+	_configure_path_bot(path_a, path_b)
+
+
+func configure_scorpion_bot(path_a: Vector2, path_b: Vector2) -> void:
+	bot_ai_enabled = true
+	_bot_mode = &"scorpion"
+	_configure_path_bot(path_a, path_b)
+
+
+func _configure_path_bot(path_a: Vector2, path_b: Vector2) -> void:
 	_bot_path_a = path_a
 	_bot_path_b = path_b
 	_bot_path_target = path_b
@@ -185,8 +195,8 @@ func _process(delta: float) -> void:
 
 func _process_bot(delta: float) -> void:
 	_bot_elapsed += delta
-	if _bot_mode == &"spider":
-		_process_spider_bot(delta)
+	if _bot_mode == &"spider" or _bot_mode == &"scorpion":
+		_process_path_trap_bot(delta)
 		return
 
 	# Move toward random target
@@ -223,7 +233,7 @@ func _process_bot(delta: float) -> void:
 			_bot_ability_timer = randf_range(3.0, 8.0)
 
 
-func _process_spider_bot(delta: float) -> void:
+func _process_path_trap_bot(delta: float) -> void:
 	var move_speed := Constants.TRAPPER_CURSOR_SPEED * 0.6
 
 	if _bot_active_placement_index >= 0:
@@ -263,8 +273,8 @@ func _process_spider_bot(delta: float) -> void:
 	var ability := _abilities[_bot_next_ability_index]
 	if not ability.can_activate():
 		return
-	if _bot_next_ability_index == 0 or _bot_next_ability_index == 1:
-		_bot_placement_points = _get_spider_bot_placement_points(_bot_next_ability_index)
+	if _bot_needs_placement_points(_bot_next_ability_index):
+		_bot_placement_points = _get_bot_placement_points(_bot_next_ability_index)
 		_bot_active_placement_index = _bot_next_ability_index
 		return
 	ability.activate()
@@ -285,6 +295,20 @@ func _finish_bot_ability_placement() -> void:
 		_bot_cycle_delay = 2.0
 
 
+func _bot_needs_placement_points(ability_index: int) -> bool:
+	if _bot_mode == &"spider":
+		return ability_index == 0 or ability_index == 1
+	if _bot_mode == &"scorpion":
+		return ability_index == 2
+	return false
+
+
+func _get_bot_placement_points(ability_index: int) -> Array[Vector2]:
+	if _bot_mode == &"scorpion":
+		return _get_scorpion_bot_placement_points(ability_index)
+	return _get_spider_bot_placement_points(ability_index)
+
+
 func _get_spider_bot_placement_points(ability_index: int) -> Array[Vector2]:
 	var forward := (_bot_path_b - _bot_path_a).normalized()
 	if forward.length_squared() < 0.01:
@@ -300,6 +324,18 @@ func _get_spider_bot_placement_points(ability_index: int) -> Array[Vector2]:
 		_find_clear_bot_point(center + side * 82.0, center),
 		_find_clear_bot_point(center - forward * 82.0 - side * 62.0, center),
 		_find_clear_bot_point(center + forward * 82.0 - side * 62.0, center),
+	]
+
+
+func _get_scorpion_bot_placement_points(_ability_index: int) -> Array[Vector2]:
+	var forward := (_bot_path_b - _bot_path_a).normalized()
+	if forward.length_squared() < 0.01:
+		forward = Vector2.RIGHT
+	var side := Vector2(-forward.y, forward.x)
+	var center := position
+	return [
+		_find_clear_bot_point(center - side * 54.0, center),
+		_find_clear_bot_point(center + side * 54.0, center),
 	]
 
 

@@ -33,7 +33,7 @@ static func get_all() -> Array[Dictionary]:
 			"subtitle": "Control letal",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ESCORPION),
 			"abilities": [
-				{"name": "Aguijón enterrado", "desc": "Trampa oculta — veneno + aturdimiento", "button": "A"},
+				{"name": "Aguijón enterrado", "desc": "Trampa oculta — veneno variable según tu velocidad", "button": "A"},
 				{"name": "Arena movediza", "desc": "Atrae al centro — muerte o escapar girando", "button": "RB"},
 				{"name": "Tenaza trituradora", "desc": "Dos paredes que aplastan", "button": "X"},
 			],
