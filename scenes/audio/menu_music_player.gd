@@ -4,6 +4,8 @@ extends AudioStreamPlayer
 const MIX_RATE: int = 22050
 const BUFFER_LENGTH: float = 0.35
 const STEP_SECONDS: float = 0.34
+const LOOP_STEPS: int = 64
+const SECTION_STEPS: int = 16
 const ROOT_FREQ: float = 110.0
 const GAIN: float = 0.135
 const TAU_F: float = PI * 2.0
@@ -22,6 +24,12 @@ var _pulse_phase: float = 0.0
 var _melody: Array[int] = [0, 3, 7, 10, 7, 3, 0, -2, -5, -2, 3, 7, 6, 3, -2, -7]
 var _counter_melody: Array[int] = [12, 10, 7, 3, 15, 12, 10, 6]
 var _bass: Array[int] = [-24, -24, -17, -24, -21, -21, -19, -24]
+var _variation_one_lead: Array[int] = [0, 3, 7, 10, 12, 10, 7, 3, 0, -2, 3, 7, 10, 7, 3, 0]
+var _variation_one_counter: Array[int] = [15, 12, 10, 7, 15, 12, 10, 6, 17, 15, 12, 10, 15, 12, 10, 7]
+var _variation_one_bass: Array[int] = [-24, -24, -21, -24, -19, -19, -21, -24, -24, -21, -19, -17, -19, -21, -24, -24]
+var _variation_two_lead: Array[int] = [0, -2, 3, 7, 10, 7, 3, 0, -5, -2, 3, 6, 10, 6, 3, -2]
+var _variation_two_counter: Array[int] = [12, 15, 17, 15, 12, 10, 7, 6, 12, 15, 17, 15, 10, 7, 6, 3]
+var _variation_two_bass: Array[int] = [-24, -21, -19, -24, -24, -21, -19, -17, -24, -24, -21, -19, -17, -19, -21, -24]
 
 
 func _ready() -> void:
@@ -72,10 +80,19 @@ func _fill_buffer() -> void:
 
 func _next_sample() -> float:
 	var step_index := int(_sample_time / STEP_SECONDS)
+	var loop_step := step_index % LOOP_STEPS
+	var section := int(loop_step / SECTION_STEPS)
+	var section_step := loop_step % SECTION_STEPS
 	var beat_time := fmod(_sample_time, STEP_SECONDS) / STEP_SECONDS
-	var lead_freq := _note_to_freq(ROOT_FREQ, _melody[step_index % _melody.size()])
-	var counter_freq := _note_to_freq(ROOT_FREQ, _counter_melody[step_index % _counter_melody.size()])
-	var bass_freq := _note_to_freq(ROOT_FREQ, _bass[int(step_index / 2) % _bass.size()])
+
+	var lead_note := _pattern_note(section, section_step, _melody, _variation_one_lead, _variation_two_lead)
+	var counter_note := _pattern_note(section, section_step, _counter_melody, _variation_one_counter, _variation_two_counter)
+	var bass_step := int(step_index / 2) if section == 0 or section == 2 else section_step
+	var bass_note := _pattern_note(section, bass_step, _bass, _variation_one_bass, _variation_two_bass)
+
+	var lead_freq := _note_to_freq(ROOT_FREQ, lead_note)
+	var counter_freq := _note_to_freq(ROOT_FREQ, counter_note)
+	var bass_freq := _note_to_freq(ROOT_FREQ, bass_note)
 	var pad_freq := _note_to_freq(ROOT_FREQ, -12)
 	var drone_freq := _note_to_freq(ROOT_FREQ, -24)
 	var pulse_freq := _note_to_freq(ROOT_FREQ, -36)
@@ -87,25 +104,105 @@ func _next_sample() -> float:
 	_drone_phase = fmod(_drone_phase + drone_freq / MIX_RATE, 1.0)
 	_pulse_phase = fmod(_pulse_phase + pulse_freq / MIX_RATE, 1.0)
 
-	var lead_env := _pluck_envelope(beat_time)
-	var accent := 1.45 if step_index % 4 == 0 else 1.0
-	if step_index % 8 == 6:
-		accent = 1.25
-	var pulse_env := pow(maxf(0.0, 1.0 - beat_time), 2.8)
-	var slow_wobble := 0.65 + 0.35 * sin(_sample_time * TAU_F * 0.12)
-	var lead := _piano_tone(_lead_phase) * lead_env * 0.82 * accent
-	var counter := _piano_tone(_counter_phase) * _short_piano_envelope(beat_time) * 0.32
-	var bass := _soft_square(_bass_phase) * pulse_env * 0.52
+	var lead_env := _section_lead_envelope(section, beat_time, section_step)
+	var counter_env := _section_counter_envelope(section, beat_time, section_step)
+	var bass_env := _section_bass_envelope(section, beat_time, section_step)
+	var pad_env := _section_pad_envelope(section, section_step)
+	var pulse_env := _section_pulse_envelope(section, beat_time, section_step)
+	var drone_env := _section_drone_envelope(section)
+
+	var lead := _piano_tone(_lead_phase) * lead_env * 0.82 * _section_accent(section, section_step)
+	var counter := _piano_tone(_counter_phase) * counter_env * 0.32
+	var bass := _soft_square(_bass_phase) * bass_env * 0.52
 	var pad := (
 		sin(_pad_phase * TAU_F)
 		+ sin(_pad_phase * TAU_F * 1.5) * 0.35
-	) * 0.16 * slow_wobble
-	var drone := sin(_drone_phase * TAU_F) * 0.24
+	) * pad_env * 0.16
+	var drone := sin(_drone_phase * TAU_F) * drone_env
 	var pulse := sin(_pulse_phase * TAU_F) * pulse_env * 0.34
 	var shimmer := sin(_lead_phase * TAU_F * 2.0) * lead_env * 0.11
 
 	_sample_time += 1.0 / MIX_RATE
 	return clampf((lead + counter + shimmer + bass + pad + drone + pulse) * GAIN, -0.95, 0.95)
+
+
+func _pattern_note(section: int, section_step: int, main_pattern: Array[int], variation_one: Array[int], variation_two: Array[int]) -> int:
+	match section:
+		0, 2:
+			return main_pattern[section_step % main_pattern.size()]
+		1:
+			return variation_one[section_step % variation_one.size()]
+		3:
+			return variation_two[section_step % variation_two.size()]
+	return main_pattern[section_step % main_pattern.size()]
+
+
+func _section_accent(section: int, section_step: int) -> float:
+	match section:
+		1:
+			return 1.16 if section_step % 4 == 1 or section_step % 4 == 3 else 0.94
+		3:
+			return 1.28 if section_step % 2 == 0 else 0.98
+	return 1.45 if section_step % 4 == 0 else 1.0
+
+
+func _section_lead_envelope(section: int, beat_time: float, section_step: int) -> float:
+	var base := _pluck_envelope(beat_time)
+	match section:
+		1:
+			return base * (1.0 if section_step % 4 != 2 else 0.72)
+		3:
+			return base * (1.0 if section_step % 3 != 1 else 0.66)
+	return base
+
+
+func _section_counter_envelope(section: int, beat_time: float, section_step: int) -> float:
+	var base := _short_piano_envelope(beat_time)
+	match section:
+		1:
+			return base * (1.0 if section_step % 2 == 0 else 0.55)
+		3:
+			return base * (1.0 if section_step % 4 < 2 else 0.48)
+	return base * 0.94
+
+
+func _section_bass_envelope(section: int, beat_time: float, section_step: int) -> float:
+	var pulse := pow(maxf(0.0, 1.0 - beat_time), 2.8)
+	match section:
+		1:
+			return pulse * (1.12 if section_step % 4 == 0 or section_step % 4 == 3 else 0.92)
+		3:
+			return pulse * (1.22 if section_step % 2 == 0 else 0.88)
+	return pulse
+
+
+func _section_pad_envelope(section: int, section_step: int) -> float:
+	var wobble := 0.65 + 0.35 * sin(_sample_time * TAU_F * 0.12)
+	match section:
+		1:
+			return wobble * (0.20 if section_step % 4 == 1 else 0.12)
+		3:
+			return wobble * (0.18 if section_step % 4 == 0 or section_step % 4 == 3 else 0.10)
+	return wobble * 0.24
+
+
+func _section_pulse_envelope(section: int, beat_time: float, section_step: int) -> float:
+	var pulse_env := pow(maxf(0.0, 1.0 - beat_time), 2.8)
+	match section:
+		1:
+			return pulse_env * (0.62 if section_step % 2 == 0 else 0.28)
+		3:
+			return pulse_env * (0.78 if section_step % 4 == 0 or section_step % 4 == 2 else 0.36)
+	return pulse_env * 0.34
+
+
+func _section_drone_envelope(section: int) -> float:
+	match section:
+		1:
+			return 0.18
+		3:
+			return 0.14
+	return 0.24
 
 
 func _note_to_freq(root_freq: float, semitone_offset: int) -> float:
