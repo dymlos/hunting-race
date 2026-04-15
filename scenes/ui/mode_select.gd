@@ -3,6 +3,7 @@ extends Control
 
 signal official_requested
 signal practice_requested
+signal back_requested
 
 var input_blocked: bool = false
 
@@ -40,9 +41,11 @@ func _process(delta: float) -> void:
 			_selected_index = (_selected_index + direction + OPTIONS.size()) % OPTIONS.size()
 			_nav_cooldown = NAV_COOLDOWN
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A) \
-				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 			_confirm_selection()
+			return
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			back_requested.emit()
 			return
 
 	var keyboard_confirm := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
@@ -106,7 +109,7 @@ func _draw() -> void:
 				rect.position.y + 66.0),
 			detail, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.62, 0.62, 0.62))
 
-	var hint := "LEFT/RIGHT select | A or START confirm"
+	var hint := "LEFT/RIGHT select | A confirm | B back"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, cy + 110.0),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

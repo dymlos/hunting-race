@@ -1,7 +1,7 @@
 class_name StageSelect
 extends Control
 
-## Stage selection screen. Left/right to cycle, START to confirm, SELECT to go back.
+## Stage selection screen. Left/right to cycle, A to confirm, B to go back.
 
 signal stage_selected(stage_index: int)
 signal back_requested
@@ -44,11 +44,11 @@ func _process(delta: float) -> void:
 				_selected_index = (_selected_index - 1 + _stages.size()) % _stages.size()
 				_nav_cooldown = NAV_COOLDOWN
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 			stage_selected.emit(_selected_index)
 			return
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 			back_requested.emit()
 			return
 
@@ -111,7 +111,7 @@ func _draw() -> void:
 	_draw_locked_stage_slots(font, screen)
 
 	# Hints
-	var hint := "START to confirm  |  SELECT to go back"
+	var hint := "A confirm  |  B back"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 40),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

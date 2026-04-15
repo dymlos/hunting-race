@@ -1,11 +1,12 @@
 class_name TeamSetup
 extends Control
 
-## Team assignment screen. Players press A to join, stick to pick teams, START to advance.
+## Team assignment screen. Players press A to join or continue, stick to pick teams, B to go back.
 ## Roles (Escapist/Trapper) are assigned per-round by GameManager, not here.
 
 signal teams_ready(team_assignments: Dictionary)
 signal settings_requested
+signal back_requested
 
 var _player_joined: Dictionary = {}    # {device_id: bool}
 var _player_teams: Dictionary = {}     # {device_id: Enums.Team}
@@ -45,11 +46,12 @@ func _process(delta: float) -> void:
 		_nav_cooldowns[device_id] = maxf(0.0, _nav_cooldowns[device_id] - delta)
 
 	var pads := connected_pads
+	var joined_this_frame := false
 	for device_id: int in pads:
 		if _player_joined.get(device_id, false):
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				_player_joined[device_id] = false
-				_player_teams.erase(device_id)
+				back_requested.emit()
+				return
 			elif _nav_cooldowns.get(device_id, 0.0) <= 0.0:
 				var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
 				if x < -0.5:
@@ -59,10 +61,14 @@ func _process(delta: float) -> void:
 					_player_teams[device_id] = Enums.Team.TEAM_2
 					_nav_cooldowns[device_id] = NAV_COOLDOWN
 		else:
-			if Input.is_joy_button_pressed(device_id, JOY_BUTTON_A):
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 				_player_joined[device_id] = true
 				_player_teams[device_id] = Enums.Team.TEAM_1
 				_nav_cooldowns[device_id] = NAV_COOLDOWN
+				joined_this_frame = true
+			elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				back_requested.emit()
+				return
 
 	# SELECT to open settings
 	for device_id: int in pads:
@@ -70,10 +76,10 @@ func _process(delta: float) -> void:
 			settings_requested.emit()
 			return
 
-	if _has_valid_teams():
+	if _has_valid_teams() and not joined_this_frame:
 		for device_id: int in pads:
 			if _player_joined.get(device_id, false):
-				if Input.is_joy_button_pressed(device_id, JOY_BUTTON_START):
+				if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 					_advance()
 					return
 
@@ -178,11 +184,11 @@ func _draw() -> void:
 
 	# Hints
 	if _has_valid_teams():
-		draw_string(font, Vector2(cx - 90, screen.y - 40), "Press START to begin",
+		draw_string(font, Vector2(cx - 90, screen.y - 40), "Press A to continue",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 18, Color.YELLOW)
 	else:
 		draw_string(font, Vector2(cx - 100, screen.y - 40), "Need at least 1 player",
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(0.5, 0.5, 0.5))
 
-	draw_string(font, Vector2(cx - 80, screen.y - 18), "SELECT: Settings",
+	draw_string(font, Vector2(cx - 118, screen.y - 18), "B: Back | SELECT: Settings",
 		HORIZONTAL_ALIGNMENT_CENTER, -1, 12, Color(0.4, 0.4, 0.4))

@@ -51,10 +51,9 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	show()
 	queue_redraw()
 
-	# If no human trappers, assign bots and advance immediately
+	# If no human trappers, assign bots and wait for START to begin.
 	if _all_humans_confirmed():
 		_auto_assign_bots()
-		characters_ready.emit(_build_selections())
 
 
 func _is_trapper_player(pi: int) -> bool:
@@ -109,6 +108,10 @@ func _all_confirmed() -> bool:
 	return not _player_confirmed.is_empty()
 
 
+func _selection_complete() -> bool:
+	return _player_confirmed.is_empty() or _all_confirmed()
+
+
 func _has_bot_trappers() -> bool:
 	for pi: int in _player_cursor:
 		if not _is_human(pi):
@@ -138,6 +141,17 @@ func _build_selections() -> Dictionary:
 	return selections
 
 
+func _get_human_device_ids() -> Array[int]:
+	var device_ids: Array[int] = []
+	for pi: int in _player_indices:
+		if not _is_human(pi):
+			continue
+		var device_id := InputManager.get_device_id(pi)
+		if device_id >= 0 and device_id not in device_ids:
+			device_ids.append(device_id)
+	return device_ids
+
+
 func _process(delta: float) -> void:
 	if not visible or input_blocked:
 		queue_redraw()
@@ -147,6 +161,13 @@ func _process(delta: float) -> void:
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
 
+	if _allow_back:
+		for device_id: int in _get_human_device_ids():
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				back_requested.emit()
+				return
+
+	var confirmed_this_frame := false
 	for pi: int in _player_cursor:
 		if not _is_human(pi):
 			continue
@@ -157,7 +178,7 @@ func _process(delta: float) -> void:
 
 		if _player_confirmed.get(pi, false):
 			# Already confirmed — B to un-confirm
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			if not _allow_back and InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 				_player_confirmed[pi] = false
 		else:
 			# Navigate
@@ -175,17 +196,12 @@ func _process(delta: float) -> void:
 				var idx: int = _player_cursor[pi] as int
 				if not _is_character_taken(idx, pi):
 					_player_confirmed[pi] = true
+					confirmed_this_frame = true
 					if _all_humans_confirmed():
 						_auto_assign_bots()
 
-			# B to go back (only if no one confirmed and back is allowed)
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				if _allow_back and not _any_human_confirmed():
-					back_requested.emit()
-					return
-
-		# START to advance when all humans confirmed (outside if/else so confirmed players can press it)
-		if _all_humans_confirmed():
+	if _selection_complete() and not confirmed_this_frame:
+		for device_id: int in _get_human_device_ids():
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
 				characters_ready.emit(_build_selections())
 				return
@@ -387,9 +403,9 @@ func _draw() -> void:
 	# Hints
 	var hint := "A confirm | B cancel"
 	if _allow_back:
-		hint += " | B (all) back"
-	if _all_confirmed():
-		hint = "START to begin | B to change"
+		hint = "A confirm | B back"
+	if _selection_complete():
+		hint = "START to begin | B back" if _allow_back else "START to begin | B to change"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

@@ -45,8 +45,7 @@ func _process(delta: float) -> void:
 
 		if _showing_ability_guide:
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A) \
-					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B) \
-					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
+					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 				_showing_ability_guide = false
 				queue_redraw()
 				return
@@ -73,8 +72,7 @@ func _process(delta: float) -> void:
 			resume_requested.emit()
 			return
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A) \
-				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 			_activate_option(options[_selected_index])
 			return
 
@@ -115,9 +113,9 @@ func _draw() -> void:
 		draw_string(font, Vector2(cx - width / 2.0, panel_pos.y + 114 + i * 39),
 			display, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
-	var hint := "UP/DOWN select | A or START confirm | B resume | SELECT setup"
+	var hint := "UP/DOWN select | A confirm | B resume | SELECT setup"
 	if GameManager.practice_mode:
-		hint = "UP/DOWN select | A or START confirm | B resume | SELECT practice setup"
+		hint = "UP/DOWN select | A confirm | B resume | SELECT practice setup"
 	var hint_size := 13
 	var hint_w := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size).x
 	draw_string(font, Vector2(cx - hint_w / 2.0, panel_pos.y + panel_size.y - 24),
@@ -144,7 +142,7 @@ func _draw_ability_guide(font: Font, screen: Vector2) -> void:
 	_draw_escapist_guide(font, Vector2(left_x, top_y), panel.size.x * 0.4)
 	_draw_trapper_guide(font, Vector2(right_x, top_y), panel.size.x * 0.46)
 
-	var hint := "A / B / START close"
+	var hint := "A / B close"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	draw_string(font, Vector2(panel.position.x + panel.size.x - hint_width - 28.0,
 			panel.position.y + panel.size.y - 20.0),

@@ -39,13 +39,12 @@ func _process(delta: float) -> void:
 	for device_id: int in _nav_cooldowns:
 		_nav_cooldowns[device_id] = maxf(0.0, _nav_cooldowns[device_id] - delta)
 
+	var joined_this_frame := false
 	for device_id: int in connected_pads:
 		if _player_joined.get(device_id, false):
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				_player_joined.erase(device_id)
-				_player_roles.erase(device_id)
-				_nav_cooldowns.erase(device_id)
-				continue
+				back_requested.emit()
+				return
 
 			if _nav_cooldowns.get(device_id, 0.0) <= 0.0:
 				var move_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
@@ -57,6 +56,10 @@ func _process(delta: float) -> void:
 				_player_joined[device_id] = true
 				_player_roles[device_id] = Enums.Role.ESCAPIST
 				_nav_cooldowns[device_id] = NAV_COOLDOWN
+				joined_this_frame = true
+			elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				back_requested.emit()
+				return
 
 	if _get_joined_devices().is_empty():
 		for device_id: int in connected_pads:
@@ -64,9 +67,9 @@ func _process(delta: float) -> void:
 				back_requested.emit()
 				return
 
-	if not _get_joined_devices().is_empty():
+	if not _get_joined_devices().is_empty() and not joined_this_frame:
 		for device_id: int in _get_joined_devices():
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 				_advance()
 				return
 
@@ -145,7 +148,7 @@ func _draw() -> void:
 			draw_string(font, Vector2(panel.position.x + 150.0, row_y),
 				"< %s >" % role_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, role_color)
 			draw_string(font, Vector2(panel.position.x + 390.0, row_y),
-				"LEFT/RIGHT change | B leave", HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
+				"LEFT/RIGHT change", HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
 				Color(0.55, 0.55, 0.55))
 
 	var unjoined_y := panel.position.y + panel.size.y + 36.0
@@ -158,7 +161,7 @@ func _draw() -> void:
 			text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.5, 0.5, 0.5))
 		unjoined_y += 24.0
 
-	var hint := "START continue | B back"
+	var hint := "A continue | B back"
 	if joined.is_empty():
 		hint = "A join | B back"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x

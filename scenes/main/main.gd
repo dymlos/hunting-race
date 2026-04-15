@@ -82,6 +82,7 @@ func _ready() -> void:
 	mode_select.hide()
 	mode_select.official_requested.connect(_start_team_setup)
 	mode_select.practice_requested.connect(_start_practice_setup)
+	mode_select.back_requested.connect(_start_cover_screen)
 
 	practice_setup = PracticeSetupScene.new() as PracticeSetup
 	ui_layer.add_child(practice_setup)
@@ -94,6 +95,7 @@ func _ready() -> void:
 	team_setup.hide()
 	team_setup.teams_ready.connect(_on_teams_ready)
 	team_setup.settings_requested.connect(_open_settings)
+	team_setup.back_requested.connect(_start_mode_select)
 
 	stage_select = StageSelectScene.instantiate() as StageSelect
 	ui_layer.add_child(stage_select)
@@ -608,16 +610,7 @@ func _check_round_end_skip_input() -> void:
 	for pi in _active_player_indices:
 		var device_id := InputManager.get_device_id(pi)
 		if device_id < 0:
-			_prev_start_pressed[pi] = false
 			continue
-		var start_pressed := Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
-		var was_start_pressed: bool = _prev_start_pressed.get(pi, false)
-		_prev_start_pressed[pi] = start_pressed
-		if start_pressed and not was_start_pressed:
-			GameManager.confirm_round_end()
-			_prime_start_button_state()
-			InputManager.suppress_edge_detection(3)
-			return
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 			GameManager.confirm_round_end()
 			_prime_start_button_state()
