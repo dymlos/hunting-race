@@ -23,8 +23,6 @@ func apply_poison(duration: float = -1.0) -> void:
 	if duration < 0.0:
 		duration = GameManager.settings_overrides.get(&"poison_duration", Constants.POISON_DURATION) as float
 	if is_poisoned:
-		# Refresh timer
-		_poison_timer = duration
 		return
 	is_poisoned = true
 	_poison_timer = duration

@@ -649,6 +649,7 @@ func _add_practice_bots() -> void:
 
 	var trapper_bot_index := 100
 	var escapist_bot_index := 101
+	var patrol_bot_index := 102
 
 	GameManager.team_assignments[trapper_bot_index] = GameManager.get_trapping_team()
 	GameManager.role_assignments[trapper_bot_index] = Enums.Role.TRAPPER
@@ -658,14 +659,21 @@ func _add_practice_bots() -> void:
 	GameManager.role_assignments[escapist_bot_index] = Enums.Role.ESCAPIST
 	GameManager.escapist_selections[escapist_bot_index] = Enums.EscapistAnimal.RABBIT
 
+	GameManager.team_assignments[patrol_bot_index] = GameManager.escapist_team
+	GameManager.role_assignments[patrol_bot_index] = Enums.Role.ESCAPIST
+	GameManager.escapist_selections[patrol_bot_index] = Enums.EscapistAnimal.RABBIT
+
 	if trapper_bot_index not in _active_player_indices:
 		_active_player_indices.append(trapper_bot_index)
 	if escapist_bot_index not in _active_player_indices:
 		_active_player_indices.append(escapist_bot_index)
+	if patrol_bot_index not in _active_player_indices:
+		_active_player_indices.append(patrol_bot_index)
 	_active_player_indices.sort()
 
 	_spawn_practice_bot(trapper_bot_index)
 	_spawn_practice_bot(escapist_bot_index)
+	_spawn_practice_bot(patrol_bot_index)
 	_practice_bots_added = true
 
 
@@ -699,14 +707,19 @@ func _spawn_practice_bot(player_index: int) -> void:
 		var map_size := arena.get_map_size()
 		esc.position = Vector2(map_size.x * 0.78, map_size.y * 0.72)
 		esc.aim_direction = Vector2.RIGHT
+		if player_index == 102:
+			var path_a := Vector2(map_size.x * 0.70, map_size.y * 0.84)
+			var path_b := Vector2(map_size.x * 0.93, map_size.y * 0.84)
+			esc.configure_patrol_bot(path_a, path_b)
 		esc.died.connect(_on_escapist_character_died)
 		character_container.add_child(esc)
+		esc.unfreeze_character()
 		characters.append(esc)
 		GameManager.register_player_character(player_index, esc)
 
 
 func _remove_practice_bots() -> void:
-	for bot_index: int in [100, 101]:
+	for bot_index: int in [100, 101, 102]:
 		var character := GameManager.player_characters.get(bot_index, null) as Node2D
 		if character and is_instance_valid(character):
 			characters.erase(character)
@@ -742,7 +755,7 @@ func _restart_practice_character_select() -> void:
 
 
 func _clear_practice_bots() -> void:
-	for bot_index: int in [100, 101]:
+	for bot_index: int in [100, 101, 102]:
 		GameManager.team_assignments.erase(bot_index)
 		GameManager.role_assignments.erase(bot_index)
 		GameManager.character_selections.erase(bot_index)

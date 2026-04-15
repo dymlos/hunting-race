@@ -26,6 +26,10 @@ var _floating_text: String = ""
 var _floating_text_timer: float = 0.0
 var _floating_text_color: Color = Color.WHITE
 var _active_rat_tail: Node = null
+var _bot_patrol_enabled: bool = false
+var _bot_patrol_a: Vector2 = Vector2.ZERO
+var _bot_patrol_b: Vector2 = Vector2.ZERO
+var _bot_patrol_target: Vector2 = Vector2.ZERO
 
 
 func _setup_role() -> void:
@@ -45,6 +49,16 @@ func _setup_role() -> void:
 func _ready() -> void:
 	super._ready()
 	spawn_position = position
+
+
+func configure_patrol_bot(path_a: Vector2, path_b: Vector2) -> void:
+	_bot_patrol_enabled = true
+	_bot_patrol_a = path_a
+	_bot_patrol_b = path_b
+	_bot_patrol_target = path_b
+	position = path_a
+	spawn_position = path_a
+	aim_direction = (_bot_patrol_target - position).normalized()
 
 
 func kill() -> void:
@@ -90,7 +104,25 @@ func _physics_process(delta: float) -> void:
 	if _effect_immunity_timer > 0.0:
 		_effect_immunity_timer -= delta
 	_update_floating_text(delta)
+	_process_patrol_bot()
 	super._physics_process(delta)
+
+
+func _process_patrol_bot() -> void:
+	if not _bot_patrol_enabled or input_locked or is_dead or has_scored:
+		return
+	var to_target := _bot_patrol_target - position
+	if to_target.length() <= 12.0:
+		_bot_patrol_target = _bot_patrol_a if _bot_patrol_target == _bot_patrol_b else _bot_patrol_b
+		to_target = _bot_patrol_target - position
+	if to_target.length_squared() <= 0.01:
+		movement.apply_movement(Vector2.ZERO)
+		return
+	var move_vec := to_target.normalized()
+	if controls_inverted:
+		move_vec *= -1.0
+	aim_direction = move_vec
+	movement.apply_movement(move_vec)
 
 
 func respawn() -> void:

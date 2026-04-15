@@ -72,10 +72,14 @@ func _make_voice(skill_name: StringName) -> Dictionary:
 			voice.merge({"duration": 0.34, "freq": 650.0, "freq2": 1280.0, "volume": 0.18, "style": &"rise"}, true)
 		"Web", "Elastic":
 			voice.merge({"duration": 0.30, "freq": 380.0, "freq2": 520.0, "volume": 0.18, "style": &"sticky"}, true)
-		"Venom", "Spores", "Confuse":
+		"Venom":
 			voice.merge({"duration": 0.48, "freq": 150.0, "freq2": 720.0, "volume": 0.15, "style": &"cloud"}, true)
+		"Spores":
+			voice.merge({"duration": 0.52, "freq": 120.0, "freq2": 430.0, "volume": 0.19, "style": &"spores"}, true)
+		"Confuse":
+			voice.merge({"duration": 0.42, "freq": 520.0, "freq2": 160.0, "volume": 0.20, "style": &"confuse"}, true)
 		"Teleport":
-			voice.merge({"duration": 0.46, "freq": 620.0, "freq2": 1240.0, "volume": 0.17, "style": &"shimmer"}, true)
+			voice.merge({"duration": 0.46, "freq": 700.0, "freq2": 1320.0, "volume": 0.20, "style": &"fungal_portal"}, true)
 		"Stinger":
 			voice.merge({"duration": 0.20, "freq": 920.0, "freq2": 170.0, "volume": 0.21, "style": &"sting"}, true)
 		"Pincers":
@@ -124,6 +128,10 @@ func _current_freq(voice: Dictionary, ratio: float) -> float:
 			return lerpf(freq, freq2, ratio)
 		&"whip":
 			return lerpf(freq, freq2, ratio)
+		&"spores", &"fungal_portal":
+			return lerpf(freq, freq2, ratio)
+		&"confuse":
+			return lerpf(freq, freq2, 0.5 + 0.5 * sin(ratio * TAU_F * 2.0))
 	return freq
 
 
@@ -157,8 +165,18 @@ func _voice_sample(voice: Dictionary, ratio: float) -> float:
 			return (sin(phase * TAU_F) - sin(phase2 * TAU_F) * 0.25) * _fast_env(ratio)
 		&"cloud":
 			return (sin(phase * TAU_F) * 0.28 + _soft_square(phase2) * 0.24) * _slow_env(ratio)
+		&"spores":
+			var breath := 0.55 + 0.45 * sin(ratio * PI)
+			return (sin(phase * TAU_F) * 0.26 + sin(phase2 * TAU_F) * 0.18) * breath * _slow_env(ratio)
+		&"confuse":
+			var wobble := sin(ratio * TAU_F * 9.0) * 0.22
+			return (sin(fmod(phase + wobble, 1.0) * TAU_F) * 0.52 + _soft_square(phase2) * 0.22) * _fast_env(ratio)
 		&"shimmer":
 			return (sin(phase * TAU_F) * 0.5 + sin(phase2 * TAU_F) * 0.45) * env
+		&"fungal_portal":
+			var swirl := sin((phase + ratio * 0.28) * TAU_F) * 0.45
+			var sparkle := sin(phase2 * TAU_F * 1.5) * 0.28
+			return (swirl + sparkle) * env
 		&"sting":
 			return (sin(phase * TAU_F) * 0.65 + _soft_square(phase2) * 0.25) * _click_env(ratio)
 		&"clack":
