@@ -36,6 +36,8 @@ var _bot_active_placement_index: int = -1
 var _bot_placement_timer: float = 0.0
 var _bot_cycle_delay: float = 0.0
 var _bot_placement_points: Array[Vector2] = []
+var _bot_blocked_timer: float = 0.0
+var _bot_cycle_count: int = 0
 
 # Button mappings for the 3 abilities
 const ABILITY_BUTTONS: Array[StringName] = [&"dash", &"ability", &"interact"]  # A, RB, X
@@ -54,6 +56,8 @@ func setup(map_size: Vector2) -> void:
 	_bot_placement_timer = 0.0
 	_bot_cycle_delay = 0.0
 	_bot_placement_points.clear()
+	_bot_blocked_timer = 0.0
+	_bot_cycle_count = 0
 	_spent_ability_indices.clear()
 	_set_reload_timer = 0.0
 	_floating_text = ""
@@ -97,6 +101,8 @@ func _configure_path_bot(path_a: Vector2, path_b: Vector2) -> void:
 	_bot_placement_timer = 0.0
 	_bot_cycle_delay = 0.0
 	_bot_placement_points.clear()
+	_bot_blocked_timer = 0.0
+	_bot_cycle_count = 0
 	_bot_move_timer = 0.0
 	_bot_ability_timer = 1.2
 	position = path_a
@@ -255,10 +261,19 @@ func _process_path_trap_bot(delta: float) -> void:
 		var active_ability: TrapperAbility = _abilities[_bot_active_placement_index]
 		if not _bot_placement_points.is_empty():
 			var placement_target: Vector2 = _bot_placement_points[0]
-			_move_bot_toward(placement_target, move_speed * 1.15 * delta)
+			var moved := _move_bot_toward(placement_target, move_speed * 1.15 * delta)
+			_bot_blocked_timer = 0.0 if moved else _bot_blocked_timer + delta
+			if _bot_blocked_timer >= 0.55:
+				active_ability.activate()
+				_bot_placement_points.pop_front()
+				_bot_blocked_timer = 0.0
+				if not active_ability.is_placing:
+					_finish_bot_ability_placement()
+				return
 			if position.distance_to(placement_target) <= 8.0:
 				active_ability.activate()
 				_bot_placement_points.pop_front()
+				_bot_blocked_timer = 0.0
 				if not active_ability.is_placing:
 					_finish_bot_ability_placement()
 			return
@@ -271,8 +286,13 @@ func _process_path_trap_bot(delta: float) -> void:
 				_finish_bot_ability_placement()
 		return
 
-	if not _move_bot_toward(_bot_path_target, move_speed * delta):
-		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
+	if _move_bot_toward(_bot_path_target, move_speed * delta):
+		_bot_blocked_timer = 0.0
+	else:
+		_bot_blocked_timer += delta
+		if _bot_blocked_timer >= 0.45:
+			_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
+			_bot_blocked_timer = 0.0
 	if position.distance_to(_bot_path_target) <= 8.0:
 		_bot_path_target = _bot_path_a if _bot_path_target == _bot_path_b else _bot_path_b
 
@@ -281,6 +301,7 @@ func _process_path_trap_bot(delta: float) -> void:
 		if _bot_cycle_delay <= 0.0:
 			_bot_next_ability_index = 0
 			_bot_elapsed = 0.0
+			_bot_cycle_count += 1
 		return
 	var schedule_time := _bot_ability_schedule[_bot_next_ability_index] if _bot_next_ability_index < _bot_ability_schedule.size() else 9999.0
 	if _bot_elapsed < schedule_time:
@@ -355,10 +376,15 @@ func _get_scorpion_bot_placement_points(_ability_index: int) -> Array[Vector2]:
 	if forward.length_squared() < 0.01:
 		forward = Vector2.RIGHT
 	var side := Vector2(-forward.y, forward.x)
-	var center := position
+	var pattern := _bot_cycle_count % 3
+	var along_offsets: Array[float] = [-34.0, 0.0, 34.0]
+	var half_gaps: Array[float] = [58.0, 74.0, 90.0]
+	var side_offsets: Array[float] = [150.0, -150.0, 130.0]
+	var center := position + forward * along_offsets[pattern] + side * side_offsets[pattern]
+	var half_gap := half_gaps[pattern]
 	return [
-		_find_clear_bot_point(center - side * 54.0, center),
-		_find_clear_bot_point(center + side * 54.0, center),
+		_find_clear_bot_point(center - side * half_gap, center),
+		_find_clear_bot_point(center + side * half_gap, center),
 	]
 
 
@@ -379,10 +405,18 @@ func _get_octopus_bot_placement_points(_ability_index: int) -> Array[Vector2]:
 	if forward.length_squared() < 0.01:
 		forward = Vector2.RIGHT
 	var side := Vector2(-forward.y, forward.x)
-	var center := position
+	var pattern := _bot_cycle_count % 3
+	var lane_offsets: Array[float] = [-56.0, 0.0, 56.0]
+	var center := position + side * lane_offsets[pattern]
+	var start_point := center - forward * 132.0
+	var end_point := center + forward * 132.0
+	if _bot_cycle_count % 2 == 1:
+		var swap := start_point
+		start_point = end_point
+		end_point = swap
 	return [
-		_find_clear_bot_point(center - forward * 118.0 + side * 18.0, center),
-		_find_clear_bot_point(center + forward * 118.0 + side * 18.0, center),
+		_find_clear_bot_point(start_point, center),
+		_find_clear_bot_point(end_point, center),
 	]
 
 
@@ -408,10 +442,45 @@ func _clamp_bot_point(point: Vector2) -> Vector2:
 
 func _move_bot_toward(target: Vector2, step: float) -> bool:
 	var next_position := position.move_toward(target, step)
-	if not _is_bot_position_clear(next_position):
+	if not _is_bot_movement_position_clear(next_position):
 		return false
 	position = next_position
 	return true
+
+
+func _is_bot_movement_position_clear(candidate: Vector2) -> bool:
+	var world := get_world_2d()
+	if world == null:
+		return true
+
+	var shape := CircleShape2D.new()
+	shape.radius = Constants.CHARACTER_RADIUS
+
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape
+	query.transform = Transform2D(0.0, candidate)
+	query.collision_mask = Constants.LAYER_WALLS | Constants.LAYER_CHARACTERS
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+
+	var hits := world.direct_space_state.intersect_shape(query, 16)
+	for hit: Dictionary in hits:
+		var collider := hit.get("collider", null) as Node
+		if collider == null:
+			continue
+		if _is_trap_collider(collider):
+			continue
+		return false
+	return true
+
+
+func _is_trap_collider(collider: Node) -> bool:
+	var node: Node = collider
+	while node != null:
+		if node.is_in_group("traps"):
+			return true
+		node = node.get_parent()
+	return false
 
 
 func _is_bot_position_clear(candidate: Vector2) -> bool:

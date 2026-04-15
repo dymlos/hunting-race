@@ -721,12 +721,12 @@ func _spawn_practice_bot(player_index: int) -> void:
 				path_b = Vector2(map_size.x * 0.28, map_size.y * 0.18)
 				trapper.configure_mushroom_bot(path_a, path_b)
 			Enums.TrapperCharacter.ESCORPION:
-				path_a = Vector2(map_size.x * 0.10, map_size.y * 0.72)
-				path_b = Vector2(map_size.x * 0.28, map_size.y * 0.72)
+				path_a = Vector2(map_size.x * 0.08, map_size.y * 0.82)
+				path_b = Vector2(map_size.x * 0.32, map_size.y * 0.82)
 				trapper.configure_scorpion_bot(path_a, path_b)
 			Enums.TrapperCharacter.PULPO:
-				path_a = Vector2(map_size.x * 0.70, map_size.y * 0.54)
-				path_b = Vector2(map_size.x * 0.92, map_size.y * 0.54)
+				path_a = Vector2(map_size.x * 0.70, map_size.y * 0.18)
+				path_b = Vector2(map_size.x * 0.92, map_size.y * 0.18)
 				trapper.configure_octopus_bot(path_a, path_b)
 		trapper.unfreeze_character()
 		character_container.add_child(trapper)
