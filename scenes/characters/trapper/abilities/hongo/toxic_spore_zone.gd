@@ -71,6 +71,7 @@ class SporeZone extends Area2D:
 			GameManager.register_trap_contact(character.player_index)
 			_bodies_inside[body] = true
 			character.movement.set_speed_modifier(&"spore_slow", Constants.HONGO_SPORE_SLOW)
+			AudioManager.play_effect(&"SlowMovement")
 
 	func _on_body_exited(body: Node2D) -> void:
 		if body not in _bodies_inside:

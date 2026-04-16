@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dt2qnvyvdxuqy"
+path="res://.godot/imported/Efecto al pegarse en una Sticky Wall.wav-2de21dd73257a6dbdbeba70881dd9346.sample"
+
+[deps]
+
+source_file="res://Musica y sonidos/Efecto al pegarse en una Sticky Wall.wav"
+dest_files=["res://.godot/imported/Efecto al pegarse en una Sticky Wall.wav-2de21dd73257a6dbdbeba70881dd9346.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

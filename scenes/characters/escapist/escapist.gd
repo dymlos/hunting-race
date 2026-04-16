@@ -71,6 +71,7 @@ func kill() -> void:
 		_return_to_spawn_with_death_message()
 		_reset_ability()
 		return
+	AudioManager.play_effect(&"DeathRespawn")
 	is_dead = true
 	input_locked = true
 	movement.freeze()
@@ -151,6 +152,7 @@ func _return_to_spawn_with_death_message() -> void:
 	movement.clear_speed_modifiers()
 	controls_inverted = false
 	_inversion_timer = 0.0
+	AudioManager.play_effect(&"DeathRespawn")
 	_show_floating_text("You died !!", Color.WHITE)
 
 
@@ -281,7 +283,6 @@ func notify_trap_contact() -> void:
 		_fly_boost_timer = Constants.FLY_BOOST_DURATION
 		_effect_immunity_timer = Constants.FLY_BOOST_DURATION
 		movement.set_speed_modifier(&"fly_boost", Constants.FLY_SPEED_BOOST)
-		AudioManager.play_skill(&"FlyBoost")
 
 
 func is_effect_immune() -> bool:
@@ -633,7 +634,6 @@ class RatTailHook extends Node2D:
 		_is_returning = true
 		_distance = _owner_rat.global_position.distance_to(_hook_end_position)
 		_fade_timer = maxf(0.18, _distance / Constants.RAT_RESCUE_HOOK_SPEED)
-		AudioManager.play_skill(&"RatWhipReturn")
 		queue_redraw()
 
 	func _find_hooked_ally_between(hook_start: Vector2, hook_end: Vector2) -> Escapist:
@@ -738,13 +738,13 @@ class AcornProjectile extends Node2D:
 			global_position = hit["position"] as Vector2
 			var collider := hit["collider"] as Node
 			if collider and collider.is_in_group("traps"):
-				AudioManager.play_skill(&"AcornBreakTrap")
 				collider.queue_free()
 				queue_free()
 				return
 			if collider and collider.is_in_group("sticky_walls"):
 				_stick_to_wall(hit["position"] as Vector2)
 				return
+			AudioManager.play_effect(&"Bounce")
 			_bounces_left -= 1
 			if _bounces_left < 0:
 				queue_free()

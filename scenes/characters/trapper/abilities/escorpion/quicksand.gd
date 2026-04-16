@@ -179,6 +179,7 @@ class QuicksandZone extends Area2D:
 		if character in _bodies_inside:
 			return
 		GameManager.register_trap_contact(character.player_index)
+		AudioManager.play_effect(&"QuicksandTrap")
 		_bodies_inside[character] = {
 			"angle": (character.global_position - global_position).angle(),
 			"move_dir": Vector2.ZERO,

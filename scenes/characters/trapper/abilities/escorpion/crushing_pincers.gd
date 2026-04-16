@@ -191,6 +191,7 @@ class PincersNode extends Node2D:
 				return
 			_state = PincerState.CLOSING
 			_state_timer = _close_time
+			AudioManager.play_effect(&"PincersClose")
 
 	func _get_close_time() -> float:
 		var dist := _pos_a.distance_to(_pos_b)

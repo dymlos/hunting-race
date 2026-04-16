@@ -117,6 +117,7 @@ class WebZone extends Area2D:
 			GameManager.register_trap_contact(character.player_index)
 			_affected_bodies[body] = true
 			character.movement.set_speed_modifier(&"web_slow", Constants.ARANA_WEB_SLOW)
+			AudioManager.play_effect(&"SlowMovement")
 
 	func _on_body_exited(body: Node2D) -> void:
 		_affected_bodies.erase(body)

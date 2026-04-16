@@ -82,6 +82,7 @@ func _on_body_entered(body: Node2D) -> void:
 		else:
 			# Apply slow
 			character.movement.set_speed_modifier(&"trap_slow", Constants.TRAP_SLOW_MULTIPLIER)
+			AudioManager.play_effect(&"SlowMovement")
 			get_tree().create_timer(Constants.TRAP_SLOW_DURATION).timeout.connect(
 				func():
 					if is_instance_valid(character):

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ccx7hdv8t262l"
+path="res://.godot/imported/Efecto al morirse y respawnear.wav-d837f6ae0983938525f485d67052057c.sample"
+
+[deps]
+
+source_file="res://Musica y sonidos/Efecto al morirse y respawnear.wav"
+dest_files=["res://.godot/imported/Efecto al morirse y respawnear.wav-d837f6ae0983938525f485d67052057c.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

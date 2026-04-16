@@ -114,6 +114,7 @@ class CurrentZone extends Area2D:
 				return
 			GameManager.register_trap_contact(character.player_index)
 			_bodies_inside[body] = true
+			AudioManager.play_effect(&"WaterCurrentStep")
 
 	func _on_body_exited(body: Node2D) -> void:
 		_bodies_inside.erase(body)

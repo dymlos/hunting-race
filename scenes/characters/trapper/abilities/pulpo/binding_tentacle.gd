@@ -122,6 +122,7 @@ class TentacleNode extends Area2D:
 				_captured_a.movement.freeze()
 				_capture_timer = Constants.PULPO_TENTACLE_CAPTURE_DURATION
 				_state = TentacleState.CAPTURED_ONE
+				AudioManager.play_effect(&"Immobilize")
 			TentacleState.CAPTURED_ONE:
 				if esc == _captured_a:
 					return

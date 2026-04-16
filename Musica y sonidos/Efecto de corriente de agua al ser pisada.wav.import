@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ci67i1pnu0e8t"
+path="res://.godot/imported/Efecto de corriente de agua al ser pisada.wav-9e00bdc61c0d74a8764c913635174f07.sample"
+
+[deps]
+
+source_file="res://Musica y sonidos/Efecto de corriente de agua al ser pisada.wav"
+dest_files=["res://.godot/imported/Efecto de corriente de agua al ser pisada.wav-9e00bdc61c0d74a8764c913635174f07.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

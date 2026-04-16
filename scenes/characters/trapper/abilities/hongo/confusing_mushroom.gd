@@ -69,6 +69,7 @@ class ConfuseShroom extends Area2D:
 				return
 			GameManager.register_trap_contact(esc.player_index)
 			esc.invert_controls(Constants.HONGO_CONFUSE_DURATION)
+			AudioManager.play_effect(&"ConfuseTrap")
 			queue_free()  # Single-use
 
 	func _draw() -> void:

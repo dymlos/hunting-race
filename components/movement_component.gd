@@ -117,6 +117,7 @@ func _check_sticky_walls() -> void:
 				var esc := body as Escapist
 				if not esc.is_dead and not esc.has_scored:
 					GameManager.register_trap_contact(esc.player_index)
+			AudioManager.play_effect(&"StickyWall")
 			_sticky_stun_timer = Constants.STICKY_WALL_STUN
 			_sticky_cooldowns[wall_id] = Constants.STICKY_WALL_STUN + Constants.STICKY_WALL_COOLDOWN
 			can_move = false

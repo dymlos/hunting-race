@@ -29,6 +29,7 @@ func apply_poison(duration: float = -1.0) -> void:
 	_poison_timer = duration
 	_poison_total_duration = duration
 	poisoned.emit()
+	AudioManager.play_effect(&"Poison")
 
 
 func cure() -> void:
@@ -37,6 +38,7 @@ func cure() -> void:
 	is_poisoned = false
 	_poison_timer = 0.0
 	cured.emit()
+	AudioManager.play_effect(&"PoisonCure")
 
 
 func _process(delta: float) -> void:

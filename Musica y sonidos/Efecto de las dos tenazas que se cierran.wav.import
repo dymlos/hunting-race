@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dtok1yeqj57sr"
+path="res://.godot/imported/Efecto de las dos tenazas que se cierran.wav-99ba4694e951c72659a5b3eddf310deb.sample"
+
+[deps]
+
+source_file="res://Musica y sonidos/Efecto de las dos tenazas que se cierran.wav"
+dest_files=["res://.godot/imported/Efecto de las dos tenazas que se cierran.wav-99ba4694e951c72659a5b3eddf310deb.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

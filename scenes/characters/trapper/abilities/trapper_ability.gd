@@ -53,7 +53,6 @@ func activate() -> void:
 		if not _consume_use():
 			return
 		_spawn_object(trapper.global_position)
-		AudioManager.play_skill(StringName(get_display_name()))
 		_start_cooldown_if_needed()
 	else:
 		# Multi-point placement
@@ -84,7 +83,6 @@ func activate() -> void:
 			_spawn_from_points(_placement_points.duplicate())
 			_placement_points.clear()
 			is_placing = false
-			AudioManager.play_skill(StringName(get_display_name()))
 			_start_cooldown_if_needed()
 
 
