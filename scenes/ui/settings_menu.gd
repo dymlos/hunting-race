@@ -62,7 +62,7 @@ func _ready() -> void:
 		{
 			"key": "team_size", "label": "Team Size",
 			"type": "int", "min": 1, "max": 4, "step": 1,
-			"value": 1,
+			"value": 4,
 		},
 		{
 			"key": "escapist_speed", "label": "Escapist Speed",

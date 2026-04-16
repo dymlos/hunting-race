@@ -55,15 +55,15 @@ func _process(delta: float) -> void:
 			elif _nav_cooldowns.get(device_id, 0.0) <= 0.0:
 				var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
 				if x < -0.5:
-					_player_teams[device_id] = Enums.Team.TEAM_1
+					_set_player_team_if_available(device_id, Enums.Team.TEAM_1)
 					_nav_cooldowns[device_id] = NAV_COOLDOWN
 				elif x > 0.5:
-					_player_teams[device_id] = Enums.Team.TEAM_2
+					_set_player_team_if_available(device_id, Enums.Team.TEAM_2)
 					_nav_cooldowns[device_id] = NAV_COOLDOWN
 		else:
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 				_player_joined[device_id] = true
-				_player_teams[device_id] = Enums.Team.TEAM_1
+				_player_teams[device_id] = _pick_join_team()
 				_nav_cooldowns[device_id] = NAV_COOLDOWN
 				joined_this_frame = true
 			elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
@@ -87,10 +87,60 @@ func _process(delta: float) -> void:
 
 
 func _has_valid_teams() -> bool:
+	return not _get_joined_devices().is_empty()
+
+
+func _get_joined_devices() -> Array[int]:
+	var devices: Array[int] = []
 	for device_id: int in _player_joined:
-		if _player_joined[device_id]:
-			return true
-	return false
+		if _player_joined.get(device_id, false):
+			devices.append(device_id)
+	devices.sort()
+	return devices
+
+
+func _get_team_size_limit() -> int:
+	return GameManager.settings_overrides.get(&"team_size", 4) as int
+
+
+func _get_team_counts() -> Dictionary:
+	var counts := {
+		Enums.Team.TEAM_1: 0,
+		Enums.Team.TEAM_2: 0,
+	}
+	for device_id: int in _player_teams:
+		if not _player_joined.get(device_id, false):
+			continue
+		var team: Enums.Team = _player_teams[device_id] as Enums.Team
+		counts[team] = (counts.get(team, 0) as int) + 1
+	return counts
+
+
+func _team_can_accept(team: Enums.Team) -> bool:
+	var counts := _get_team_counts()
+	var limit := _get_team_size_limit()
+	return (counts.get(team, 0) as int) < limit
+
+
+func _pick_join_team() -> Enums.Team:
+	var counts := _get_team_counts()
+	var limit := _get_team_size_limit()
+	var t1 := counts.get(Enums.Team.TEAM_1, 0) as int
+	var t2 := counts.get(Enums.Team.TEAM_2, 0) as int
+	if t1 < limit and (t1 <= t2 or t2 >= limit):
+		return Enums.Team.TEAM_1
+	if t2 < limit:
+		return Enums.Team.TEAM_2
+	return Enums.Team.TEAM_1
+
+
+func _set_player_team_if_available(device_id: int, team: Enums.Team) -> void:
+	var current_team: Enums.Team = _player_teams.get(device_id, Enums.Team.TEAM_1) as Enums.Team
+	if current_team == team:
+		return
+	if not _team_can_accept(team):
+		return
+	_player_teams[device_id] = team
 
 
 func _advance() -> void:
@@ -109,7 +159,7 @@ func _advance() -> void:
 		pi += 1
 
 	if auto_fill_bots:
-		var team_size: int = GameManager.settings_overrides.get(&"team_size", 1) as int
+		var team_size: int = GameManager.settings_overrides.get(&"team_size", 4) as int
 		var t1 := 0
 		var t2 := 0
 		for p: int in t_assignments:
@@ -145,10 +195,6 @@ func _draw() -> void:
 
 	var t1c := Enums.team_color(Enums.Team.TEAM_1)
 	var t2c := Enums.team_color(Enums.Team.TEAM_2)
-	draw_string(font, Vector2(cx * 0.5 - 40, 150), "TEAM 1",
-		HORIZONTAL_ALIGNMENT_CENTER, -1, 24, t1c)
-	draw_string(font, Vector2(cx * 1.5 - 40, 150), "TEAM 2",
-		HORIZONTAL_ALIGNMENT_CENTER, -1, 24, t2c)
 
 	# Player slots
 	var t1_devices: Array = []
@@ -161,8 +207,19 @@ func _draw() -> void:
 				t2_devices.append(device_id)
 	t1_devices.sort()
 	t2_devices.sort()
+	var team_limit := _get_team_size_limit()
+	if team_limit < 1:
+		team_limit = 1
 
 	var slot_height := 40.0
+	var t1_count := t1_devices.size()
+	var t2_count := t2_devices.size()
+	var t1_label := "TEAM 1 (%d/%d)" % [t1_count, team_limit]
+	var t2_label := "TEAM 2 (%d/%d)" % [t2_count, team_limit]
+	draw_string(font, Vector2(cx * 0.5 - 20, 150), t1_label,
+		HORIZONTAL_ALIGNMENT_CENTER, -1, 24, t1c)
+	draw_string(font, Vector2(cx * 1.5 - 20, 150), t2_label,
+		HORIZONTAL_ALIGNMENT_CENTER, -1, 24, t2c)
 	for i in t1_devices.size():
 		var label := "P%d" % (t1_devices[i] + 1)
 		draw_string(font, Vector2(cx * 0.5 - 20, 190.0 + i * slot_height), label,
