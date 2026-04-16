@@ -862,6 +862,14 @@ func _on_setting_changed(key: String, value: Variant) -> void:
 			GameManager.settings_overrides[&"poison_duration"] = value
 		"hunt_countdown_enabled":
 			GameManager.settings_overrides[&"hunt_countdown_enabled"] = (int(value) == 0)  # 0 = "On"
+		"music_volume":
+			var music_volume := float(value) / 100.0
+			GameManager.settings_overrides[&"music_volume"] = music_volume
+			menu_music.set_music_volume(music_volume)
+		"effects_volume":
+			var effects_volume := float(value) / 100.0
+			GameManager.settings_overrides[&"effects_volume"] = effects_volume
+			AudioManager.set_effects_volume(effects_volume)
 
 
 func _apply_runtime_settings() -> void:

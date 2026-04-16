@@ -8,6 +8,7 @@ var _player: AudioStreamPlayer
 var _playback: AudioStreamGeneratorPlayback
 var _voices: Array[Dictionary] = []
 var _sample_streams: Dictionary = {}
+var _effects_volume: float = 1.0
 
 const SAMPLE_PATHS: Dictionary = {
 	&"RabbitLeap": "res://Musica y sonidos/Rabbit Charged Leap.wav",
@@ -36,8 +37,8 @@ func _ready() -> void:
 	generator.mix_rate = MIX_RATE
 	generator.buffer_length = BUFFER_LENGTH
 	_player.stream = generator
-	_player.volume_db = -1.0
 	add_child(_player)
+	_apply_effects_volume_to_player(_player)
 	_player.play()
 	_playback = _player.get_stream_playback() as AudioStreamGeneratorPlayback
 
@@ -57,6 +58,13 @@ func play_effect(effect_name: StringName) -> void:
 	_play_sample(effect_name)
 
 
+func set_effects_volume(value: float) -> void:
+	_effects_volume = clampf(value, 0.0, 1.0)
+	for child: Node in get_children():
+		if child is AudioStreamPlayer:
+			_apply_effects_volume_to_player(child as AudioStreamPlayer)
+
+
 func _load_sample_streams() -> void:
 	for sample_name: StringName in SAMPLE_PATHS:
 		var path: String = SAMPLE_PATHS[sample_name] as String
@@ -72,11 +80,18 @@ func _play_sample(sample_name: StringName) -> bool:
 		return false
 	var player := AudioStreamPlayer.new()
 	player.stream = _sample_streams[sample_name] as AudioStream
-	player.volume_db = -1.0
+	_apply_effects_volume_to_player(player)
 	player.finished.connect(player.queue_free)
 	add_child(player)
 	player.play()
 	return true
+
+
+func _apply_effects_volume_to_player(player: AudioStreamPlayer) -> void:
+	if _effects_volume <= 0.0:
+		player.volume_db = -80.0
+	else:
+		player.volume_db = -1.0 + linear_to_db(_effects_volume)
 
 
 func _process(_delta: float) -> void:

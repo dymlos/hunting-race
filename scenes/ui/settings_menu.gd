@@ -75,6 +75,14 @@ func _ready() -> void:
 			"value": 1.0, "min_mult": 0.5, "max_mult": 1.5, "step": 0.1,
 		},
 		{
+			"key": "music_volume", "label": "Music Volume",
+			"type": "volume", "value": 100, "min": 0, "max": 100, "step": 5,
+		},
+		{
+			"key": "effects_volume", "label": "SFX Volume",
+			"type": "volume", "value": 100, "min": 0, "max": 100, "step": 5,
+		},
+		{
 			"key": "poison_duration", "label": "Poison Time",
 			"type": "int", "min": 2, "max": 15, "step": 1,
 			"value": int(Constants.POISON_DURATION),
@@ -151,6 +159,11 @@ func _change_value(direction: int) -> void:
 			val = clampf(val + direction * step,
 				setting["min_mult"] as float, setting["max_mult"] as float)
 			setting["value"] = snappedi(val * 100, int(step * 100)) / 100.0
+		"volume":
+			var val: int = setting["value"] as int
+			var step: int = setting.get("step", 5) as int
+			val = clampi(val + direction * step, setting["min"] as int, setting["max"] as int)
+			setting["value"] = val
 
 	setting_changed.emit(key, setting["value"])
 
@@ -207,13 +220,28 @@ func _draw() -> void:
 				value_text = "%d" % (setting["value"] as int)
 			"number":
 				value_text = "%d%%" % int((setting["value"] as float) * 100.0)
+			"volume":
+				value_text = "%d%%" % (setting["value"] as int)
 
 		var display := "%s%s:  < %s >" % [prefix, label, value_text]
 		draw_string(font, Vector2(cx - 200, y),
 			display, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+		if type == "volume":
+			_draw_slider_bar(Vector2(cx + 130.0, y - float(font_size) + 5.0),
+				setting["value"] as int, color)
 
 	# Hint
 	var hint := "LEFT/RIGHT change | UP/DOWN navigate | B or SELECT close"
 	var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	draw_string(font, Vector2(cx - hw / 2.0, screen.y - margin - 10),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.5, 0.5, 0.5))
+
+
+func _draw_slider_bar(pos: Vector2, value: int, color: Color) -> void:
+	var bar_size := Vector2(150.0, 8.0)
+	var ratio := clampf(float(value) / 100.0, 0.0, 1.0)
+	draw_rect(Rect2(pos, bar_size), Color(0.18, 0.18, 0.18, 0.95))
+	draw_rect(Rect2(pos, Vector2(bar_size.x * ratio, bar_size.y)), Color(color, 0.9))
+	draw_rect(Rect2(pos, bar_size), Color(0.62, 0.62, 0.62, 0.65), false, 1.0)
+	var knob_x := pos.x + bar_size.x * ratio
+	draw_rect(Rect2(Vector2(knob_x - 3.0, pos.y - 4.0), Vector2(6.0, 16.0)), color)

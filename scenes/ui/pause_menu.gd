@@ -18,7 +18,7 @@ var _showing_ability_guide: bool = false
 
 const NAV_COOLDOWN: float = 0.2
 const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Restart Round", "Practice Mode", "Return to Setup"]
-const PRACTICE_OPTIONS: Array[String] = ["Resume", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
+const PRACTICE_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
 
 
 func _ready() -> void:
