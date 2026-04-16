@@ -27,7 +27,7 @@ func _ready() -> void:
 		{
 			"key": "bot_fill", "label": "Bot Auto-Fill",
 			"type": "options", "options": ["On", "Off"],
-			"value": 0,
+			"value": 1,
 		},
 		{
 			"key": "bot_ai", "label": "Bot Trapper AI",
