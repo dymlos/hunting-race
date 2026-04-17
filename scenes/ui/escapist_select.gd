@@ -223,7 +223,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(cx - title_width / 2.0, 50),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
 
-	var team_name := "TEAM 1" if _escapist_team == Enums.Team.TEAM_1 else "TEAM 2"
+	var team_name := Enums.team_name(_escapist_team)
 	var team_col := Enums.team_color(_escapist_team)
 	var sub := "%s picks escapists" % team_name
 	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x

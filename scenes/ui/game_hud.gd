@@ -17,7 +17,7 @@ func _draw() -> void:
 	var cx := screen.x / 2.0
 
 	# Score bar at top
-	var bar_h := 68.0
+	var bar_h := 76.0
 	draw_rect(Rect2(0, 0, screen.x, bar_h), Color(0, 0, 0, 0.5))
 
 	if GameManager.current_state == Enums.GameState.PRACTICE:
@@ -43,31 +43,41 @@ func _draw() -> void:
 	var t1c := Enums.team_color(Enums.Team.TEAM_1)
 	var t2c := Enums.team_color(Enums.Team.TEAM_2)
 	var score_text := "%d - %d" % [GameManager.match_scores[0], GameManager.match_scores[1]]
-	draw_string(font, Vector2(cx - 30, 28), score_text,
-		HORIZONTAL_ALIGNMENT_CENTER, -1, 24, Color.WHITE)
-	draw_string(font, Vector2(cx - 80, 28), "T1",
-		HORIZONTAL_ALIGNMENT_CENTER, -1, 14, t1c)
-	draw_string(font, Vector2(cx + 60, 28), "T2",
-		HORIZONTAL_ALIGNMENT_CENTER, -1, 14, t2c)
+	var score_panel := Rect2(Vector2(cx - 170.0, 6.0), Vector2(340.0, 62.0))
+	draw_rect(score_panel, Color(0.03, 0.03, 0.03, 0.64))
+	draw_rect(score_panel, Color(0.65, 0.65, 0.65, 0.4), false, 2.0)
+	var blue_name := Enums.team_name(Enums.Team.TEAM_1).to_upper()
+	var red_name := Enums.team_name(Enums.Team.TEAM_2).to_upper()
+	var red_w := font.get_string_size(red_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+	var score_w := font.get_string_size(score_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 30).x
+	draw_string(font, Vector2(score_panel.position.x + 14.0, 24.0),
+		blue_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, t1c)
+	draw_string(font, Vector2(cx - score_w / 2.0, 36.0),
+		score_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color.WHITE)
+	draw_string(font, Vector2(score_panel.position.x + score_panel.size.x - red_w - 14.0, 24.0),
+		red_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, t2c)
 
 	# Current role assignment
 	var esc_team := GameManager.escapist_team
 	var trap_team := Enums.Team.TEAM_2 if esc_team == Enums.Team.TEAM_1 else Enums.Team.TEAM_1
-	var role_text := "T%d: ESCAPISTS | T%d: TRAPPERS" % [esc_team, trap_team]
-	draw_string(font, Vector2(220, 58), role_text,
+	var role_text := "%s: ESCAPISTS | %s: TRAPPERS" % [
+		Enums.team_name(esc_team),
+		Enums.team_name(trap_team),
+	]
+	draw_string(font, Vector2(220, 64), role_text,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.7, 0.7, 0.7))
 
 	# Hunt info (during hunt)
 	if GameManager.current_state == Enums.GameState.ESCAPE:
 		var alive_text := "Escapists alive: %d" % GameManager.get_living_escapists()
-		draw_string(font, Vector2(screen.x - 180, 42), alive_text,
+		draw_string(font, Vector2(screen.x - 180, 50), alive_text,
 			HORIZONTAL_ALIGNMENT_RIGHT, -1, 12, Enums.role_color(Enums.Role.ESCAPIST))
 
 		# Round timer
 		var time_left := GameManager.get_hunt_time()
 		var timer_text := "%d" % ceili(time_left)
 		var timer_color := Color.WHITE if time_left > 10.0 else Color(1.0, 0.3, 0.2)
-		draw_string(font, Vector2(cx - 10, bar_h + 30), timer_text,
+		draw_string(font, Vector2(cx - 10, bar_h + 26), timer_text,
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 28, timer_color)
 
 	# Phase indicator
@@ -82,7 +92,7 @@ func _draw() -> void:
 		Enums.GameState.PAUSED: phase = "PAUSED"
 
 	if not phase.is_empty():
-		draw_string(font, Vector2(screen.x - 120, 20), phase,
+		draw_string(font, Vector2(screen.x - 120, 26), phase,
 			HORIZONTAL_ALIGNMENT_RIGHT, -1, 14, Color.YELLOW)
 
 

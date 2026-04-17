@@ -11,6 +11,7 @@ signal back_requested
 var _player_joined: Dictionary = {}    # {device_id: bool}
 var _player_teams: Dictionary = {}     # {device_id: Enums.Team}
 var _nav_cooldowns: Dictionary = {}    # {device_id: float}
+var _awaiting_start_confirmation: bool = false
 var input_blocked: bool = false
 var auto_fill_bots: bool = false
 
@@ -21,6 +22,7 @@ func setup() -> void:
 	_player_joined.clear()
 	_player_teams.clear()
 	_nav_cooldowns.clear()
+	_awaiting_start_confirmation = false
 	show()
 	queue_redraw()
 
@@ -40,6 +42,7 @@ func _process(delta: float) -> void:
 		_player_joined.erase(device_id)
 		_player_teams.erase(device_id)
 		_nav_cooldowns.erase(device_id)
+		_awaiting_start_confirmation = false
 
 	# Tick nav cooldowns
 	for device_id: int in _nav_cooldowns:
@@ -49,7 +52,16 @@ func _process(delta: float) -> void:
 	var joined_this_frame := false
 	for device_id: int in pads:
 		if _player_joined.get(device_id, false):
+			if _awaiting_start_confirmation:
+				if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+					_advance()
+					return
+				elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+					_awaiting_start_confirmation = false
+					return
+				continue
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				_awaiting_start_confirmation = false
 				back_requested.emit()
 				return
 			elif _nav_cooldowns.get(device_id, 0.0) <= 0.0:
@@ -65,14 +77,17 @@ func _process(delta: float) -> void:
 				_player_joined[device_id] = true
 				_player_teams[device_id] = _pick_join_team()
 				_nav_cooldowns[device_id] = NAV_COOLDOWN
+				_awaiting_start_confirmation = false
 				joined_this_frame = true
 			elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				_awaiting_start_confirmation = false
 				back_requested.emit()
 				return
 
 	# SELECT to open settings
 	for device_id: int in pads:
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
+			_awaiting_start_confirmation = false
 			settings_requested.emit()
 			return
 
@@ -80,7 +95,8 @@ func _process(delta: float) -> void:
 		for device_id: int in pads:
 			if _player_joined.get(device_id, false):
 				if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
-					_advance()
+					_awaiting_start_confirmation = true
+					queue_redraw()
 					return
 
 	queue_redraw()
@@ -160,9 +176,11 @@ func _set_player_team_if_available(device_id: int, team: Enums.Team) -> void:
 	if not _team_can_accept(team):
 		return
 	_player_teams[device_id] = team
+	_awaiting_start_confirmation = false
 
 
 func _advance() -> void:
+	_awaiting_start_confirmation = false
 	var t_assignments: Dictionary = {}
 	var pi := 0
 
@@ -219,8 +237,10 @@ func _draw() -> void:
 	var total_capacity := team_limit * 2
 	var total_bots := (bot_counts.get(Enums.Team.TEAM_1, 0) as int) \
 		+ (bot_counts.get(Enums.Team.TEAM_2, 0) as int)
-	var format_text := "%dv%d" % [
+	var format_text := "%s %d | %s %d" % [
+		"%s:" % Enums.team_name(Enums.Team.TEAM_1),
 		(counts.get(Enums.Team.TEAM_1, 0) as int) + (bot_counts.get(Enums.Team.TEAM_1, 0) as int),
+		"%s:" % Enums.team_name(Enums.Team.TEAM_2),
 		(counts.get(Enums.Team.TEAM_2, 0) as int) + (bot_counts.get(Enums.Team.TEAM_2, 0) as int),
 	]
 	var bot_state := "Off"
@@ -233,7 +253,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(cx, 132), "Current Match: %s" % format_text,
 		HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(0.7, 0.9, 0.7))
 
-	draw_line(Vector2(cx, 120), Vector2(cx, screen.y - 60), Color(0.4, 0.4, 0.4), 2.0)
+	draw_line(Vector2(cx, 142), Vector2(cx, screen.y - 60), Color(0.4, 0.4, 0.4), 2.0)
 
 	var t1c := Enums.team_color(Enums.Team.TEAM_1)
 	var t2c := Enums.team_color(Enums.Team.TEAM_2)
@@ -252,8 +272,8 @@ func _draw() -> void:
 	var slot_height := 40.0
 	var t1_count := t1_devices.size()
 	var t2_count := t2_devices.size()
-	var t1_label := "TEAM 1 (%d/%d)" % [t1_count, team_limit]
-	var t2_label := "TEAM 2 (%d/%d)" % [t2_count, team_limit]
+	var t1_label := "%s (%d/%d)" % [Enums.team_name(Enums.Team.TEAM_1), t1_count, team_limit]
+	var t2_label := "%s (%d/%d)" % [Enums.team_name(Enums.Team.TEAM_2), t2_count, team_limit]
 	draw_string(font, Vector2(cx * 0.5 - 20, 150), t1_label,
 		HORIZONTAL_ALIGNMENT_CENTER, -1, 24, t1c)
 	draw_string(font, Vector2(cx * 1.5 - 20, 150), t2_label,
@@ -282,6 +302,8 @@ func _draw() -> void:
 		var continue_text := "Press A to continue"
 		if auto_fill_bots:
 			continue_text = "Press A to continue with bots"
+		if _awaiting_start_confirmation:
+			continue_text = "A: Start match | B: Cancel"
 		draw_string(font, Vector2(cx - 90, screen.y - 40), continue_text,
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 18, Color.YELLOW)
 	else:
@@ -290,3 +312,29 @@ func _draw() -> void:
 
 	draw_string(font, Vector2(cx - 118, screen.y - 18), "B: Back | SELECT: Settings",
 		HORIZONTAL_ALIGNMENT_CENTER, -1, 12, Color(0.4, 0.4, 0.4))
+
+	if _awaiting_start_confirmation:
+		var panel_size := Vector2(380.0, 130.0)
+		var panel_pos := Vector2(cx - panel_size.x * 0.5, screen.y * 0.5 - panel_size.y * 0.5)
+		draw_rect(Rect2(panel_pos, panel_size), Color(0.08, 0.08, 0.08, 0.96))
+		draw_rect(Rect2(panel_pos, panel_size), Color(0.75, 0.75, 0.75, 0.9), false, 2.0)
+		draw_string(font, Vector2(cx - 120, panel_pos.y + 28),
+			"Start this match?",
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 22, Color.WHITE)
+		draw_string(font, Vector2(cx - 120, panel_pos.y + 54),
+			"%s: %d | %s: %d" % [
+				Enums.team_name(Enums.Team.TEAM_1),
+				counts.get(Enums.Team.TEAM_1, 0),
+				Enums.team_name(Enums.Team.TEAM_2),
+				counts.get(Enums.Team.TEAM_2, 0),
+			],
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(0.85, 0.85, 0.85))
+		var confirm_bot_text := "Bots: Off"
+		if auto_fill_bots:
+			confirm_bot_text = "Bots: On (+%d)" % total_bots
+		draw_string(font, Vector2(cx - 120, panel_pos.y + 78),
+			confirm_bot_text,
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(0.85, 0.85, 0.85))
+		draw_string(font, Vector2(cx - 120, panel_pos.y + 104),
+			"A: Confirm  |  B: Cancel",
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 14, Color(0.9, 0.9, 0.55))

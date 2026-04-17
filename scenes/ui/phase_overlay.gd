@@ -95,7 +95,7 @@ func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Arr
 
 
 func show_match_end(winning_team: Enums.Team, scores: Array[int], entries: Array[Dictionary]) -> void:
-	_text = "TEAM %d WINS!" % winning_team
+	_text = "%s WINS!" % Enums.team_name(winning_team).to_upper()
 	_sub_text = "Final: %d - %d | START to restart" % [scores[0], scores[1]]
 	_detail_lines.clear()
 	_score_entries = entries.duplicate(true)
@@ -300,9 +300,9 @@ func _draw_score_entries(font: Font, panel_rect: Rect2) -> void:
 		draw_rect(row_rect, Color(0.08, 0.08, 0.08, 0.86))
 		draw_rect(row_rect, Color(Enums.team_color(team), 0.55), false, 1.5)
 
-		var title := "%s  Team %d  |  %s  |  Total %s" % [
+		var title := "%s  %s  |  %s  |  Total %s" % [
 			player_label,
-			team,
+			Enums.team_name(team),
 			escaped_text,
 			_format_score(total),
 		]

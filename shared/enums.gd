@@ -55,6 +55,15 @@ static func team_color(team: Team) -> Color:
 	return Color.WHITE
 
 
+static func team_name(team: Team) -> String:
+	match team:
+		Team.TEAM_1:
+			return "Team Blue"
+		Team.TEAM_2:
+			return "Team Red"
+	return "Unknown Team"
+
+
 static func role_color(role: Role) -> Color:
 	match role:
 		Role.ESCAPIST:

@@ -263,7 +263,7 @@ func _draw() -> void:
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
 
 	# Trapping team label
-	var team_name := "TEAM 1" if _trapping_team == Enums.Team.TEAM_1 else "TEAM 2"
+	var team_name := Enums.team_name(_trapping_team)
 	var team_col := Enums.team_color(_trapping_team)
 	var sub := "%s picks trappers" % team_name
 	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
