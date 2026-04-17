@@ -3,6 +3,7 @@ extends Node2D
 ## Main scene — orchestrates arena, characters, UI, and game state.
 
 const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
+const IntroScreenScene := preload("res://scenes/ui/intro_screen.gd")
 const CoverScreenScene := preload("res://scenes/ui/cover_screen.tscn")
 const ModeSelectScene := preload("res://scenes/ui/mode_select.gd")
 const PracticeSetupScene := preload("res://scenes/ui/practice_setup.gd")
@@ -49,6 +50,7 @@ var _practice_bots_added: bool = false
 var _view_stack: Array[Control] = []
 
 # UI instances
+var intro_screen: IntroScreen
 var cover_screen: CoverScreen
 var mode_select: ModeSelect
 var practice_setup: PracticeSetup
@@ -76,6 +78,12 @@ func _ready() -> void:
 	ui_layer.add_child(cover_screen)
 	cover_screen.hide()
 	cover_screen.start_requested.connect(_on_cover_start_requested)
+
+	intro_screen = IntroScreenScene.new() as IntroScreen
+	ui_layer.add_child(intro_screen)
+	intro_screen.hide()
+	intro_screen.progress_changed.connect(_on_intro_progress_changed)
+	intro_screen.intro_finished.connect(_on_intro_finished)
 
 	mode_select = ModeSelectScene.new() as ModeSelect
 	ui_layer.add_child(mode_select)
@@ -152,7 +160,36 @@ func _ready() -> void:
 	GameManager.escapist_died.connect(_on_escapist_died)
 	GameManager.round_advancing.connect(_on_round_advancing)
 
+	_start_intro_screen()
+
+
+func _start_intro_screen() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	_active_player_indices.clear()
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	menu_music.use_intro_volume()
+	menu_music.start_music()
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	intro_screen.open()
+	push_view(intro_screen)
+
+
+func _on_intro_finished() -> void:
+	menu_music.set_intro_progress(1.0)
 	_start_cover_screen()
+
+
+func _on_intro_progress_changed(progress: float) -> void:
+	menu_music.set_intro_progress(progress)
 
 
 func _start_cover_screen() -> void:
