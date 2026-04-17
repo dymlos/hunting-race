@@ -17,15 +17,15 @@ const PARAGRAPHS := [
 	],
 	[
 		"Podrías hacerte daño,",
-		"incluso escapando de cada rincon.",
+		"incluso escapando de cada rincón.",
 	],
 	[
 		"Cazadores implacables,",
-		"en una carrera como nunca viste.",
+		"en una carrera como nunca antes viste.",
 	],
 	[
-		"Aunque sus caras sean amigables,",
-		"y mati diga \"Que me trajiste?\"",
+		"No confies en sus caras amigables,",
+		"aunque Mati diga: \"Que me trajiste?\"",
 	],
 ]
 
