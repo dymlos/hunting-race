@@ -179,6 +179,8 @@ class QuicksandZone extends Area2D:
 		if character in _bodies_inside:
 			return
 		GameManager.register_trap_contact(character.player_index)
+		if character is Escapist:
+			(character as Escapist).notify_trap_status("SINKING", Color(1.0, 0.8, 0.25), 0.8)
 		AudioManager.play_effect(&"QuicksandTrap")
 		_bodies_inside[character] = {
 			"angle": (character.global_position - global_position).angle(),

@@ -119,6 +119,7 @@ class TentacleNode extends Area2D:
 		match _state:
 			TentacleState.WAITING:
 				_captured_a = esc
+				_captured_a.notify_trap_status("ROOTED", Color(0.3, 0.9, 1.0), 0.85)
 				_captured_a.movement.freeze()
 				_capture_timer = Constants.PULPO_TENTACLE_CAPTURE_DURATION
 				_state = TentacleState.CAPTURED_ONE
@@ -127,6 +128,7 @@ class TentacleNode extends Area2D:
 				if esc == _captured_a:
 					return
 				_captured_b = esc
+				_captured_b.notify_trap_status("LINKED", Color(1.0, 0.55, 0.18), 0.85)
 				# Unfreeze first victim, both now linked
 				_captured_a.movement.unfreeze()
 				_link_timer = minf(

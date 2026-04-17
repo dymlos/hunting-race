@@ -66,6 +66,16 @@ func _handle_ability_input(_delta: float) -> void:
 	pass
 
 
+func notify_trap_contact() -> void:
+	# Override in subclasses that need trap-contact feedback.
+	pass
+
+
+func notify_trap_status(_text: String, _text_color: Color, _duration: float = 0.9) -> void:
+	# Override in subclasses that need status feedback.
+	pass
+
+
 func get_role() -> Enums.Role:
 	return role
 

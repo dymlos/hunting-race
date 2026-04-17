@@ -69,6 +69,8 @@ class SporeZone extends Area2D:
 			if character.team == owner_team:
 				return
 			GameManager.register_trap_contact(character.player_index)
+			if character is Escapist:
+				(character as Escapist).notify_trap_status("SLOWED", Color(0.45, 1.0, 0.2), 0.85)
 			_bodies_inside[body] = true
 			character.movement.set_speed_modifier(&"spore_slow", Constants.HONGO_SPORE_SLOW)
 			AudioManager.play_effect(&"SlowMovement")
@@ -86,6 +88,7 @@ class SporeZone extends Area2D:
 			if body is Escapist:
 				var esc := body as Escapist
 				if not esc.is_dead and not esc.has_scored and esc.team != owner_team:
+					esc.notify_trap_status("POISONED", Color(0.15, 0.95, 0.2), 0.9)
 					esc.poison.apply_poison()
 
 	func _cleanup() -> void:

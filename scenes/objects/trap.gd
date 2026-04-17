@@ -77,10 +77,13 @@ func _on_body_entered(body: Node2D) -> void:
 			# Kill the escapist
 			if character is Escapist:
 				var esc := character as Escapist
+				esc.notify_trap_status("CRUSHED", Color(1.0, 0.2, 0.2), 0.65)
 				esc.kill()
 			_destroy()  # Lethal traps are single-use
 		else:
 			# Apply slow
+			if character is Escapist:
+				(character as Escapist).notify_trap_status("SLOWED", Color(1.0, 0.85, 0.15), 0.9)
 			character.movement.set_speed_modifier(&"trap_slow", Constants.TRAP_SLOW_MULTIPLIER)
 			AudioManager.play_effect(&"SlowMovement")
 			get_tree().create_timer(Constants.TRAP_SLOW_DURATION).timeout.connect(

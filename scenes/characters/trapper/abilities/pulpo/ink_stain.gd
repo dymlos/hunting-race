@@ -71,6 +71,8 @@ class InkZone extends Area2D:
 			if character.team == owner_team:
 				return
 			GameManager.register_trap_contact(character.player_index)
+			if character is Escapist:
+				(character as Escapist).notify_trap_status("BLINDED", Color(0.85, 0.7, 1.0), 0.85)
 			_bodies_inside[body] = true
 
 	func _on_body_exited(body: Node2D) -> void:

@@ -25,6 +25,8 @@ var _effect_immunity_timer: float = 0.0
 var _ability_denied_flash_timer: float = 0.0
 var _floating_text: String = ""
 var _floating_text_timer: float = 0.0
+var _floating_text_duration: float = Constants.FLOATING_TEXT_DURATION
+var _floating_text_size: int = 18
 var _floating_text_color: Color = Color.WHITE
 var _active_rat_tail: Node = null
 var _bot_patrol_enabled: bool = false
@@ -156,13 +158,16 @@ func _return_to_spawn_with_death_message() -> void:
 	controls_inverted = false
 	_inversion_timer = 0.0
 	AudioManager.play_effect(&"DeathRespawn")
-	_show_floating_text("You died !!", Color.WHITE)
+	_show_floating_text("You died !!", Color.WHITE, Constants.FLOATING_TEXT_DURATION, 20)
 
 
-func _show_floating_text(text: String, text_color: Color) -> void:
+func _show_floating_text(text: String, text_color: Color, duration: float = Constants.FLOATING_TEXT_DURATION,
+		font_size: int = 18) -> void:
 	_floating_text = text
 	_floating_text_color = text_color
-	_floating_text_timer = Constants.FLOATING_TEXT_DURATION
+	_floating_text_timer = duration
+	_floating_text_duration = duration
+	_floating_text_size = font_size
 	queue_redraw()
 
 
@@ -288,6 +293,13 @@ func notify_trap_contact() -> void:
 		_fly_boost_timer = Constants.FLY_BOOST_DURATION
 		_effect_immunity_timer = Constants.FLY_BOOST_DURATION
 		movement.set_speed_modifier(&"fly_boost", Constants.FLY_SPEED_BOOST)
+		_show_floating_text("BOOST", Color(0.3, 0.95, 0.9), 0.85, 20)
+		return
+	_show_floating_text("TRAP", Color(1.0, 0.75, 0.12), 0.75, 20)
+
+
+func notify_trap_status(text: String, text_color: Color, duration: float = 0.9) -> void:
+	_show_floating_text(text, text_color, duration, 20)
 
 
 func is_effect_immune() -> bool:
@@ -335,9 +347,7 @@ func _get_animal_mark_alpha() -> float:
 
 func _notify_ability_denied() -> void:
 	_ability_denied_flash_timer = 0.22
-	_floating_text = "COOLDOWN"
-	_floating_text_timer = 0.45
-	_floating_text_color = Color(1.0, 0.28, 0.22)
+	_show_floating_text("COOLDOWN", Color(1.0, 0.18, 0.12), 0.75, 20)
 	AudioManager.play_effect(&"CooldownDenied")
 	queue_redraw()
 
@@ -532,8 +542,8 @@ func _draw() -> void:
 		label = "BOT"
 	_draw_player_label(label, Vector2(-10, -Constants.CHARACTER_RADIUS - 6), 12, team_color)
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
-		var text_alpha := clampf(_floating_text_timer / Constants.FLOATING_TEXT_DURATION, 0.0, 1.0)
-		var text_size := 18
+		var text_alpha := clampf(_floating_text_timer / maxf(_floating_text_duration, 0.01), 0.0, 1.0)
+		var text_size := _floating_text_size
 		var text_w := ThemeDB.fallback_font.get_string_size(
 			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
 		var text_pos := Vector2(-text_w / 2.0, -Constants.CHARACTER_RADIUS - 36)
@@ -560,9 +570,9 @@ func _draw() -> void:
 		var flash_ratio := clampf(_ability_denied_flash_timer / 0.22, 0.0, 1.0)
 		var flash_alpha := 0.18 + 0.42 * flash_ratio
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 11.0,
-			0.0, TAU, 20, Color(1.0, 0.25, 0.2, flash_alpha), 2.0)
+			0.0, TAU, 20, Color(1.0, 0.12, 0.08, flash_alpha), 2.4)
 		draw_string(ThemeDB.fallback_font, Vector2(-4.0, -Constants.CHARACTER_RADIUS - 24.0),
-			"!", HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(1.0, 0.25, 0.2, flash_alpha))
+			"!", HORIZONTAL_ALIGNMENT_CENTER, -1, 18, Color(1.0, 0.12, 0.08, flash_alpha))
 
 	# Poison timer indicator
 	if poison and poison.is_poisoned:

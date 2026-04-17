@@ -113,6 +113,8 @@ class CurrentZone extends Area2D:
 			if character.team == owner_team:
 				return
 			GameManager.register_trap_contact(character.player_index)
+			if character is Escapist:
+				(character as Escapist).notify_trap_status("PUSHED", Color(0.25, 0.8, 1.0), 0.75)
 			_bodies_inside[body] = true
 			AudioManager.play_effect(&"WaterCurrentStep")
 
