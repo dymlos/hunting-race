@@ -459,7 +459,8 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 			_freeze_all()
 			phase_overlay.show_round_intro(
 				GameManager.get_competitive_round_number(),
-				GameManager.get_round_leg_label()
+				GameManager.get_round_leg_label(),
+				GameManager.escapist_team
 			)
 		Enums.GameState.HUNT:
 			_freeze_escapists_only()

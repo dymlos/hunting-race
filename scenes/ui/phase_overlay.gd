@@ -28,14 +28,19 @@ func show_observation(_time_left: float) -> void:
 	queue_redraw()
 
 
-func show_round_intro(round_number: int, leg_label: String) -> void:
+func show_round_intro(round_number: int, leg_label: String, escapist_team: Enums.Team) -> void:
 	_text = "ROUND %d" % round_number
-	_sub_text = leg_label
+	var trapping_team := Enums.Team.TEAM_2 if escapist_team == Enums.Team.TEAM_1 else Enums.Team.TEAM_1
+	_sub_text = "%s ESCAPES | %s TRAPS" % [
+		Enums.team_name(escapist_team),
+		Enums.team_name(trapping_team),
+	]
 	_detail_lines.clear()
+	_detail_lines.append(leg_label)
 	_score_entries.clear()
 	_show_match_totals = false
 	_text_color = Color(1.0, 0.95, 0.25)
-	_show_timer = 2.4
+	_show_timer = 2.8
 	_anchor_top = false
 	visible = true
 	queue_redraw()
