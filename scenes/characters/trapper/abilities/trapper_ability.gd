@@ -11,6 +11,7 @@ var cooldown: float = 0.0
 var max_active: int = 1
 var max_charges: int = 1
 var _cooldown_remaining: float = 0.0
+var _cooldown_denied_timer: float = 0.0
 var _active_objects: Array[Node2D] = []
 var _charges_remaining: int = 1
 var _strategy_uses_remaining: int = 1
@@ -97,6 +98,8 @@ func update(delta: float) -> void:
 		_cooldown_remaining = 0.0
 	if _cooldown_remaining > 0.0:
 		_cooldown_remaining -= delta
+	if _cooldown_denied_timer > 0.0:
+		_cooldown_denied_timer -= delta
 
 	# Clean up destroyed objects
 	var i := _active_objects.size() - 1
@@ -188,6 +191,12 @@ func get_cooldown_ratio() -> float:
 	return clampf(_cooldown_remaining / cooldown, 0.0, 1.0)
 
 
+func get_cooldown_denied_ratio() -> float:
+	if _cooldown_denied_timer <= 0.0:
+		return 0.0
+	return clampf(_cooldown_denied_timer / 0.3, 0.0, 1.0)
+
+
 func get_active_count() -> int:
 	return _active_objects.size()
 
@@ -205,6 +214,12 @@ func get_strategy_uses_remaining() -> int:
 func refill_charges() -> void:
 	_charges_remaining = max_charges
 	_cooldown_remaining = 0.0
+	_cooldown_denied_timer = 0.0
+
+
+func notify_cooldown_denied() -> void:
+	_cooldown_denied_timer = 0.3
+	AudioManager.play_effect(&"CooldownDenied")
 
 
 func _skills_cooldowns_enabled() -> bool:

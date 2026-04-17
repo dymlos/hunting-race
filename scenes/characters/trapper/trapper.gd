@@ -199,7 +199,10 @@ func _process(delta: float) -> void:
 			break
 		var action: StringName = ABILITY_BUTTONS[i]
 		if InputManager.is_action_just_pressed(player_index, action):
-			_abilities[i].activate()
+			if _abilities[i].can_activate() or _abilities[i].is_placing:
+				_abilities[i].activate()
+			else:
+				_abilities[i].notify_cooldown_denied()
 
 	# B to cancel multi-point placement
 	if InputManager.is_action_just_pressed(player_index, &"cancel"):
@@ -714,6 +717,16 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, arc_radius,
 				-PI / 2.0, -PI / 2.0 + TAU * (1.0 - ratio),
 				12, Color(a_color, 0.4), 2.0)
+		var denied_ratio := ability.get_cooldown_denied_ratio()
+		if denied_ratio > 0.0:
+			var flash_alpha := 0.25 + 0.55 * denied_ratio
+			var flash_radius := size + 7.0 + i * 4.0
+			draw_arc(Vector2.ZERO, flash_radius, 0.0, TAU, 20,
+				Color(1.0, 0.25, 0.18, flash_alpha), 2.0)
+			draw_string(ThemeDB.fallback_font,
+				Vector2(-4.0, -flash_radius - 8.0),
+				"!", HORIZONTAL_ALIGNMENT_CENTER, -1, 14,
+				Color(1.0, 0.25, 0.18, flash_alpha))
 
 	# Draw ability placement previews
 	for ability: TrapperAbility in _abilities:

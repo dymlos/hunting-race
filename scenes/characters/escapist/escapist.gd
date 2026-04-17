@@ -22,6 +22,7 @@ var _rabbit_charge_time: float = 0.0
 var _fly_counter_timer: float = 0.0
 var _fly_boost_timer: float = 0.0
 var _effect_immunity_timer: float = 0.0
+var _ability_denied_flash_timer: float = 0.0
 var _floating_text: String = ""
 var _floating_text_timer: float = 0.0
 var _floating_text_color: Color = Color.WHITE
@@ -104,6 +105,8 @@ func _physics_process(delta: float) -> void:
 			movement.remove_speed_modifier(&"fly_boost")
 	if _effect_immunity_timer > 0.0:
 		_effect_immunity_timer -= delta
+	if _ability_denied_flash_timer > 0.0:
+		_ability_denied_flash_timer -= delta
 	_update_floating_text(delta)
 	_process_patrol_bot()
 	super._physics_process(delta)
@@ -193,6 +196,8 @@ func _handle_ability_input(_delta: float) -> void:
 		return
 
 	if _skills_cooldowns_enabled() and not _ability_available:
+		if InputManager.is_action_just_pressed(player_index, &"dash"):
+			_notify_ability_denied()
 		return
 
 	match escapist_animal:
@@ -296,6 +301,7 @@ func _reset_ability() -> void:
 	_fly_counter_timer = 0.0
 	_fly_boost_timer = 0.0
 	_effect_immunity_timer = 0.0
+	_ability_denied_flash_timer = 0.0
 	if is_instance_valid(_active_rat_tail):
 		_active_rat_tail.queue_free()
 	_active_rat_tail = null
@@ -325,6 +331,15 @@ func _get_animal_mark_alpha() -> float:
 		speed = movement.move_speed * 1.4
 	var move_ratio := clampf(speed / maxf(movement.move_speed, 1.0), 0.0, 1.0)
 	return lerpf(0.95, 0.48, move_ratio)
+
+
+func _notify_ability_denied() -> void:
+	_ability_denied_flash_timer = 0.22
+	_floating_text = "COOLDOWN"
+	_floating_text_timer = 0.45
+	_floating_text_color = Color(1.0, 0.28, 0.22)
+	AudioManager.play_effect(&"CooldownDenied")
+	queue_redraw()
 
 
 func _make_animal_mark_color(base_color: Color, alpha_scale: float = 1.0) -> Color:
@@ -541,6 +556,13 @@ func _draw() -> void:
 			18, Color(0.3, 0.9, 0.85), 2.0)
 	if _effect_immunity_timer > 0.0:
 		draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS + 4.0, Color(0.3, 0.9, 0.85, 0.18))
+	if _ability_denied_flash_timer > 0.0:
+		var flash_ratio := clampf(_ability_denied_flash_timer / 0.22, 0.0, 1.0)
+		var flash_alpha := 0.18 + 0.42 * flash_ratio
+		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 11.0,
+			0.0, TAU, 20, Color(1.0, 0.25, 0.2, flash_alpha), 2.0)
+		draw_string(ThemeDB.fallback_font, Vector2(-4.0, -Constants.CHARACTER_RADIUS - 24.0),
+			"!", HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(1.0, 0.25, 0.2, flash_alpha))
 
 	# Poison timer indicator
 	if poison and poison.is_poisoned:

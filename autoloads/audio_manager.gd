@@ -55,6 +55,12 @@ func play_skill(skill_name: StringName) -> void:
 
 
 func play_effect(effect_name: StringName) -> void:
+	if effect_name == &"CooldownDenied":
+		_voices.append(_make_denied_voice())
+		if not _player.playing:
+			_player.play()
+			_playback = _player.get_stream_playback() as AudioStreamGeneratorPlayback
+		return
 	_play_sample(effect_name)
 
 
@@ -108,6 +114,7 @@ func _fill_buffer() -> void:
 
 func _make_voice(_skill_name: StringName) -> Dictionary:
 	return {
+		"kind": &"heartbeat",
 		"t": 0.0,
 		"duration": 2.35,
 		"phase": 0.0,
@@ -115,6 +122,19 @@ func _make_voice(_skill_name: StringName) -> Dictionary:
 		"freq": 58.0,
 		"freq2": 92.0,
 		"volume": 0.42,
+	}
+
+
+func _make_denied_voice() -> Dictionary:
+	return {
+		"kind": &"denied",
+		"t": 0.0,
+		"duration": 0.12,
+		"phase": 0.0,
+		"phase2": 0.0,
+		"freq": 780.0,
+		"freq2": 1170.0,
+		"volume": 0.18,
 	}
 
 
@@ -147,6 +167,9 @@ func _current_freq(voice: Dictionary, _ratio: float) -> float:
 
 
 func _voice_sample(voice: Dictionary, ratio: float) -> float:
+	var kind: StringName = voice.get("kind", &"heartbeat") as StringName
+	if kind == &"denied":
+		return _denied_sample(voice, ratio)
 	var phase: float = voice["phase"]
 	var phase2: float = voice["phase2"]
 	return _heartbeat_sample(phase, phase2, ratio)
@@ -160,6 +183,15 @@ func _heartbeat_sample(phase: float, phase2: float, ratio: float) -> float:
 	var tail := _heart_thump(beat_time, 0.42, 0.20) * 0.18
 	var body := sin(phase * TAU_F) * 0.78 + sin(phase2 * TAU_F) * 0.22
 	return body * (first + second + tail) * fade
+
+
+func _denied_sample(voice: Dictionary, ratio: float) -> float:
+	var phase: float = voice["phase"]
+	var phase2: float = voice["phase2"]
+	var fade := pow(1.0 - ratio, 2.0)
+	var click := sin(phase * TAU_F) * 0.82 + sin(phase2 * TAU_F) * 0.18
+	var pulse := pow(maxf(0.0, 1.0 - ratio * 5.5), 2.2)
+	return click * pulse * fade
 
 
 func _heart_thump(ratio: float, center: float, width: float) -> float:
