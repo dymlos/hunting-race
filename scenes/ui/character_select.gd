@@ -401,9 +401,9 @@ func _draw() -> void:
 		status_y += 20
 
 	# Hints
-	var hint := "A confirm | B cancel"
+	var hint := "Left stick move | A confirm | B cancel"
 	if _allow_back:
-		hint = "A confirm | B back"
+		hint = "Left stick move | A confirm | B back"
 	if _selection_complete():
 		hint = "START to begin | B back" if _allow_back else "START to begin | B to change"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x

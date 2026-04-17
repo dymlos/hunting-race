@@ -95,6 +95,8 @@ func _draw() -> void:
 		draw_string(font, Vector2(screen.x - 120, 26), phase,
 			HORIZONTAL_ALIGNMENT_RIGHT, -1, 14, Color.YELLOW)
 
+	_draw_control_legend(font, screen)
+
 
 func _draw_practice_hud(font: Font, screen: Vector2, bar_h: float) -> void:
 	var title := "PRACTICE MODE"
@@ -107,3 +109,33 @@ func _draw_practice_hud(font: Font, screen: Vector2, bar_h: float) -> void:
 
 	draw_string(font, Vector2(screen.x - 130.0, 28.0),
 		"PRACTICE", HORIZONTAL_ALIGNMENT_RIGHT, -1, 14, Color.YELLOW)
+
+	_draw_practice_controls(font, screen)
+
+
+func _draw_control_legend(font: Font, screen: Vector2) -> void:
+	var panel_w := 360.0
+	var panel_h := 54.0
+	var panel_pos := Vector2(14.0, screen.y - panel_h - 14.0)
+	var panel_rect := Rect2(panel_pos, Vector2(panel_w, panel_h))
+	draw_rect(panel_rect, Color(0.02, 0.02, 0.02, 0.68))
+	draw_rect(panel_rect, Color(0.72, 0.72, 0.72, 0.35), false, 2.0)
+
+	var esc_label := "Escapists: A skill | START pause"
+	var trap_label := "Trappers: A/X/Y skills | START pause"
+	draw_string(font, Vector2(panel_pos.x + 14.0, panel_pos.y + 20.0),
+		esc_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Enums.role_color(Enums.Role.ESCAPIST))
+	draw_string(font, Vector2(panel_pos.x + 14.0, panel_pos.y + 39.0),
+		trap_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Enums.role_color(Enums.Role.TRAPPER))
+
+
+func _draw_practice_controls(font: Font, screen: Vector2) -> void:
+	var panel_w := 320.0
+	var panel_h := 34.0
+	var panel_pos := Vector2(14.0, screen.y - panel_h - 14.0)
+	var panel_rect := Rect2(panel_pos, Vector2(panel_w, panel_h))
+	draw_rect(panel_rect, Color(0.02, 0.02, 0.02, 0.68))
+	draw_rect(panel_rect, Color(0.72, 0.72, 0.72, 0.35), false, 2.0)
+	draw_string(font, Vector2(panel_pos.x + 14.0, panel_pos.y + 22.0),
+		"START pause | Practice skills on the selection screens",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.7, 0.7, 0.7))

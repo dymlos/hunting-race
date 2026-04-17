@@ -329,9 +329,9 @@ func _draw() -> void:
 			Color.YELLOW if confirmed else Color(0.6, 0.6, 0.6))
 		status_y += 20.0
 
-	var hint := "A confirm | B cancel"
+	var hint := "Left stick move | A confirm | B cancel"
 	if _allow_back:
-		hint = "A confirm | B back"
+		hint = "Left stick move | A confirm | B back"
 	if _selection_complete():
 		hint = "A continue | B back" if _allow_back else "A continue | B to change"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
