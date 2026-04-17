@@ -24,7 +24,9 @@ const NAV_COOLDOWN: float = 0.2
 const CARD_GAP: float = 18.0
 const CARD_MARGIN: float = 12.0
 const ABILITY_LINE_HEIGHT: float = 11.0
-const ABILITY_BLOCK_HEIGHT: float = 46.0
+const ABILITY_BLOCK_HEIGHT: float = 38.0
+const CARD_TOP_PAD: float = 16.0
+const ABILITY_START_Y: float = 178.0
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
@@ -254,31 +256,28 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 
 	# Background
-	draw_rect(Rect2(Vector2.ZERO, screen), Color.BLACK)
+	draw_rect(Rect2(Vector2.ZERO, screen), Color(0.015, 0.015, 0.018, 1.0))
+	draw_rect(Rect2(Vector2.ZERO, Vector2(screen.x, 430.0)), Color(0.06, 0.035, 0.045, 0.18))
 
 	# Title
 	var title := "CHOOSE YOUR TRAPPER"
-	var title_width := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x
-	draw_string(font, Vector2(cx - title_width / 2.0, 50),
-		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
+	_draw_centered_text_in_rect(font, title, Rect2(cx - 260.0, 34.0, 520.0, 38.0), 30, Color.WHITE)
 
 	# Trapping team label
 	var team_name := Enums.team_name(_trapping_team)
 	var team_col := Enums.team_color(_trapping_team)
 	var sub := "%s picks trappers" % team_name
-	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-	draw_string(font, Vector2(cx - sub_width / 2.0, 75),
-		sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, team_col)
+	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
 
 	# Character cards — 4 cards in a row
 	var card_count := _characters.size()
 	var card_gap := CARD_GAP
 	var available_w := maxf(760.0, screen.x - 260.0)
 	var card_w := clampf((available_w - (card_count - 1) * card_gap) / card_count, 180.0, 230.0)
-	var card_h := 240.0
+	var card_h := 340.0
 	var total_w := card_count * card_w + (card_count - 1) * card_gap
 	var cards_x := cx - total_w / 2.0
-	var cards_y := 100.0
+	var cards_y := 118.0
 
 	for i in card_count:
 		var card_x := cards_x + i * (card_w + card_gap)
@@ -287,6 +286,7 @@ func _draw() -> void:
 		var char_color: Color = char_data["color"] as Color
 		var char_name: String = char_data["name"] as String
 		var char_sub: String = char_data["subtitle"] as String
+		var char_id: Enums.TrapperCharacter = char_data["id"] as Enums.TrapperCharacter
 		var abilities: Array = char_data["abilities"] as Array
 
 		# Check if anyone is hovering or confirmed on this card
@@ -302,33 +302,41 @@ func _draw() -> void:
 					hovering_pis.append(pi)
 
 		# Card background
-		var bg_color := Color(0.15, 0.15, 0.15)
+		var bg_color := Color(0.11, 0.11, 0.12)
 		if confirmed_pi >= 0:
-			bg_color = Color(char_color, 0.2)
-		draw_rect(card_rect, bg_color)
+			bg_color = Color(char_color, 0.18)
 
 		# Card border
 		var border_color := Color(0.3, 0.3, 0.3)
 		if confirmed_pi >= 0:
 			border_color = char_color
 		elif not hovering_pis.is_empty():
-			border_color = Color(0.7, 0.7, 0.7)
-		draw_rect(card_rect, border_color, false, 2.0)
+			border_color = Color(char_color, 0.82)
+		_draw_panel(card_rect, bg_color, border_color, 2.0)
+		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 5.0)), Color(char_color, 0.95))
+
+		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 54.0, card_w - CARD_MARGIN * 2.0, 100.0)
+		draw_rect(art_rect, Color(char_color, 0.10))
+		draw_rect(art_rect, Color(char_color, 0.25), false, 1.0)
+		var silhouette_scale := 3.0
+		var silhouette_offset := Vector2(0.0, -2.0)
+		if char_id == Enums.TrapperCharacter.ESCORPION:
+			silhouette_scale = 2.15
+			silhouette_offset = Vector2(0.0, 6.0)
+		_draw_trapper_silhouette(char_id, art_rect.position + art_rect.size * 0.5 + silhouette_offset,
+			silhouette_scale, Color(char_color, 1.0))
 
 		# Character name
-		var name_width := font.get_string_size(char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
-		draw_string(font, Vector2(card_x + card_w / 2.0 - name_width / 2.0, cards_y + 30),
-			char_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, char_color)
+		_draw_centered_text_in_rect(font, char_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 24.0), 20, char_color)
 
 		# Subtitle
-		var sub_y := cards_y + 48
+		var sub_y := cards_y + 39.0
 		var sub_max_w := card_w - CARD_MARGIN * 2.0
 		var subtitle_width := font.get_string_size(char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
 		if subtitle_width <= sub_max_w:
-			draw_string(font, Vector2(card_x + card_w / 2.0 - subtitle_width / 2.0, sub_y),
-				char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.6, 0.6, 0.6))
+			_draw_centered_text_in_rect(font, char_sub, Rect2(card_x, sub_y, card_w, 16.0), 11, Color(0.64, 0.64, 0.66))
 		else:
-			_draw_wrapped_text(font, char_sub, Vector2(card_x + CARD_MARGIN, sub_y),
+			_draw_wrapped_text(font, char_sub, Vector2(card_x + CARD_MARGIN, sub_y + 10.0),
 				sub_max_w, 11, Color(0.6, 0.6, 0.6), 12.0, 2)
 
 		# Abilities list
@@ -339,7 +347,7 @@ func _draw() -> void:
 			var a_text := "[%s] %s" % [a_btn, a_name]
 			var text_x := card_x + CARD_MARGIN
 			var text_w := card_w - CARD_MARGIN * 2.0
-			var block_y := cards_y + 82 + a_i * ABILITY_BLOCK_HEIGHT
+			var block_y := cards_y + ABILITY_START_Y + a_i * ABILITY_BLOCK_HEIGHT
 			draw_string(font, Vector2(text_x, block_y),
 				a_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.82, 0.82, 0.82))
 			var a_desc: String = ability["desc"] as String
@@ -379,10 +387,10 @@ func _draw() -> void:
 			var label := "P%d" % (pi + 1) if pi < 100 else "BOT"
 			esc_labels.append(label)
 		var esc_text := "Escapists: %s" % ", ".join(esc_labels)
-		var ew := font.get_string_size(esc_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		var esc_team: Enums.Team = Enums.Team.TEAM_1 if _trapping_team == Enums.Team.TEAM_2 else Enums.Team.TEAM_2
-		draw_string(font, Vector2(cx - ew / 2.0, esc_y),
-			esc_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Enums.team_color(esc_team))
+		var wait_rect := Rect2(cx - 230.0, esc_y - 18.0, 460.0, 30.0)
+		_draw_panel(wait_rect, Color(0.04, 0.04, 0.045, 0.9), Color(Enums.team_color(esc_team), 0.45), 1.5)
+		_draw_centered_text_in_rect(font, esc_text, wait_rect, 14, Enums.team_color(esc_team))
 
 	# Status line
 	var status_y := screen.y - 70
@@ -409,3 +417,138 @@ func _draw() -> void:
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)
+
+
+func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
+	draw_rect(rect, fill)
+	draw_rect(rect, outline, false, outline_width)
+
+
+func _draw_centered_text_in_rect(font: Font, text: String, rect: Rect2, font_size: int, color: Color) -> void:
+	var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var line_height := font.get_height(font_size)
+	var baseline_y := rect.position.y + (rect.size.y - line_height) * 0.5 + font.get_ascent(font_size)
+	var pos := Vector2(
+		rect.position.x + (rect.size.x - text_size.x) * 0.5,
+		baseline_y
+	)
+	var shadow := Color(0.0, 0.0, 0.0, 0.72 * color.a)
+	draw_string(font, pos + Vector2(2.0, 2.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, shadow)
+	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+
+
+func _scaled_points(center: Vector2, scale: float, points: Array) -> PackedVector2Array:
+	var result := PackedVector2Array()
+	for point in points:
+		result.append(center + (point as Vector2) * scale)
+	return result
+
+
+func _draw_filled_ellipse(center: Vector2, radii: Vector2, fill_color: Color, point_count: int = 24) -> void:
+	var points := PackedVector2Array()
+	for i in range(point_count):
+		var angle := TAU * float(i) / float(point_count)
+		points.append(center + Vector2(cos(angle) * radii.x, sin(angle) * radii.y))
+	draw_colored_polygon(points, fill_color)
+
+
+func _draw_trapper_silhouette(character: Enums.TrapperCharacter, center: Vector2, scale: float, color: Color) -> void:
+	match character:
+		Enums.TrapperCharacter.ARANA:
+			_draw_spider_silhouette(center, scale, color)
+		Enums.TrapperCharacter.HONGO:
+			_draw_mushroom_silhouette(center, scale, color)
+		Enums.TrapperCharacter.ESCORPION:
+			_draw_scorpion_silhouette(center, scale, color)
+		Enums.TrapperCharacter.PULPO:
+			_draw_octopus_silhouette(center, scale, color)
+
+
+func _draw_spider_silhouette(center: Vector2, scale: float, color: Color) -> void:
+	_draw_filled_ellipse(center + Vector2(0.0, 2.0) * scale, Vector2(7.2, 8.6) * scale, color)
+	_draw_filled_ellipse(center + Vector2(0.0, -7.0) * scale, Vector2(4.6, 4.2) * scale, color)
+	for side in [-1.0, 1.0]:
+		draw_polyline(_scaled_points(center, scale, [
+			Vector2(side * 3.0, -2.0),
+			Vector2(side * 9.5, 4.0),
+			Vector2(side * 15.0, 1.0),
+		]), color, 2.2 * scale)
+		draw_polyline(_scaled_points(center, scale, [
+			Vector2(side * 2.0, 2.5),
+			Vector2(side * 8.0, 10.0),
+			Vector2(side * 13.0, 9.0),
+		]), color, 2.2 * scale)
+		draw_polyline(_scaled_points(center, scale, [
+			Vector2(side * 4.0, -5.0),
+			Vector2(side * 10.0, -10.0),
+			Vector2(side * 14.0, -6.0),
+		]), color, 2.2 * scale)
+
+
+func _draw_mushroom_silhouette(center: Vector2, scale: float, color: Color) -> void:
+	draw_colored_polygon(_scaled_points(center, scale, [
+		Vector2(-15.0, -3.0),
+		Vector2(-12.0, -10.0),
+		Vector2(-5.0, -14.0),
+		Vector2(5.0, -14.0),
+		Vector2(12.0, -10.0),
+		Vector2(15.0, -3.0),
+		Vector2(8.0, 1.5),
+		Vector2(-8.0, 1.5),
+	]), color)
+	_draw_filled_ellipse(center + Vector2(0.0, 8.0) * scale, Vector2(6.0, 8.0) * scale, color)
+	draw_circle(center + Vector2(-5.5, -7.0) * scale, 1.7 * scale, Color(1.0, 1.0, 1.0, 0.36))
+	draw_circle(center + Vector2(4.5, -9.0) * scale, 1.5 * scale, Color(1.0, 1.0, 1.0, 0.36))
+
+
+func _draw_scorpion_silhouette(center: Vector2, scale: float, color: Color) -> void:
+	_draw_filled_ellipse(center + Vector2(0.0, 2.0) * scale, Vector2(9.0, 6.0) * scale, color)
+	_draw_filled_ellipse(center + Vector2(-8.0, 2.0) * scale, Vector2(6.0, 4.8) * scale, color)
+	_draw_filled_ellipse(center + Vector2(8.0, 2.0) * scale, Vector2(6.0, 4.8) * scale, color)
+
+	for side in [-1.0, 1.0]:
+		draw_polyline(_scaled_points(center, scale, [
+			Vector2(side * 5.0, 2.0),
+			Vector2(side * 15.0, 8.0),
+			Vector2(side * 20.0, 4.0),
+		]), color, 2.4 * scale)
+		draw_polyline(_scaled_points(center, scale, [
+			Vector2(side * 4.0, 6.0),
+			Vector2(side * 13.0, 14.0),
+			Vector2(side * 19.0, 12.0),
+		]), color, 2.0 * scale)
+		draw_polyline(_scaled_points(center, scale, [
+			Vector2(side * 11.0, -1.0),
+			Vector2(side * 22.0, -8.0),
+		]), color, 2.8 * scale)
+		draw_colored_polygon(_scaled_points(center, scale, [
+			Vector2(side * 22.0, -8.0),
+			Vector2(side * 28.0, -13.0),
+			Vector2(side * 27.0, -5.0),
+			Vector2(side * 20.0, -3.0),
+		]), color)
+
+	draw_polyline(_scaled_points(center, scale, [
+		Vector2(8.0, -3.0),
+		Vector2(12.0, -12.0),
+		Vector2(4.0, -19.0),
+		Vector2(-5.0, -17.0),
+	]), color, 3.2 * scale)
+	draw_colored_polygon(_scaled_points(center, scale, [
+		Vector2(-5.0, -17.0),
+		Vector2(-11.0, -23.0),
+		Vector2(-2.0, -24.0),
+	]), color)
+
+
+func _draw_octopus_silhouette(center: Vector2, scale: float, color: Color) -> void:
+	_draw_filled_ellipse(center + Vector2(0.0, -3.0) * scale, Vector2(10.0, 9.0) * scale, color)
+	for x in [-9.0, -4.0, 4.0, 9.0]:
+		var side := -1.0 if x < 0.0 else 1.0
+		draw_polyline(_scaled_points(center, scale, [
+			Vector2(x * 0.45, 4.0),
+			Vector2(x, 12.0),
+			Vector2(x + side * 3.0, 16.0),
+		]), color, 2.0 * scale)
+	draw_circle(center + Vector2(-3.5, -5.0) * scale, 1.1 * scale, Color(0.01, 0.01, 0.01, color.a))
+	draw_circle(center + Vector2(3.5, -5.0) * scale, 1.1 * scale, Color(0.01, 0.01, 0.01, color.a))
