@@ -483,6 +483,7 @@ func _on_escape_overlay_finished() -> void:
 
 
 func _on_round_ended(escapist_team: Enums.Team, points_scored: int) -> void:
+	phase_overlay.set_round_total_points(points_scored)
 	phase_overlay.show_round_end(escapist_team, GameManager.match_scores, GameManager.get_round_score_entries())
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
