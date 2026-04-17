@@ -116,6 +116,25 @@ func _get_team_counts() -> Dictionary:
 	return counts
 
 
+func _get_bot_counts_for_display() -> Dictionary:
+	var counts := _get_team_counts()
+	var t1 := counts.get(Enums.Team.TEAM_1, 0) as int
+	var t2 := counts.get(Enums.Team.TEAM_2, 0) as int
+	var bot_counts := {
+		Enums.Team.TEAM_1: 0,
+		Enums.Team.TEAM_2: 0,
+	}
+	if auto_fill_bots:
+		var target_count := maxi(t1, t2)
+		bot_counts[Enums.Team.TEAM_1] = maxi(0, target_count - t1)
+		bot_counts[Enums.Team.TEAM_2] = maxi(0, target_count - t2)
+	return bot_counts
+
+
+func _get_human_player_count() -> int:
+	return _get_joined_devices().size()
+
+
 func _team_can_accept(team: Enums.Team) -> bool:
 	var counts := _get_team_counts()
 	var limit := _get_team_size_limit()
@@ -159,7 +178,6 @@ func _advance() -> void:
 		pi += 1
 
 	if auto_fill_bots:
-		var team_size: int = GameManager.settings_overrides.get(&"team_size", 4) as int
 		var t1 := 0
 		var t2 := 0
 		for p: int in t_assignments:
@@ -168,12 +186,13 @@ func _advance() -> void:
 			else:
 				t2 += 1
 
+		var target_count := maxi(t1, t2)
 		var bot_id := 100
-		while t1 < team_size:
+		while t1 < target_count:
 			t_assignments[bot_id] = Enums.Team.TEAM_1
 			bot_id += 1
 			t1 += 1
-		while t2 < team_size:
+		while t2 < target_count:
 			t_assignments[bot_id] = Enums.Team.TEAM_2
 			bot_id += 1
 			t2 += 1
@@ -191,6 +210,29 @@ func _draw() -> void:
 	draw_string(font, Vector2(cx - 80, 80), "TEAM SETUP",
 		HORIZONTAL_ALIGNMENT_CENTER, -1, 32, Color.WHITE)
 
+	var team_limit := _get_team_size_limit()
+	if team_limit < 1:
+		team_limit = 1
+	var counts := _get_team_counts()
+	var bot_counts := _get_bot_counts_for_display()
+	var human_count := _get_human_player_count()
+	var total_capacity := team_limit * 2
+	var total_bots := (bot_counts.get(Enums.Team.TEAM_1, 0) as int) \
+		+ (bot_counts.get(Enums.Team.TEAM_2, 0) as int)
+	var format_text := "%dv%d" % [
+		(counts.get(Enums.Team.TEAM_1, 0) as int) + (bot_counts.get(Enums.Team.TEAM_1, 0) as int),
+		(counts.get(Enums.Team.TEAM_2, 0) as int) + (bot_counts.get(Enums.Team.TEAM_2, 0) as int),
+	]
+	var bot_state := "Off"
+	if auto_fill_bots:
+		bot_state = "On (+%d)" % total_bots
+	var summary_color := Color(0.82, 0.82, 0.82)
+	draw_string(font, Vector2(cx, 112), "Players: %d/%d | Team Size: %d | Bots: %s" % [
+		human_count, total_capacity, team_limit, bot_state
+	], HORIZONTAL_ALIGNMENT_CENTER, -1, 16, summary_color)
+	draw_string(font, Vector2(cx, 132), "Current Match: %s" % format_text,
+		HORIZONTAL_ALIGNMENT_CENTER, -1, 16, Color(0.7, 0.9, 0.7))
+
 	draw_line(Vector2(cx, 120), Vector2(cx, screen.y - 60), Color(0.4, 0.4, 0.4), 2.0)
 
 	var t1c := Enums.team_color(Enums.Team.TEAM_1)
@@ -207,10 +249,6 @@ func _draw() -> void:
 				t2_devices.append(device_id)
 	t1_devices.sort()
 	t2_devices.sort()
-	var team_limit := _get_team_size_limit()
-	if team_limit < 1:
-		team_limit = 1
-
 	var slot_height := 40.0
 	var t1_count := t1_devices.size()
 	var t2_count := t2_devices.size()
@@ -241,7 +279,10 @@ func _draw() -> void:
 
 	# Hints
 	if _has_valid_teams():
-		draw_string(font, Vector2(cx - 90, screen.y - 40), "Press A to continue",
+		var continue_text := "Press A to continue"
+		if auto_fill_bots:
+			continue_text = "Press A to continue with bots"
+		draw_string(font, Vector2(cx - 90, screen.y - 40), continue_text,
 			HORIZONTAL_ALIGNMENT_CENTER, -1, 18, Color.YELLOW)
 	else:
 		draw_string(font, Vector2(cx - 100, screen.y - 40), "Need at least 1 player",
