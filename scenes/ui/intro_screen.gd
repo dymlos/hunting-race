@@ -10,6 +10,7 @@ const FADE_DURATION: float = 0.2
 const PARAGRAPH_PAUSE: float = 0.55
 const LINE_PAUSE: float = 0.18
 const TYPE_SPEED_MULTIPLIER: float = 1.7
+const DOUBLE_B_SKIP_WINDOW: float = 0.45
 const PARAGRAPHS := [
 	[
 		"Maestros del engaño,",
@@ -32,11 +33,13 @@ const PARAGRAPHS := [
 var input_blocked: bool = false
 var _elapsed: float = 0.0
 var _finished: bool = false
+var _last_b_press_times: Dictionary = {}
 
 
 func open() -> void:
 	_elapsed = 0.0
 	_finished = false
+	_last_b_press_times.clear()
 	show()
 	progress_changed.emit(0.0)
 	queue_redraw()
@@ -46,6 +49,9 @@ func _process(delta: float) -> void:
 	if not visible or _finished:
 		return
 	_elapsed += delta
+	_handle_skip_input()
+	if _finished:
+		return
 	progress_changed.emit(clampf(_elapsed / TOTAL_DURATION, 0.0, 1.0))
 	if _elapsed >= TOTAL_DURATION:
 		_finished = true
@@ -53,6 +59,27 @@ func _process(delta: float) -> void:
 		intro_finished.emit()
 		return
 	queue_redraw()
+
+
+func _handle_skip_input() -> void:
+	for device_id: int in Input.get_connected_joypads():
+		if not InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			continue
+		var last_press := float(_last_b_press_times.get(device_id, -1000.0))
+		if _elapsed - last_press <= DOUBLE_B_SKIP_WINDOW:
+			_skip_intro()
+			return
+		_last_b_press_times[device_id] = _elapsed
+
+
+func _skip_intro() -> void:
+	if _finished:
+		return
+	_elapsed = TOTAL_DURATION
+	_finished = true
+	progress_changed.emit(1.0)
+	queue_redraw()
+	intro_finished.emit()
 
 
 func _draw() -> void:
