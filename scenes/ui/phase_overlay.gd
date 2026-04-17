@@ -40,6 +40,7 @@ func show_round_intro(round_number: int, leg_label: String, escapist_team: Enums
 	]
 	_detail_lines.clear()
 	_detail_lines.append(leg_label)
+	_detail_lines.append("Escapists score by reaching the goal; roles swap after this round.")
 	_score_entries.clear()
 	_show_match_totals = false
 	_text_color = Color(1.0, 0.95, 0.25)

@@ -228,6 +228,8 @@ func _draw() -> void:
 	var team_col := Enums.team_color(_escapist_team)
 	var sub := "%s picks escapists" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
+	_draw_centered_text_in_rect(font, "Escapists use A. Official matches add cooldowns; practice keeps skills free.",
+		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	var card_count := _animals.size()
 	var available_w := maxf(760.0, screen.x - 260.0)

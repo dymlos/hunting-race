@@ -6,6 +6,7 @@ const TeamSetupScene := preload("res://scenes/ui/team_setup.tscn")
 const IntroScreenScene := preload("res://scenes/ui/intro_screen.gd")
 const CoverScreenScene := preload("res://scenes/ui/cover_screen.tscn")
 const ModeSelectScene := preload("res://scenes/ui/mode_select.gd")
+const HowToPlayScene := preload("res://scenes/ui/how_to_play.gd")
 const PracticeSetupScene := preload("res://scenes/ui/practice_setup.gd")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const EscapistSelectScene := preload("res://scenes/ui/escapist_select.tscn")
@@ -53,6 +54,7 @@ var _view_stack: Array[Control] = []
 var intro_screen: IntroScreen
 var cover_screen: CoverScreen
 var mode_select: ModeSelect
+var how_to_play: HowToPlay
 var practice_setup: PracticeSetup
 var team_setup: TeamSetup
 var stage_select: StageSelect
@@ -90,7 +92,13 @@ func _ready() -> void:
 	mode_select.hide()
 	mode_select.official_requested.connect(_start_team_setup)
 	mode_select.practice_requested.connect(_start_practice_setup)
+	mode_select.rules_requested.connect(_open_how_to_play)
 	mode_select.back_requested.connect(_start_cover_screen)
+
+	how_to_play = HowToPlayScene.new() as HowToPlay
+	ui_layer.add_child(how_to_play)
+	how_to_play.hide()
+	how_to_play.back_requested.connect(_close_how_to_play)
 
 	practice_setup = PracticeSetupScene.new() as PracticeSetup
 	ui_layer.add_child(practice_setup)
@@ -134,6 +142,7 @@ func _ready() -> void:
 	pause_menu.hide()
 	pause_menu.resume_requested.connect(_resume_from_pause)
 	pause_menu.settings_requested.connect(_open_settings)
+	pause_menu.how_to_play_requested.connect(_open_how_to_play_from_pause)
 	pause_menu.reset_requested.connect(_reset_to_team_setup)
 	pause_menu.round_reset_requested.connect(_restart_current_round)
 	pause_menu.practice_requested.connect(_start_practice_setup)
@@ -235,6 +244,28 @@ func _start_mode_select() -> void:
 
 	mode_select.open()
 	push_view(mode_select)
+
+
+func _open_how_to_play() -> void:
+	ui_layer.move_child(how_to_play, ui_layer.get_child_count() - 1)
+	how_to_play.open()
+	push_view(how_to_play)
+
+
+func _open_how_to_play_from_pause() -> void:
+	how_to_play.open()
+	push_view(how_to_play)
+
+
+func _close_how_to_play() -> void:
+	pop_view()
+	if pause_menu and (get_tree().paused or GameManager.current_state == Enums.GameState.PAUSED):
+		pause_menu.show()
+		pause_menu.input_blocked = false
+		pause_menu.queue_redraw()
+		return
+	if _view_stack.is_empty():
+		_start_mode_select()
 
 
 func _start_practice_setup() -> void:

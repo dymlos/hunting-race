@@ -284,6 +284,8 @@ func _draw() -> void:
 	draw_rect(Rect2(match_rect.position, Vector2(match_rect.size.x, 4.0)), Color(0.35, 0.58, 0.35, 1.0))
 	_draw_centered_text_in_rect(font, "CURRENT MATCH", Rect2(match_rect.position.x, match_rect.position.y + 9.0, match_rect.size.x, 16.0), MATCH_LABEL_FONT_SIZE, Color(0.72, 0.8, 0.72))
 	_draw_centered_text_in_rect(font, format_text, Rect2(match_rect.position.x, match_rect.position.y + 25.0, match_rect.size.x, 22.0), MATCH_VALUE_FONT_SIZE, Color(0.68, 0.92, 0.68))
+	_draw_centered_text_in_rect(font, "Each round swaps roles: one team escapes, the other traps.",
+		Rect2(cx - 420.0, 231.0, 840.0, 18.0), 13, Color(0.58, 0.62, 0.66))
 
 	var top_y := 252.0
 	var side_margin := 48.0

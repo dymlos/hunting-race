@@ -96,6 +96,8 @@ func _draw() -> void:
 	var total_stage_slots := _stages.size() + LOCKED_STAGE_NAMES.size()
 	var counter := "%d AVAILABLE / %d TOTAL" % [_stages.size(), total_stage_slots]
 	_draw_centered_text_in_rect(font, counter, Rect2(cx - 180.0, 486.0, 360.0, 18.0), 14, Color(0.48, 0.48, 0.48))
+	_draw_centered_text_in_rect(font, "Score rewards escapes, speed, clean runs and fewer respawns.",
+		Rect2(cx - 420.0, 510.0, 840.0, 20.0), 14, Color(0.62, 0.62, 0.64))
 
 	_draw_locked_stage_slots(font, screen)
 

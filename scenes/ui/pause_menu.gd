@@ -7,6 +7,7 @@ signal practice_requested
 signal practice_character_select_requested
 signal practice_obstacles_toggled(enabled: bool)
 signal practice_bots_toggled(enabled: bool)
+signal how_to_play_requested
 signal reset_requested
 signal round_reset_requested
 
@@ -17,8 +18,8 @@ var _nav_cooldown: float = 0.0
 var _showing_ability_guide: bool = false
 
 const NAV_COOLDOWN: float = 0.2
-const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Restart Round", "Practice Mode", "Return to Setup"]
-const PRACTICE_OPTIONS: Array[String] = ["Resume", "Settings", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
+const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Restart Round", "Practice Mode", "Return to Setup"]
+const PRACTICE_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
 
 
 func _ready() -> void:
@@ -175,6 +176,8 @@ func _activate_option(option: String) -> void:
 			resume_requested.emit()
 		"Settings":
 			settings_requested.emit()
+		"How to Play":
+			how_to_play_requested.emit()
 		"Ability Guide":
 			_showing_ability_guide = true
 			queue_redraw()

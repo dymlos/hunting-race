@@ -268,6 +268,8 @@ func _draw() -> void:
 	var team_col := Enums.team_color(_trapping_team)
 	var sub := "%s picks trappers" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
+	_draw_centered_text_in_rect(font, "Trappers use A, X and Y. Skills may have cooldowns, limits or lifetimes.",
+		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	# Character cards — 4 cards in a row
 	var card_count := _characters.size()
