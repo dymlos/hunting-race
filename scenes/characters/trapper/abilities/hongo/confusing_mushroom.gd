@@ -67,7 +67,7 @@ class ConfuseShroom extends Area2D:
 				return
 			if esc.is_dead or esc.has_scored:
 				return
-			GameManager.register_trap_contact(esc.player_index)
+			GameManager.register_trap_contact(esc.player_index, int(get_meta("owner_player_index", -1)))
 			esc.notify_trap_status("CONFUSED", Color(1.0, 0.25, 1.0), 0.85)
 			esc.invert_controls(Constants.HONGO_CONFUSE_DURATION)
 			AudioManager.play_effect(&"ConfuseTrap")

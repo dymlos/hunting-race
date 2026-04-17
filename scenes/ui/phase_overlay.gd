@@ -17,6 +17,8 @@ var _show_match_totals: bool = false
 var _round_total_points: int = 0
 var _round_team_totals: Dictionary = {}
 var _round_leading_team: Enums.Team = Enums.Team.NONE
+var _has_escape_replay_option: bool = false
+var _has_trapper_replay_option: bool = false
 var input_blocked: bool = false
 
 
@@ -90,9 +92,10 @@ func show_escape() -> void:
 	queue_redraw()
 
 
-func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Array[Dictionary]) -> void:
+func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Array[Dictionary],
+		has_escape_replay_option: bool = false, has_trapper_replay_option: bool = false) -> void:
 	_text = "ROUND OVER"
-	_sub_text = "Round points: %s | %s %s | %s %s | A to continue" % [
+	_sub_text = "Round points: %s | %s %s | %s %s | A continue" % [
 		_format_score(_round_total_points),
 		Enums.team_name(Enums.Team.TEAM_1), _format_score(scores[0]),
 		Enums.team_name(Enums.Team.TEAM_2), _format_score(scores[1]),
@@ -102,6 +105,8 @@ func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Arr
 	_show_match_totals = false
 	_round_team_totals = _compute_round_team_totals(entries)
 	_round_leading_team = _get_round_leading_team(_round_team_totals)
+	_has_escape_replay_option = has_escape_replay_option
+	_has_trapper_replay_option = has_trapper_replay_option
 	_text_color = Color.WHITE
 	_show_timer = 0.0
 	_anchor_top = false
@@ -135,6 +140,8 @@ func clear() -> void:
 	_round_total_points = 0
 	_round_team_totals.clear()
 	_round_leading_team = Enums.Team.NONE
+	_has_escape_replay_option = false
+	_has_trapper_replay_option = false
 	_escape_anim_time = 0.0
 	visible = false
 
@@ -264,6 +271,8 @@ func _draw() -> void:
 					team_2_count += 1
 			var max_rows := maxi(team_1_count, team_2_count)
 			panel_h = 238.0 + float(max_rows) * 84.0
+			if _has_escape_replay_option or _has_trapper_replay_option:
+				panel_h += 58.0
 	var panel_rect := Rect2(
 		Vector2(cx - panel_w / 2.0, cy - panel_h / 2.0),
 		Vector2(panel_w, panel_h)
@@ -392,7 +401,12 @@ func _draw_score_entries(font: Font, panel_rect: Rect2) -> void:
 
 
 func _draw_round_score_entries(font: Font, panel_rect: Rect2) -> void:
-	var intro_y := panel_rect.position.y + 112.0
+	var action_extra := 0.0
+	if _has_escape_replay_option or _has_trapper_replay_option:
+		_draw_replay_action_cards(font, panel_rect)
+		action_extra = 58.0
+
+	var intro_y := panel_rect.position.y + 112.0 + action_extra
 	var intro := "Each card shows how the round score was built: base, time, trap bonus, and respawn penalty."
 	draw_string(font, Vector2(panel_rect.position.x + 24.0, intro_y),
 		intro, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.82, 0.82, 0.82))
@@ -414,7 +428,7 @@ func _draw_round_score_entries(font: Font, panel_rect: Rect2) -> void:
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 15, leading_team_color)
 
 	var left_x := panel_rect.position.x + 22.0
-	var top_y := panel_rect.position.y + 176.0
+	var top_y := panel_rect.position.y + 176.0 + action_extra
 	var gap := 20.0
 	var col_w := (panel_rect.size.x - 64.0 - gap) / 2.0
 	var row_h := 74.0
@@ -480,3 +494,36 @@ func _draw_round_score_entries(font: Font, panel_rect: Rect2) -> void:
 				],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.68, 0.68, 0.68))
 			y += 84.0
+
+
+func _draw_replay_action_cards(font: Font, panel_rect: Rect2) -> void:
+	var card_y := panel_rect.position.y + 102.0
+	var gap := 14.0
+	var cards: Array[Dictionary] = []
+	if _has_escape_replay_option:
+		cards.append({
+			"text": "Y  FASTEST ESCAPE REPLAY",
+			"color": Color(1.0, 0.88, 0.16),
+		})
+	if _has_trapper_replay_option:
+		cards.append({
+			"text": "X  TRAPPER IMPACT REPLAY",
+			"color": Color(1.0, 0.34, 0.18),
+		})
+	if cards.is_empty():
+		return
+
+	var total_w := panel_rect.size.x - 96.0
+	var card_w := (total_w - gap * float(cards.size() - 1)) / float(cards.size())
+	var start_x := panel_rect.position.x + 48.0
+	for i in cards.size():
+		var card: Dictionary = cards[i]
+		var card_color := card.get("color", Color.WHITE) as Color
+		var rect := Rect2(Vector2(start_x + float(i) * (card_w + gap), card_y), Vector2(card_w, 42.0))
+		draw_rect(rect, Color(card_color, 0.16))
+		draw_rect(rect, Color(card_color, 0.92), false, 2.0)
+		draw_rect(Rect2(rect.position, Vector2(rect.size.x, 4.0)), card_color)
+		var text := card.get("text", "") as String
+		var text_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+		draw_string(font, Vector2(rect.position.x + (rect.size.x - text_w) * 0.5, rect.position.y + 27.0),
+			text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 1.0, 1.0))

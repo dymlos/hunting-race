@@ -68,7 +68,7 @@ class SporeZone extends Area2D:
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				return
-			GameManager.register_trap_contact(character.player_index)
+			GameManager.register_trap_contact(character.player_index, int(get_meta("owner_player_index", -1)))
 			if character is Escapist:
 				(character as Escapist).notify_trap_status("SLOWED", Color(0.45, 1.0, 0.2), 0.85)
 			_bodies_inside[body] = true

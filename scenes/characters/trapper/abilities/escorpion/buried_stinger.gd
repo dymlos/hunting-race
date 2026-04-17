@@ -67,7 +67,7 @@ class StingerTrap extends Area2D:
 				return
 			if esc.is_dead or esc.has_scored:
 				return
-			GameManager.register_trap_contact(esc.player_index)
+			GameManager.register_trap_contact(esc.player_index, int(get_meta("owner_player_index", -1)))
 			if esc.is_effect_immune():
 				queue_free()
 				return

@@ -184,7 +184,7 @@ class PincersNode extends Node2D:
 			var character := body as BaseCharacter
 			if character.team == owner_team:
 				return
-			GameManager.register_trap_contact(character.player_index)
+			GameManager.register_trap_contact(character.player_index, int(get_meta("owner_player_index", -1)))
 			if character is Escapist:
 				(character as Escapist).notify_trap_status("PINCHED", Color(1.0, 0.32, 0.12), 0.8)
 			_close_time = _get_close_time()

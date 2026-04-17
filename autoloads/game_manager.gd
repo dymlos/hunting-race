@@ -6,6 +6,7 @@ signal round_ended(escapist_team: Enums.Team, points_scored: int)
 signal match_ended(winning_team: Enums.Team)
 signal escapist_scored(team: Enums.Team)
 signal escapist_died(team: Enums.Team)
+signal trap_contact_registered(escapist_player_index: int, trapper_player_index: int)
 signal round_advancing  # Emitted when round end is confirmed, before next observation
 
 var current_state: Enums.GameState = Enums.GameState.TEAM_SETUP
@@ -256,12 +257,13 @@ func register_escapist_died(player_index: int) -> void:
 	_check_round_over()
 
 
-func register_trap_contact(player_index: int) -> void:
+func register_trap_contact(player_index: int, trapper_player_index: int = -1) -> void:
 	if not hunt_active:
 		return
 	if _round_stats.has(player_index):
 		var stats: Dictionary = _round_stats[player_index]
 		stats["trap_contacts"] = (stats.get("trap_contacts", 0) as int) + 1
+	trap_contact_registered.emit(player_index, trapper_player_index)
 	var character: Node = player_characters.get(player_index, null) as Node
 	if character and is_instance_valid(character) and character.has_method("notify_trap_contact"):
 		character.call("notify_trap_contact")

@@ -121,7 +121,7 @@ class TeleportPortal extends Area2D:
 		if body is BaseCharacter:
 			var character := body as BaseCharacter
 			if character.team != owner_team:
-				GameManager.register_trap_contact(character.player_index)
+				GameManager.register_trap_contact(character.player_index, _get_owner_player_index())
 			# Teleport to partner portal
 			body.global_position = partner.global_position
 			# Set cooldown on both portals to prevent loops
@@ -139,3 +139,10 @@ class TeleportPortal extends Area2D:
 			10, Color(_color, 0.6), 2.0)
 		# Inner glow
 		draw_circle(Vector2.ZERO, r * 0.3, Color(_color, 0.3 * pulse))
+
+	func _get_owner_player_index() -> int:
+		if has_meta("owner_player_index"):
+			return int(get_meta("owner_player_index", -1))
+		if _pair_node and _pair_node.has_meta("owner_player_index"):
+			return int(_pair_node.get_meta("owner_player_index", -1))
+		return -1

@@ -16,9 +16,12 @@ const PauseMenuScene := preload("res://scenes/ui/pause_menu.gd")
 const ArenaScene := preload("res://scenes/arena/arena.tscn")
 const PhaseOverlayScene := preload("res://scenes/ui/phase_overlay.tscn")
 const GameHudScene := preload("res://scenes/ui/game_hud.tscn")
+const RoundReplayScene := preload("res://scenes/ui/round_replay.gd")
 const EscapistScene := preload("res://scenes/characters/escapist/escapist.tscn")
 const TrapperScene := preload("res://scenes/characters/trapper/trapper.tscn")
 const MenuMusicPlayerScene := preload("res://scenes/audio/menu_music_player.gd")
+
+const ROUND_REPLAY_SAMPLE_INTERVAL: float = 0.08
 
 const PRACTICE_SPIDER_BOT_INDEX := 100
 const PRACTICE_ALLY_BOT_INDEX := 101
@@ -41,6 +44,15 @@ var _active_player_indices: Array[int] = []
 var _prev_start_pressed: Dictionary = {}  # {device_id: bool}
 var _selected_stage_index: int = 0
 var _practice_bots_added: bool = false
+var _round_replay_tracks: Dictionary = {}
+var _round_replay_recording: bool = false
+var _round_replay_elapsed: float = 0.0
+var _round_replay_escape_start_time: float = 0.0
+var _round_replay_sample_timer: float = 0.0
+var _round_replay_active: bool = false
+var _round_trapper_impacts: Dictionary = {}
+var _last_round_fastest_escape_replay: Dictionary = {}
+var _last_round_trapper_replay: Dictionary = {}
 
 @onready var arena_container := $ArenaContainer as Node2D
 @onready var character_container := $Characters as Node2D
@@ -64,6 +76,7 @@ var settings_menu: SettingsMenu
 var pause_menu: PauseMenu
 var phase_overlay: PhaseOverlay
 var game_hud: GameHud
+var round_replay: RoundReplay
 var menu_music: MenuMusicPlayer
 var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
 var _is_practice_flow: bool = false
@@ -159,6 +172,10 @@ func _ready() -> void:
 	ui_layer.add_child(game_hud)
 	game_hud.hide()
 
+	round_replay = RoundReplayScene.new() as RoundReplay
+	character_container.add_child(round_replay)
+	round_replay.finished.connect(_on_round_replay_finished)
+
 	menu_music = MenuMusicPlayerScene.new() as MenuMusicPlayer
 	add_child(menu_music)
 
@@ -167,6 +184,7 @@ func _ready() -> void:
 	GameManager.match_ended.connect(_on_match_ended)
 	GameManager.escapist_scored.connect(_on_escapist_scored)
 	GameManager.escapist_died.connect(_on_escapist_died)
+	GameManager.trap_contact_registered.connect(_on_trap_contact_registered)
 	GameManager.round_advancing.connect(_on_round_advancing)
 
 	_start_intro_screen()
@@ -459,10 +477,12 @@ func _setup_camera() -> void:
 
 
 func _on_goal_entered(escapist: Escapist) -> void:
+	_capture_round_replay_finish(escapist)
 	GameManager.register_escapist_scored(escapist.player_index)
 
 
 func _cleanup_round() -> void:
+	_clear_round_replay()
 	for c in characters:
 		if is_instance_valid(c):
 			c.queue_free()
@@ -520,6 +540,7 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 
 	match new_state:
 		Enums.GameState.OBSERVATION:
+			_clear_round_replay()
 			menu_music.use_round_volume()
 			if arena:
 				arena.randomize_hazards_for_round(GameManager.get_competitive_round_number())
@@ -529,13 +550,17 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 				GameManager.get_competitive_round_number(),
 				GameManager.get_round_leg_label(),
 				GameManager.escapist_team
-			)
+		)
 		Enums.GameState.HUNT:
 			_freeze_escapists_only()
+			_start_round_replay_recording()
 		Enums.GameState.ESCAPE:
+			_round_replay_escape_start_time = _round_replay_elapsed
 			phase_overlay.show_escape()
 			_unfreeze_all()
+			_start_round_replay_recording()
 		Enums.GameState.ROUND_END:
+			_round_replay_recording = false
 			_freeze_all()
 		Enums.GameState.MATCH_END:
 			_freeze_all()
@@ -551,8 +576,17 @@ func _on_escape_overlay_finished() -> void:
 
 
 func _on_round_ended(escapist_team: Enums.Team, points_scored: int) -> void:
+	var round_entries := GameManager.get_round_score_entries()
+	_last_round_fastest_escape_replay = _build_fastest_round_replay(round_entries)
+	_last_round_trapper_replay = _build_trapper_impact_replay()
 	phase_overlay.set_round_total_points(points_scored)
-	phase_overlay.show_round_end(escapist_team, GameManager.match_scores, GameManager.get_round_score_entries())
+	phase_overlay.show_round_end(
+		escapist_team,
+		GameManager.match_scores,
+		round_entries,
+		not _last_round_fastest_escape_replay.is_empty(),
+		not _last_round_trapper_replay.is_empty()
+	)
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
 
@@ -569,11 +603,283 @@ func _on_escapist_died(_team: Enums.Team) -> void:
 	pass  # HUD updates automatically via _draw
 
 
-func _process(_delta: float) -> void:
+func _on_trap_contact_registered(escapist_player_index: int, trapper_player_index: int) -> void:
+	if not _round_replay_recording or trapper_player_index < 0:
+		return
+	_round_trapper_impacts[trapper_player_index] = (_round_trapper_impacts.get(trapper_player_index, 0) as int) + 1
+	if not _round_replay_tracks.has(trapper_player_index):
+		return
+	var track: Dictionary = _round_replay_tracks[trapper_player_index] as Dictionary
+	track["impact_count"] = _round_trapper_impacts[trapper_player_index]
+	var events: Array = track.get("events", []) as Array
+	var victim := GameManager.player_characters.get(escapist_player_index, null) as Node2D
+	var event_position := Vector2.ZERO
+	if victim and is_instance_valid(victim):
+		event_position = victim.global_position
+	events.append({
+		"time": _round_replay_elapsed,
+		"position": event_position,
+	})
+	track["events"] = events
+	_round_replay_tracks[trapper_player_index] = track
+
+
+func _start_round_replay_recording() -> void:
+	if GameManager.practice_mode:
+		return
+	if _round_replay_recording:
+		return
+	_round_replay_tracks.clear()
+	_round_trapper_impacts.clear()
+	_last_round_fastest_escape_replay.clear()
+	_last_round_trapper_replay.clear()
+	_round_replay_recording = true
+	_round_replay_elapsed = 0.0
+	_round_replay_escape_start_time = 0.0
+	_round_replay_sample_timer = 0.0
+	_capture_round_replay_sample(true)
+
+
+func _update_round_replay_recording(delta: float) -> void:
+	if not _round_replay_recording:
+		return
+	if GameManager.practice_mode:
+		return
+	if GameManager.current_state != Enums.GameState.HUNT and GameManager.current_state != Enums.GameState.ESCAPE:
+		return
+	_round_replay_elapsed += delta
+	_round_replay_sample_timer -= delta
+	if _round_replay_sample_timer > 0.0:
+		return
+	_capture_round_replay_sample(false)
+	_round_replay_sample_timer = ROUND_REPLAY_SAMPLE_INTERVAL
+
+
+func _capture_round_replay_sample(force: bool) -> void:
+	for c in characters:
+		if not is_instance_valid(c):
+			continue
+		if c is Escapist:
+			var esc := c as Escapist
+			if esc.is_dead or esc.has_scored:
+				continue
+			_append_round_replay_sample(esc, force)
+		elif c is Trapper:
+			_append_round_replay_sample(c as Node2D, force)
+
+
+func _capture_round_replay_finish(escapist: Escapist) -> void:
+	if not _round_replay_recording or GameManager.practice_mode:
+		return
+	_append_round_replay_sample(escapist, true)
+	var track: Dictionary = _round_replay_tracks.get(escapist.player_index, {}) as Dictionary
+	track["escaped"] = true
+	_round_replay_tracks[escapist.player_index] = track
+
+
+func _append_round_replay_sample(character: Node2D, force: bool) -> void:
+	var track := _get_or_create_round_replay_track(character)
+	var positions: Array = track.get("positions", []) as Array
+	var times: Array = track.get("times", []) as Array
+	if not force and not positions.is_empty():
+		var last_pos := positions[positions.size() - 1] as Vector2
+		if last_pos.distance_squared_to(character.position) < 4.0:
+			return
+	var sample_time := _round_replay_elapsed
+	if not times.is_empty():
+		sample_time = maxf(sample_time, (times[times.size() - 1] as float) + 0.001)
+	positions.append(character.position)
+	times.append(sample_time)
+	track["positions"] = positions
+	track["times"] = times
+	var player_index := track.get("player_index", -1) as int
+	_round_replay_tracks[player_index] = track
+
+
+func _get_or_create_round_replay_track(character: Node2D) -> Dictionary:
+	var player_index := -1
+	var team := Enums.Team.NONE
+	var color := Color.WHITE
+	var role := Enums.Role.NONE
+	var label := "REPLAY"
+	if character is Escapist:
+		var esc := character as Escapist
+		player_index = esc.player_index
+		team = esc.team
+		color = esc.player_color
+		role = Enums.Role.ESCAPIST
+		label = "P%d FASTEST ESCAPE" % (player_index + 1)
+		if player_index >= 100:
+			label = "BOT FASTEST ESCAPE"
+	elif character is Trapper:
+		var trapper := character as Trapper
+		player_index = trapper.player_index
+		team = trapper.team
+		color = Enums.trapper_character_color(trapper.trapper_character)
+		role = Enums.Role.TRAPPER
+		label = "P%d TRAPPER REPLAY" % (player_index + 1)
+		if player_index >= 100:
+			label = "BOT TRAPPER REPLAY"
+
+	if _round_replay_tracks.has(player_index):
+		return _round_replay_tracks[player_index] as Dictionary
+	var track := {
+		"player_index": player_index,
+		"team": team,
+		"role": role,
+		"color": color,
+		"label": label,
+		"positions": [],
+		"times": [],
+		"events": [],
+		"escaped": false,
+		"impact_count": 0,
+	}
+	_round_replay_tracks[player_index] = track
+	return track
+
+
+func _build_fastest_round_replay(entries: Array[Dictionary]) -> Dictionary:
+	var best_entry: Dictionary = {}
+	var best_time := 999999.0
+	for entry: Dictionary in entries:
+		if not entry.get("escaped", false):
+			continue
+		var player_index := entry.get("player_index", -1) as int
+		if not _round_replay_tracks.has(player_index):
+			continue
+		var track: Dictionary = _round_replay_tracks[player_index] as Dictionary
+		var positions: Array = track.get("positions", []) as Array
+		var times: Array = track.get("times", []) as Array
+		if positions.size() < 2 or times.size() < 2:
+			continue
+		var escape_time := entry.get("escape_time", 9999.0) as float
+		if escape_time < best_time:
+			best_time = escape_time
+			best_entry = entry
+	if best_entry.is_empty():
+		return {}
+
+	var best_player_index := best_entry.get("player_index", -1) as int
+	var best_track: Dictionary = (_round_replay_tracks[best_player_index] as Dictionary).duplicate(true)
+	var player_label := "P%d" % (best_player_index + 1) if best_player_index < 100 else "BOT"
+	best_track["label"] = "%s FASTEST ESCAPE  %.1fs" % [
+		player_label,
+		best_entry.get("escape_time", 0.0) as float,
+	]
+	best_track["playback_start_time"] = _round_replay_escape_start_time
+	best_track["rivals"] = _get_rival_replay_tracks(best_track)
+	best_track["score_entry"] = best_entry.duplicate(true)
+	return best_track
+
+
+func _build_trapper_impact_replay() -> Dictionary:
+	var best_player_index := -1
+	var best_count := 0
+	for player_index: int in _round_trapper_impacts:
+		var count := _round_trapper_impacts[player_index] as int
+		if count > best_count:
+			best_count = count
+			best_player_index = player_index
+	if best_player_index < 0 or best_count <= 0:
+		return {}
+	if not _round_replay_tracks.has(best_player_index):
+		return {}
+	var track: Dictionary = (_round_replay_tracks[best_player_index] as Dictionary).duplicate(true)
+	var positions: Array = track.get("positions", []) as Array
+	var times: Array = track.get("times", []) as Array
+	if positions.size() < 2 or times.size() < 2:
+		return {}
+	var player_label := "P%d" % (best_player_index + 1) if best_player_index < 100 else "BOT"
+	track["label"] = "%s TRAPPER IMPACT  %d hits" % [player_label, best_count]
+	track["impact_count"] = best_count
+	track["playback_start_time"] = 0.0
+	track["rivals"] = _get_rival_replay_tracks(track)
+	return track
+
+
+func _get_rival_replay_tracks(main_track: Dictionary) -> Array[Dictionary]:
+	var rivals: Array[Dictionary] = []
+	var main_player_index := main_track.get("player_index", -1) as int
+	var main_team := main_track.get("team", Enums.Team.NONE) as Enums.Team
+	for player_index: int in _round_replay_tracks:
+		if player_index == main_player_index:
+			continue
+		var rival: Dictionary = _round_replay_tracks[player_index] as Dictionary
+		var rival_team := rival.get("team", Enums.Team.NONE) as Enums.Team
+		if rival_team == main_team or rival_team == Enums.Team.NONE:
+			continue
+		var positions: Array = rival.get("positions", []) as Array
+		var times: Array = rival.get("times", []) as Array
+		if positions.size() < 1 or times.size() < 1:
+			continue
+		rivals.append(rival.duplicate(true))
+	return rivals
+
+
+func _start_round_replay(replay_track: Dictionary) -> void:
+	if replay_track.is_empty() or _round_replay_active:
+		return
+	_round_replay_active = true
+	phase_overlay.clear()
+	round_replay.play(replay_track)
+	InputManager.suppress_edge_detection(3)
+
+
+func _on_round_replay_finished() -> void:
+	_finish_round_replay()
+
+
+func _finish_round_replay() -> void:
+	if not _round_replay_active:
+		return
+	_round_replay_active = false
+	round_replay.stop()
+	phase_overlay.show_round_end(
+		GameManager.escapist_team,
+		GameManager.match_scores,
+		GameManager.get_round_score_entries(),
+		not _last_round_fastest_escape_replay.is_empty(),
+		not _last_round_trapper_replay.is_empty()
+	)
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _check_round_replay_skip_input() -> void:
+	for pi in _active_player_indices:
+		var device_id := InputManager.get_device_id(pi)
+		if device_id < 0:
+			continue
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A) \
+				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B) \
+				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_X) \
+				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
+			_finish_round_replay()
+			return
+
+
+func _clear_round_replay() -> void:
+	_round_replay_active = false
+	_round_replay_recording = false
+	_round_replay_tracks.clear()
+	_round_trapper_impacts.clear()
+	_last_round_fastest_escape_replay.clear()
+	_last_round_trapper_replay.clear()
+	if round_replay != null:
+		round_replay.stop()
+
+
+func _process(delta: float) -> void:
+	_update_round_replay_recording(delta)
 	var state := GameManager.current_state
 
 	if state == Enums.GameState.PAUSED:
 		_check_pause_input()
+		return
+
+	if _round_replay_active:
+		_check_round_replay_skip_input()
 		return
 
 	if state == Enums.GameState.HUNT:
@@ -681,6 +987,14 @@ func _check_round_end_skip_input() -> void:
 		var device_id := InputManager.get_device_id(pi)
 		if device_id < 0:
 			continue
+		if not _last_round_fastest_escape_replay.is_empty() \
+				and InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
+			_start_round_replay(_last_round_fastest_escape_replay)
+			return
+		if not _last_round_trapper_replay.is_empty() \
+				and InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_X):
+			_start_round_replay(_last_round_trapper_replay)
+			return
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 			GameManager.confirm_round_end()
 			_prime_start_button_state()

@@ -122,6 +122,7 @@ func _spawn_from_points(_points: Array[Vector2]) -> void:
 func _register_object(obj: Node2D) -> void:
 	## Add an object to the active list and to the scene tree.
 	_active_objects.append(obj)
+	obj.set_meta("owner_player_index", trapper.player_index)
 	trapper.get_parent().add_child(obj)
 
 
