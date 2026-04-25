@@ -13,20 +13,20 @@ const TYPE_SPEED_MULTIPLIER: float = 1.7
 const DOUBLE_B_SKIP_WINDOW: float = 0.45
 const PARAGRAPHS := [
 	[
-		"Maestros del engaño,",
-		"expertos en trampas y persecución.",
+		"Auténticos maestros del engaño.",
+		"Ellos te seguirán por cada rincón.",
 	],
 	[
-		"Podrías hacerte daño,",
-		"incluso escapando de cada rincón.",
+		"Sus trampas no serán lo más extraño.",
+		"Sino la injusta persecución.",
 	],
 	[
-		"Cazadores implacables,",
-		"en una carrera como nunca antes viste.",
+		"No hablamos de una carrera razonable.",
+		"Más bien un desafío que nunca viviste.",
 	],
 	[
-		"No confies en sus caras amigables,",
-		"aunque Mati diga: \"Que me trajiste?\"",
+		"Tampoco confíes en sus caras amigables,",
+		"aunque Mati diga: \"¿Qué me trajiste?\"",
 	],
 ]
 
