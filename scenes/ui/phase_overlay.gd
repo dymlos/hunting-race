@@ -5,6 +5,9 @@ extends Control
 
 signal escape_finished
 
+const SCORE_SUMMARY_TICK_INTERVAL: float = 0.01
+const SCORE_ENTRY_TICK_INTERVAL: float = 0.008
+
 var _text: String = ""
 var _sub_text: String = ""
 var _text_color: Color = Color.WHITE
@@ -19,6 +22,14 @@ var _round_team_totals: Dictionary = {}
 var _round_leading_team: Enums.Team = Enums.Team.NONE
 var _has_escape_replay_option: bool = false
 var _has_trapper_replay_option: bool = false
+var _display_round_points: int = 0
+var _display_match_scores: Array[int] = [0, 0]
+var _target_match_scores: Array[int] = [0, 0]
+var _display_entry_totals: Array[int] = []
+var _score_count_active: bool = false
+var _score_count_index: int = 0
+var _summary_tick_accum: float = 0.0
+var _entry_tick_accum: float = 0.0
 var input_blocked: bool = false
 
 
@@ -28,6 +39,7 @@ func show_observation(_time_left: float) -> void:
 	_detail_lines.clear()
 	_score_entries.clear()
 	_show_match_totals = false
+	_reset_score_animation()
 	_anchor_top = false
 	visible = false
 	queue_redraw()
@@ -45,6 +57,7 @@ func show_round_intro(round_number: int, leg_label: String, escapist_team: Enums
 	_detail_lines.append("Escapists score by reaching the goal; roles swap after this round.")
 	_score_entries.clear()
 	_show_match_totals = false
+	_reset_score_animation()
 	_text_color = Color(1.0, 0.95, 0.25)
 	_show_timer = 2.8
 	_anchor_top = false
@@ -58,6 +71,7 @@ func show_hunt_countdown(time_left: float) -> void:
 	_detail_lines.clear()
 	_score_entries.clear()
 	_show_match_totals = false
+	_reset_score_animation()
 	_text_color = Color.YELLOW
 	_anchor_top = true
 	visible = true
@@ -70,6 +84,7 @@ func show_hunt() -> void:
 	_detail_lines.clear()
 	_score_entries.clear()
 	_show_match_totals = false
+	_reset_score_animation()
 	_text_color = Color.RED
 	_show_timer = 2.0
 	_anchor_top = true
@@ -83,6 +98,7 @@ func show_escape() -> void:
 	_detail_lines.clear()
 	_score_entries.clear()
 	_show_match_totals = false
+	_reset_score_animation()
 	_text_color = Color.RED
 	_show_timer = 2.6
 	_escape_anim_time = 0.0
@@ -105,6 +121,7 @@ func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Arr
 	_show_match_totals = false
 	_round_team_totals = _compute_round_team_totals(entries)
 	_round_leading_team = _get_round_leading_team(_round_team_totals)
+	_start_score_animation(scores, entries)
 	_has_escape_replay_option = has_escape_replay_option
 	_has_trapper_replay_option = has_trapper_replay_option
 	_text_color = Color.WHITE
@@ -120,6 +137,7 @@ func show_match_end(winning_team: Enums.Team, scores: Array[int], entries: Array
 	_detail_lines.clear()
 	_score_entries = entries.duplicate(true)
 	_show_match_totals = true
+	_start_score_animation(scores, entries)
 	_text_color = Enums.team_color(winning_team)
 	_show_timer = 0.0
 	_anchor_top = false
@@ -129,6 +147,7 @@ func show_match_end(winning_team: Enums.Team, scores: Array[int], entries: Array
 
 func set_round_total_points(points: int) -> void:
 	_round_total_points = points
+	_display_round_points = 0
 
 
 func clear() -> void:
@@ -142,6 +161,7 @@ func clear() -> void:
 	_round_leading_team = Enums.Team.NONE
 	_has_escape_replay_option = false
 	_has_trapper_replay_option = false
+	_reset_score_animation()
 	_escape_anim_time = 0.0
 	visible = false
 
@@ -215,6 +235,9 @@ func _build_match_lines(entries: Array[Dictionary]) -> Array[String]:
 
 
 func _process(delta: float) -> void:
+	if _score_count_active:
+		_update_score_animation(delta)
+		queue_redraw()
 	if _show_timer > 0.0:
 		_show_timer -= delta
 		var finished_text := _text
@@ -225,6 +248,94 @@ func _process(delta: float) -> void:
 			clear()
 			if finished_text == "ESCAPE!":
 				escape_finished.emit()
+
+
+func _start_score_animation(scores: Array[int], entries: Array[Dictionary]) -> void:
+	_display_round_points = 0
+	_display_match_scores = [0, 0]
+	_target_match_scores = [
+		scores[0] as int if scores.size() > 0 else 0,
+		scores[1] as int if scores.size() > 1 else 0,
+	]
+	_display_entry_totals.clear()
+	for _entry in entries:
+		_display_entry_totals.append(0)
+	_score_count_active = not entries.is_empty() or not scores.is_empty() or _round_total_points != 0
+	_score_count_index = 0
+	_summary_tick_accum = 0.0
+	_entry_tick_accum = 0.0
+
+
+func _reset_score_animation() -> void:
+	_display_round_points = 0
+	_display_match_scores = [0, 0]
+	_target_match_scores = [0, 0]
+	_display_entry_totals.clear()
+	_score_count_active = false
+	_score_count_index = 0
+	_summary_tick_accum = 0.0
+	_entry_tick_accum = 0.0
+
+
+func _update_score_animation(delta: float) -> void:
+	_summary_tick_accum += delta
+	while _summary_tick_accum >= SCORE_SUMMARY_TICK_INTERVAL:
+		_summary_tick_accum -= SCORE_SUMMARY_TICK_INTERVAL
+		var summary_changed := false
+		if _display_round_points != _round_total_points:
+			_display_round_points += 1 if _display_round_points < _round_total_points else -1
+			summary_changed = true
+		if _display_match_scores[0] != _target_match_scores[0]:
+			_display_match_scores[0] += 1 if _display_match_scores[0] < _target_match_scores[0] else -1
+			summary_changed = true
+		if _display_match_scores[1] != _target_match_scores[1]:
+			_display_match_scores[1] += 1 if _display_match_scores[1] < _target_match_scores[1] else -1
+			summary_changed = true
+		if summary_changed:
+			AudioManager.play_effect(&"ScoreTick")
+
+	_entry_tick_accum += delta
+	while _entry_tick_accum >= SCORE_ENTRY_TICK_INTERVAL:
+		_entry_tick_accum -= SCORE_ENTRY_TICK_INTERVAL
+		if _score_count_index >= _display_entry_totals.size():
+			break
+		var target_total := (_score_entries[_score_count_index] as Dictionary).get("total", 0) as int
+		if _step_array_value_towards(_display_entry_totals, _score_count_index, target_total):
+			AudioManager.play_effect(&"ScoreTick")
+		else:
+			_score_count_index += 1
+			if _score_count_index >= _display_entry_totals.size():
+				break
+
+	if _is_score_animation_complete():
+		_score_count_active = false
+		_display_round_points = _round_total_points
+		_display_match_scores = [_target_match_scores[0], _target_match_scores[1]]
+		for i in _score_entries.size():
+			_display_entry_totals[i] = (_score_entries[i] as Dictionary).get("total", 0) as int
+
+
+func _step_array_value_towards(values: Array[int], index: int, target_value: int) -> bool:
+	if index < 0 or index >= values.size():
+		return false
+	var current_value := values[index]
+	if current_value == target_value:
+		return false
+	values[index] = current_value + 1 if current_value < target_value else current_value - 1
+	return true
+
+
+func _is_score_animation_complete() -> bool:
+	if _display_round_points != _round_total_points:
+		return false
+	if _display_match_scores[0] != _target_match_scores[0]:
+		return false
+	if _display_match_scores[1] != _target_match_scores[1]:
+		return false
+	for i in _score_entries.size():
+		if _display_entry_totals[i] != (_score_entries[i] as Dictionary).get("total", 0) as int:
+			return false
+	return true
 
 
 func _draw() -> void:
@@ -240,15 +351,16 @@ func _draw() -> void:
 
 	var text_size := 36
 	var sub_text_size := 18
+	var display_sub_text := _get_display_sub_text()
 	if _text == "ESCAPE!":
 		text_size = 96
 		sub_text_size = 24
 	var text_w := font.get_string_size(_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
 	var sub_text_w := 0.0
-	if not _sub_text.is_empty():
-		sub_text_w = font.get_string_size(_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x
+	if not display_sub_text.is_empty():
+		sub_text_w = font.get_string_size(display_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x
 	var panel_w := maxf(text_w, sub_text_w) + 96.0
-	var panel_h := 82.0 if _sub_text.is_empty() else 118.0
+	var panel_h := 82.0 if display_sub_text.is_empty() else 118.0
 	if _text == "ESCAPE!":
 		panel_w = screen.x
 		panel_h = screen.y
@@ -326,10 +438,10 @@ func _draw() -> void:
 		draw_string(font, Vector2(cx - title_w / 2.0, title_pos_y),
 			_text, HORIZONTAL_ALIGNMENT_CENTER, -1, text_size, _text_color)
 
-	if not _sub_text.is_empty():
-		var sub_w := font.get_string_size(_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x
+	if not display_sub_text.is_empty():
+		var sub_w := font.get_string_size(display_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x
 		draw_string(font, Vector2(cx - sub_w / 2.0, panel_rect.position.y + 78.0),
-			_sub_text, HORIZONTAL_ALIGNMENT_CENTER, -1, sub_text_size, Color(0.8, 0.8, 0.8))
+			display_sub_text, HORIZONTAL_ALIGNMENT_CENTER, -1, sub_text_size, Color(0.8, 0.8, 0.8))
 
 	if not _score_entries.is_empty():
 		if _show_match_totals:
@@ -352,11 +464,12 @@ func _draw_score_entries(font: Font, panel_rect: Rect2) -> void:
 	var row_w := panel_rect.size.x - 64.0
 	var row_h := 70.0
 
-	for entry: Dictionary in _score_entries:
+	for entry_index in _score_entries.size():
+		var entry := _score_entries[entry_index] as Dictionary
 		var player_index: int = entry.get("player_index", 0) as int
 		var player_label := "P%d" % (player_index + 1) if player_index < 100 else "BOT"
 		var team: Enums.Team = entry.get("team", Enums.Team.NONE) as Enums.Team
-		var total: int = entry.get("total", 0) as int
+		var total: int = _display_entry_totals[entry_index] as int
 		var escaped_text := ""
 		if _show_match_totals:
 			escaped_text = "Escapes %d/%d" % [
@@ -412,13 +525,15 @@ func _draw_round_score_entries(font: Font, panel_rect: Rect2) -> void:
 		intro, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.82, 0.82, 0.82))
 
 	var totals_y := intro_y + 26.0
-	var blue_total := _round_team_totals.get(Enums.Team.TEAM_1, 0) as int
-	var red_total := _round_team_totals.get(Enums.Team.TEAM_2, 0) as int
+	var display_totals := _get_display_round_team_totals()
+	var blue_total := display_totals.get(Enums.Team.TEAM_1, 0) as int
+	var red_total := display_totals.get(Enums.Team.TEAM_2, 0) as int
 	var leading_team_name := "Tied round"
 	var leading_team_color := Color(0.78, 0.78, 0.78)
-	if _round_leading_team != Enums.Team.NONE:
-		leading_team_name = "%s leads this round" % Enums.team_name(_round_leading_team)
-		leading_team_color = Enums.team_color(_round_leading_team)
+	var display_leading_team := _get_round_leading_team(display_totals)
+	if display_leading_team != Enums.Team.NONE:
+		leading_team_name = "%s leads this round" % Enums.team_name(display_leading_team)
+		leading_team_color = Enums.team_color(display_leading_team)
 	draw_string(font, Vector2(panel_rect.position.x + 24.0, totals_y),
 		"%s | %s %s | %s %s" % [
 			leading_team_name,
@@ -438,19 +553,22 @@ func _draw_round_score_entries(font: Font, panel_rect: Rect2) -> void:
 		var col_x := left_x + float(team_index) * (col_w + gap)
 		var team_color := Enums.team_color(team)
 		var team_entries: Array[Dictionary] = []
+		var team_total := 0
 		var escaped_count := 0
 		var trap_contacts := 0
 		var respawns := 0
-		for entry: Dictionary in _score_entries:
+		for entry_index in _score_entries.size():
+			var entry := _score_entries[entry_index] as Dictionary
 			if (entry.get("team", Enums.Team.NONE) as Enums.Team) != team:
 				continue
 			team_entries.append(entry)
+			var displayed_total := _display_entry_totals[entry_index] as int
 			if entry.get("escaped", false):
 				escaped_count += 1
 			trap_contacts += entry.get("trap_contacts", 0) as int
 			respawns += entry.get("respawns", 0) as int
+			team_total += displayed_total
 
-		var team_total := _round_team_totals.get(team, 0) as int
 		var section_rect := Rect2(Vector2(col_x, top_y - 26.0), Vector2(col_w, 54.0))
 		draw_rect(section_rect, Color(0.08, 0.08, 0.08, 0.88))
 		draw_rect(section_rect, Color(team_color, 0.7), false, 2.0)
@@ -467,10 +585,10 @@ func _draw_round_score_entries(font: Font, panel_rect: Rect2) -> void:
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.85, 0.85, 0.85))
 
 		var y := top_y + 52.0
-		for entry: Dictionary in team_entries:
+		for entry in team_entries:
 			var player_index: int = entry.get("player_index", 0) as int
 			var player_label := "P%d" % (player_index + 1) if player_index < 100 else "BOT"
-			var total: int = entry.get("total", 0) as int
+			var total := _get_display_total_for_player(player_index)
 			var escaped_text := "Escaped" if entry.get("escaped", false) else "No escape"
 			var row_rect := Rect2(Vector2(col_x, y - 24.0), Vector2(col_w, row_h))
 			draw_rect(row_rect, Color(0.06, 0.06, 0.06, 0.9))
@@ -527,3 +645,37 @@ func _draw_replay_action_cards(font: Font, panel_rect: Rect2) -> void:
 		var text_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
 		draw_string(font, Vector2(rect.position.x + (rect.size.x - text_w) * 0.5, rect.position.y + 27.0),
 			text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 1.0, 1.0))
+
+
+func _get_display_sub_text() -> String:
+	if _text == "ROUND OVER":
+		return "Round points: %s | %s %s | %s %s | A continue" % [
+			_format_score(_display_round_points),
+			Enums.team_name(Enums.Team.TEAM_1), _format_score(_display_match_scores[0]),
+			Enums.team_name(Enums.Team.TEAM_2), _format_score(_display_match_scores[1]),
+		]
+	if _text.ends_with("WINS!"):
+		return "Final: %d - %d | START to restart" % [_display_match_scores[0], _display_match_scores[1]]
+	return _sub_text
+
+
+func _get_display_round_team_totals() -> Dictionary:
+	var totals: Dictionary = {
+		Enums.Team.TEAM_1: 0,
+		Enums.Team.TEAM_2: 0,
+	}
+	for entry_index in _score_entries.size():
+		var entry := _score_entries[entry_index] as Dictionary
+		var team: Enums.Team = entry.get("team", Enums.Team.NONE) as Enums.Team
+		if team != Enums.Team.TEAM_1 and team != Enums.Team.TEAM_2:
+			continue
+		totals[team] = (totals.get(team, 0) as int) + (_display_entry_totals[entry_index] as int)
+	return totals
+
+
+func _get_display_total_for_player(player_index: int) -> int:
+	for entry_index in _score_entries.size():
+		var entry := _score_entries[entry_index] as Dictionary
+		if (entry.get("player_index", -1) as int) == player_index:
+			return _display_entry_totals[entry_index] as int
+	return 0

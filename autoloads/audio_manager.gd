@@ -61,6 +61,12 @@ func play_effect(effect_name: StringName) -> void:
 			_player.play()
 			_playback = _player.get_stream_playback() as AudioStreamGeneratorPlayback
 		return
+	if effect_name == &"ScoreTick":
+		_voices.append(_make_score_tick_voice())
+		if not _player.playing:
+			_player.play()
+			_playback = _player.get_stream_playback() as AudioStreamGeneratorPlayback
+		return
 	_play_sample(effect_name)
 
 
@@ -138,6 +144,19 @@ func _make_denied_voice() -> Dictionary:
 	}
 
 
+func _make_score_tick_voice() -> Dictionary:
+	return {
+		"kind": &"score_tick",
+		"t": 0.0,
+		"duration": 0.045,
+		"phase": 0.0,
+		"phase2": 0.0,
+		"freq": 1240.0,
+		"freq2": 1860.0,
+		"volume": 0.11,
+	}
+
+
 func _next_sample() -> float:
 	var sample := 0.0
 	var i := _voices.size() - 1
@@ -170,6 +189,8 @@ func _voice_sample(voice: Dictionary, ratio: float) -> float:
 	var kind: StringName = voice.get("kind", &"heartbeat") as StringName
 	if kind == &"denied":
 		return _denied_sample(voice, ratio)
+	if kind == &"score_tick":
+		return _score_tick_sample(voice, ratio)
 	var phase: float = voice["phase"]
 	var phase2: float = voice["phase2"]
 	return _heartbeat_sample(phase, phase2, ratio)
@@ -192,6 +213,14 @@ func _denied_sample(voice: Dictionary, ratio: float) -> float:
 	var click := sin(phase * TAU_F) * 0.82 + sin(phase2 * TAU_F) * 0.18
 	var pulse := pow(maxf(0.0, 1.0 - ratio * 5.5), 2.2)
 	return click * pulse * fade
+
+
+func _score_tick_sample(voice: Dictionary, ratio: float) -> float:
+	var phase: float = voice["phase"]
+	var phase2: float = voice["phase2"]
+	var body := sin(phase * TAU_F) * 0.7 + sin(phase2 * TAU_F) * 0.3
+	var snap := pow(maxf(0.0, 1.0 - ratio * 1.8), 3.2)
+	return body * snap
 
 
 func _heart_thump(ratio: float, center: float, width: float) -> float:
