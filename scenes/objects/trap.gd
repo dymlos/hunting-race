@@ -100,19 +100,55 @@ func _destroy() -> void:
 
 
 func _draw() -> void:
-	var pulse := 0.8 + 0.2 * sin(Time.get_ticks_msec() / 300.0)
 	var radius := Constants.TRAP_LETHAL_RADIUS if is_lethal else Constants.TRAP_RADIUS
-	var r := radius * pulse
-	draw_circle(Vector2.ZERO, r, Color(_color, 0.3))
-	draw_arc(Vector2.ZERO, r, 0, TAU, 12, _color, 2.0)
+	var time := Time.get_ticks_msec() / 1000.0
+	var pulse := 0.5 + 0.5 * sin(time * (5.5 if is_lethal else 3.6))
+	var life_ratio := clampf(_lifetime / Constants.TRAP_LIFETIME, 0.0, 1.0)
+	var r := radius * (0.9 + 0.12 * pulse)
+
+	draw_circle(Vector2.ZERO, r + 6.0 + pulse * 3.0, Color(_color, 0.06 + pulse * 0.05))
+	draw_circle(Vector2.ZERO, r, Color(_color, 0.18 if is_lethal else 0.13))
+	draw_arc(Vector2.ZERO, r, 0, TAU, 36, Color(_color, 0.85), 2.4)
+	draw_arc(Vector2.ZERO, r + 4.0, -PI / 2.0, -PI / 2.0 + TAU * life_ratio, 36,
+		Color(1.0, 0.95, 0.72, 0.62), 1.6)
+
+	var spoke_count := 8 if is_lethal else 6
+	for i in range(spoke_count):
+		var angle := TAU * float(i) / float(spoke_count) + time * (0.35 if is_lethal else -0.22)
+		var dir := Vector2.from_angle(angle)
+		var inner := dir * radius * 0.42
+		var outer := dir * (r + (4.0 if is_lethal else 1.0))
+		var spoke_color := Color(_color, 0.54 if is_lethal else 0.36)
+		draw_line(inner, outer, spoke_color, 1.4)
 
 	if is_lethal:
-		# Skull/danger pattern — thick X
-		var s := radius * 0.6
-		draw_line(Vector2(-s, -s), Vector2(s, s), _color, 3.0)
-		draw_line(Vector2(s, -s), Vector2(-s, s), _color, 3.0)
+		var jaw_color := Color(1.0, 0.36, 0.18, 0.95)
+		var tooth_color := Color(1.0, 0.82, 0.55, 0.88)
+		var jaw_open := 0.25 + pulse * 0.22
+		for side in [-1.0, 1.0]:
+			var arc_center := Vector2(0.0, side * radius * jaw_open)
+			draw_arc(arc_center, radius * 0.74, PI * (0.08 if side > 0.0 else 1.08),
+				PI * (0.92 if side > 0.0 else 1.92), 18, jaw_color, 3.0)
+			for i in range(4):
+				var tooth_ratio := (float(i) + 0.5) / 4.0
+				var x := lerpf(-radius * 0.48, radius * 0.48, tooth_ratio)
+				var base := Vector2(x, side * radius * (0.22 + jaw_open))
+				var tip := Vector2(x + sin(time * 2.0 + float(i)) * 1.4, side * radius * 0.03)
+				draw_colored_polygon(PackedVector2Array([
+					base + Vector2(-3.0, 0.0),
+					base + Vector2(3.0, 0.0),
+					tip,
+				]), tooth_color)
+		var s := radius * 0.46
+		draw_line(Vector2(-s, -s), Vector2(s, s), Color(1.0, 0.14, 0.1, 0.78), 2.4)
+		draw_line(Vector2(s, -s), Vector2(-s, s), Color(1.0, 0.14, 0.1, 0.78), 2.4)
 	else:
-		# Slow pattern — thin X
-		var s := radius * 0.5
-		draw_line(Vector2(-s, -s), Vector2(s, s), _color, 1.5)
-		draw_line(Vector2(s, -s), Vector2(-s, s), _color, 1.5)
+		var rune_color := Color(1.0, 0.9, 0.35, 0.62 + pulse * 0.22)
+		for i in range(3):
+			var angle := time * 0.85 + float(i) * TAU / 3.0
+			var center := Vector2.from_angle(angle) * radius * 0.36
+			draw_arc(center, radius * 0.18, angle + PI * 0.2, angle + PI * 1.45, 10, rune_color, 1.5)
+			draw_circle(center, 2.2 + pulse, Color(rune_color, 0.45))
+		var s := radius * 0.48
+		draw_line(Vector2(-s, 0.0), Vector2(s, 0.0), Color(_color, 0.48), 1.4)
+		draw_line(Vector2(0.0, -s), Vector2(0.0, s), Color(_color, 0.48), 1.4)

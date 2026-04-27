@@ -108,22 +108,26 @@ func _check_sticky_walls() -> void:
 		var collision := body.get_slide_collision(i)
 		var collider := collision.get_collider()
 		if collider is Node and (collider as Node).is_in_group("sticky_walls"):
-			if body is Escapist and (body as Escapist).is_effect_immune():
-				continue
 			var wall_id := (collider as Node).get_instance_id()
-			if wall_id in _sticky_cooldowns:
-				continue  # This wall is still on cooldown
-			if body is Escapist:
-				var esc := body as Escapist
-				if not esc.is_dead and not esc.has_scored:
-					GameManager.register_trap_contact(esc.player_index)
-					esc.notify_trap_status("STUCK", Constants.STICKY_WALL_COLOR, 0.7)
-			AudioManager.play_effect(&"StickyWall")
-			_sticky_stun_timer = Constants.STICKY_WALL_STUN
-			_sticky_cooldowns[wall_id] = Constants.STICKY_WALL_STUN + Constants.STICKY_WALL_COOLDOWN
-			can_move = false
-			velocity = Vector2.ZERO
-			return
+			if apply_sticky_stun(wall_id):
+				return
+
+
+func apply_sticky_stun(source_id: int) -> bool:
+	if source_id in _sticky_cooldowns:
+		return false
+	if body is Escapist:
+		var esc := body as Escapist
+		if esc.is_dead or esc.has_scored or esc.is_effect_immune():
+			return false
+		GameManager.register_trap_contact(esc.player_index)
+		esc.notify_trap_status("STUCK", Constants.STICKY_WALL_COLOR, 0.7)
+
+	AudioManager.play_effect(&"StickyWall")
+	freeze()
+	_sticky_stun_timer = Constants.STICKY_WALL_STUN
+	_sticky_cooldowns[source_id] = Constants.STICKY_WALL_STUN + Constants.STICKY_WALL_COOLDOWN
+	return true
 
 
 func _check_map_hazards() -> void:
