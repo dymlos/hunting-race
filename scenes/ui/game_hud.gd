@@ -1,7 +1,7 @@
 class_name GameHud
 extends Control
 
-## HUD showing scores, round info, and live skill guidance for both teams.
+## HUD showing match state. Skill cooldown feedback lives on characters.
 
 var input_blocked: bool = false
 
@@ -21,7 +21,6 @@ func _draw() -> void:
 
 	if GameManager.current_state == Enums.GameState.PRACTICE:
 		_draw_practice_hud(font, screen, bar_h)
-		_draw_team_ability_panels(font, screen)
 		return
 
 	var round_text := "Round %d" % GameManager.get_competitive_round_number()
@@ -92,9 +91,6 @@ func _draw() -> void:
 	if not phase.is_empty():
 		draw_string(font, Vector2(screen.x - 150.0, 66.0), phase,
 			HORIZONTAL_ALIGNMENT_RIGHT, -1, 15, Color.YELLOW)
-
-	_draw_team_ability_panels(font, screen)
-
 
 func _draw_practice_hud(font: Font, screen: Vector2, _bar_h: float) -> void:
 	draw_string(font, Vector2(24.0, 34.0),

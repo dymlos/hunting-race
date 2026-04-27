@@ -13,12 +13,14 @@ var _nav_cooldowns: Dictionary = {}
 var _animals: Array[Dictionary] = []
 var _allow_back: bool = true
 var input_blocked: bool = false
+var _preview_timers: Dictionary = {}         # {card_index: remaining_time}
 
 const NAV_COOLDOWN: float = 0.2
-const CARD_GAP: float = 18.0
-const CARD_MARGIN: float = 12.0
+const PREVIEW_DURATION: float = 0.8
+const CARD_GAP: float = 22.0
+const CARD_MARGIN: float = 16.0
 const CARD_TOP_PAD: float = 16.0
-const ABILITY_Y: float = 178.0
+const ABILITY_Y: float = 222.0
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
@@ -32,6 +34,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_player_cursor.clear()
 	_player_confirmed.clear()
 	_nav_cooldowns.clear()
+	_preview_timers.clear()
 
 	var cursor_idx := 0
 	for pi: int in _player_indices:
@@ -138,6 +141,8 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 
+	_update_preview_timers(delta)
+
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
 
@@ -149,6 +154,9 @@ func _process(delta: float) -> void:
 		var device_id := InputManager.get_device_id(pi)
 		if device_id < 0:
 			continue
+
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			_trigger_ability_preview(pi)
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			if _handle_back_for_player(pi):
@@ -181,6 +189,25 @@ func _process(delta: float) -> void:
 				escapists_ready.emit(_build_selections())
 				return
 
+	queue_redraw()
+
+
+func _update_preview_timers(delta: float) -> void:
+	var expired: Array[int] = []
+	for card_index: int in _preview_timers:
+		_preview_timers[card_index] = maxf((_preview_timers[card_index] as float) - delta, 0.0)
+		if (_preview_timers[card_index] as float) <= 0.0:
+			expired.append(card_index)
+	for card_index in expired:
+		_preview_timers.erase(card_index)
+
+
+func _trigger_ability_preview(player_index: int) -> void:
+	if not _player_cursor.has(player_index):
+		return
+	var card_index: int = _player_cursor[player_index] as int
+	_preview_timers[card_index] = PREVIEW_DURATION
+	InputManager.vibrate_player(player_index, 0.08, 0.18, 0.08)
 	queue_redraw()
 
 
@@ -240,9 +267,9 @@ func _draw() -> void:
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	var card_count := _animals.size()
-	var available_w := maxf(760.0, screen.x - 260.0)
-	var card_w := clampf((available_w - (card_count - 1) * CARD_GAP) / card_count, 180.0, 230.0)
-	var card_h := 320.0
+	var available_w := maxf(880.0, screen.x - 220.0)
+	var card_w := clampf((available_w - (card_count - 1) * CARD_GAP) / card_count, 220.0, 300.0)
+	var card_h := 400.0
 	var total_w := card_count * card_w + (card_count - 1) * CARD_GAP
 	var cards_x := cx - total_w / 2.0
 	var cards_y := 118.0
@@ -275,15 +302,16 @@ func _draw() -> void:
 		_draw_panel(card_rect, bg_color, border_color, 2.0)
 		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 5.0)), Color(animal_color, 0.95))
 
-		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 54.0, card_w - CARD_MARGIN * 2.0, 100.0)
+		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
 		draw_rect(art_rect, Color(animal_color, 0.10))
 		draw_rect(art_rect, Color(animal_color, 0.25), false, 1.0)
+		_draw_active_escapist_preview(font, art_rect, i, animal_id, animal_color)
 		_draw_escapist_silhouette(animal_id, art_rect.position + art_rect.size * 0.5 + Vector2(0.0, 4.0),
 			3.1, Color(animal_color, 1.0))
 
-		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 24.0), 20, animal_color)
+		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 28.0), 24, animal_color)
 
-		_draw_centered_text_in_rect(font, animal_sub, Rect2(card_x, cards_y + 39.0, card_w, 16.0), 11, Color(0.64, 0.64, 0.66))
+		_draw_centered_text_in_rect(font, animal_sub, Rect2(card_x, cards_y + 44.0, card_w, 18.0), 13, Color(0.64, 0.64, 0.66))
 
 		var ability_button: String = ability["button"] as String
 		var ability_title: String = ability["name"] as String
@@ -291,9 +319,9 @@ func _draw() -> void:
 		var text_x := card_x + CARD_MARGIN
 		var text_w := card_w - CARD_MARGIN * 2.0
 		draw_string(font, Vector2(text_x, cards_y + ABILITY_Y),
-			ability_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.85, 0.85, 0.85))
-		_draw_wrapped_text(font, ability["desc"] as String, Vector2(text_x, cards_y + ABILITY_Y + 20.0),
-			text_w, 10, Color(0.58, 0.58, 0.58), 13.0, 4)
+			ability_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.88, 0.88, 0.88))
+		_draw_wrapped_text(font, ability["desc"] as String, Vector2(text_x, cards_y + ABILITY_Y + 26.0),
+			text_w, 13, Color(0.64, 0.64, 0.64), 17.0, 4)
 
 		if confirmed_pi >= 0:
 			var taken_label := "P%d" % (confirmed_pi + 1) if confirmed_pi < 100 else "BOT"
@@ -355,6 +383,40 @@ func _draw() -> void:
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
 	draw_rect(rect, fill)
 	draw_rect(rect, outline, false, outline_width)
+
+
+func _draw_active_escapist_preview(font: Font, rect: Rect2, card_index: int,
+		animal_id: Enums.EscapistAnimal, color: Color) -> void:
+	if not _preview_timers.has(card_index):
+		return
+	var remaining := _preview_timers[card_index] as float
+	if remaining <= 0.0:
+		return
+	var t := 1.0 - clampf(remaining / PREVIEW_DURATION, 0.0, 1.0)
+	var center := rect.position + rect.size * 0.5
+	draw_rect(rect, Color(color, 0.14))
+	match animal_id:
+		Enums.EscapistAnimal.RABBIT:
+			var start := rect.position + Vector2(30.0, rect.size.y - 24.0)
+			var end := rect.end - Vector2(30.0, 28.0)
+			var mid := start.lerp(end, t) + Vector2(0.0, -38.0 * sin(t * PI))
+			draw_arc(start.lerp(end, 0.5), 42.0, PI, TAU, 24, Color(color, 0.35), 2.0)
+			draw_circle(mid, 11.0, Color(color, 0.86))
+		Enums.EscapistAnimal.RAT:
+			var end_pos := center + Vector2(lerpf(-48.0, 48.0, t), sin(t * PI) * -20.0)
+			draw_line(center, end_pos, Color(color, 0.82), 4.0)
+			draw_circle(end_pos, 8.0, Color(color, 0.86))
+		Enums.EscapistAnimal.SQUIRREL:
+			var bounce := absf(sin(t * PI * 2.0))
+			var acorn_pos := center + Vector2(lerpf(-42.0, 42.0, t), -28.0 * bounce)
+			draw_circle(acorn_pos, 12.0, Color(color, 0.88))
+			draw_arc(acorn_pos, 16.0, 0.0, TAU, 18, Color(color, 0.5), 2.0)
+		Enums.EscapistAnimal.FLY:
+			draw_arc(center, 22.0 + 28.0 * t, 0.0, TAU, 28,
+				Color(color, 0.92 * (1.0 - t)), 3.0)
+			draw_circle(center, 14.0, Color(color, 0.72))
+	draw_string(font, rect.position + Vector2(10.0, rect.size.y - 10.0),
+		"Preview [A]", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(color, 0.92))
 
 
 func _draw_centered_text_in_rect(font: Font, text: String, rect: Rect2, font_size: int, color: Color) -> void:

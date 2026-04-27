@@ -175,6 +175,7 @@ func _ready() -> void:
 	round_replay = RoundReplayScene.new() as RoundReplay
 	character_container.add_child(round_replay)
 	round_replay.finished.connect(_on_round_replay_finished)
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
 
 	menu_music = MenuMusicPlayerScene.new() as MenuMusicPlayer
 	add_child(menu_music)
@@ -271,6 +272,7 @@ func _open_how_to_play() -> void:
 
 
 func _open_how_to_play_from_pause() -> void:
+	_hide_pause_menu_behind_subscreen()
 	how_to_play.open()
 	push_view(how_to_play)
 
@@ -278,9 +280,7 @@ func _open_how_to_play_from_pause() -> void:
 func _close_how_to_play() -> void:
 	pop_view()
 	if pause_menu and (get_tree().paused or GameManager.current_state == Enums.GameState.PAUSED):
-		pause_menu.show()
-		pause_menu.input_blocked = false
-		pause_menu.queue_redraw()
+		_restore_pause_menu_after_subscreen()
 		return
 	if _view_stack.is_empty():
 		_start_mode_select()
@@ -295,7 +295,7 @@ func _start_practice_setup() -> void:
 	GameManager.reset_match()
 	GameManager.settings_overrides[&"skill_cooldowns_enabled"] = true
 	GameManager.settings_overrides[&"practice_obstacles_enabled"] = true
-	GameManager.settings_overrides[&"practice_bots_enabled"] = true
+	GameManager.settings_overrides[&"practice_bots_enabled"] = false
 	_is_practice_flow = true
 	if arena:
 		arena.queue_free()
@@ -459,7 +459,7 @@ func _start_practice_session() -> void:
 	menu_music.use_round_volume()
 	game_hud.show()
 	GameManager.start_practice()
-	var bots_enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", true) as bool
+	var bots_enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", false) as bool
 	if bots_enabled:
 		_add_practice_bots()
 
@@ -470,10 +470,15 @@ func _setup_camera() -> void:
 	var map_size := arena.get_map_size()
 	camera.position = map_size / 2.0
 	var viewport_size := get_viewport_rect().size
-	var zoom_x := viewport_size.x / (map_size.x + 40.0)
-	var zoom_y := viewport_size.y / (map_size.y + 40.0)
-	var target_zoom := minf(zoom_x, zoom_y) * 1.12
+	var padding := Vector2(18.0, 18.0)
+	var zoom_x := viewport_size.x / (map_size.x + padding.x)
+	var zoom_y := viewport_size.y / (map_size.y + padding.y)
+	var target_zoom := minf(zoom_x, zoom_y)
 	camera.zoom = Vector2(target_zoom, target_zoom)
+
+
+func _on_viewport_size_changed() -> void:
+	_setup_camera()
 
 
 func _on_goal_entered(escapist: Escapist) -> void:
@@ -1204,6 +1209,20 @@ func _clear_pause_menu() -> void:
 		pause_menu.input_blocked = false
 
 
+func _hide_pause_menu_behind_subscreen() -> void:
+	if pause_menu and pause_menu.visible:
+		pause_menu.hide()
+		pause_menu.input_blocked = true
+
+
+func _restore_pause_menu_after_subscreen() -> void:
+	if not pause_menu:
+		return
+	pause_menu.show()
+	pause_menu.input_blocked = false
+	pause_menu.queue_redraw()
+
+
 func _prime_start_button_state() -> void:
 	for pi in _active_player_indices:
 		var device_id := InputManager.get_device_id(pi)
@@ -1214,12 +1233,16 @@ func _prime_start_button_state() -> void:
 
 func _open_settings() -> void:
 	ui_layer.move_child(settings_menu, ui_layer.get_child_count() - 1)
+	if get_tree().paused or GameManager.current_state == Enums.GameState.PAUSED:
+		_hide_pause_menu_behind_subscreen()
 	push_view(settings_menu)
 	settings_menu.open()
 
 
 func _close_settings() -> void:
 	pop_view()
+	if pause_menu and (get_tree().paused or GameManager.current_state == Enums.GameState.PAUSED):
+		_restore_pause_menu_after_subscreen()
 
 
 func _on_setting_changed(key: String, value: Variant) -> void:

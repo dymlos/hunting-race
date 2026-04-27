@@ -124,30 +124,30 @@ func _draw() -> void:
 
 
 func _draw_ability_guide(font: Font, screen: Vector2) -> void:
-	var panel_margin := 50.0
-	var panel := Rect2(Vector2(panel_margin, 42.0),
-		Vector2(screen.x - panel_margin * 2.0, screen.y - 84.0))
+	var panel_margin := 36.0
+	var panel := Rect2(Vector2(panel_margin, 30.0),
+		Vector2(screen.x - panel_margin * 2.0, screen.y - 60.0))
 	draw_rect(panel, Color(0.06, 0.06, 0.06, 0.96))
 	draw_rect(panel, Color(0.75, 0.75, 0.75, 0.75), false, 2.0)
 
 	var title := "ABILITY GUIDE"
 	draw_string(font, panel.position + Vector2(28.0, 42.0),
-		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
+		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 38, Color.WHITE)
 	draw_string(font, panel.position + Vector2(28.0, 68.0),
 		"Escapists use A. Trappers use A, X, and Y. SELECT cancels multi-point trap placement.",
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.68, 0.68, 0.68))
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.68, 0.68, 0.68))
 
 	var left_x := panel.position.x + 30.0
 	var right_x := panel.position.x + panel.size.x * 0.48
-	var top_y := panel.position.y + 112.0
+	var top_y := panel.position.y + 124.0
 	_draw_escapist_guide(font, Vector2(left_x, top_y), panel.size.x * 0.4)
 	_draw_trapper_guide(font, Vector2(right_x, top_y), panel.size.x * 0.46)
 
 	var hint := "A / B close"
-	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 	draw_string(font, Vector2(panel.position.x + panel.size.x - hint_width - 28.0,
 			panel.position.y + panel.size.y - 20.0),
-		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.YELLOW)
+		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.YELLOW)
 
 
 func _get_options() -> Array[String]:
@@ -165,7 +165,7 @@ func _get_option_label(option: String) -> String:
 			var enabled := GameManager.settings_overrides.get(&"practice_obstacles_enabled", false) as bool
 			return "Obstacles: < %s >" % ("On" if enabled else "Off")
 		"Practice Bots":
-			var enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", true) as bool
+			var enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", false) as bool
 			return "Bots: < %s >" % ("On" if enabled else "Off")
 	return option
 
@@ -214,7 +214,7 @@ func _toggle_practice_obstacles() -> void:
 
 
 func _toggle_practice_bots() -> void:
-	var enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", true) as bool
+	var enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", false) as bool
 	var next_enabled := not enabled
 	GameManager.settings_overrides[&"practice_bots_enabled"] = next_enabled
 	practice_bots_toggled.emit(next_enabled)
@@ -222,9 +222,9 @@ func _toggle_practice_bots() -> void:
 
 
 func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:
-	draw_string(font, pos, "ESCAPISTS", HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+	draw_string(font, pos, "ESCAPISTS", HORIZONTAL_ALIGNMENT_LEFT, -1, 26,
 		Enums.role_color(Enums.Role.ESCAPIST))
-	var y := pos.y + 32.0
+	var y := pos.y + 42.0
 	for animal_data: Dictionary in EscapistAnimals.get_all():
 		var ability: Dictionary = animal_data["ability"] as Dictionary
 		var color: Color = animal_data["color"] as Color
@@ -234,23 +234,23 @@ func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:
 			ability["name"] as String,
 		]
 		draw_string(font, Vector2(pos.x, y), header,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, color)
-		y += 17.0
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
+		y += 23.0
 		y += _draw_wrapped_text(font, ability["desc"] as String,
-			Vector2(pos.x + 12.0, y), width - 12.0, 12,
-			Color(0.68, 0.68, 0.68), 15.0, 2)
-		y += 12.0
+			Vector2(pos.x + 12.0, y), width - 12.0, 15,
+			Color(0.74, 0.74, 0.74), 19.0, 2)
+		y += 17.0
 
 
 func _draw_trapper_guide(font: Font, pos: Vector2, width: float) -> void:
-	draw_string(font, pos, "TRAPPERS", HORIZONTAL_ALIGNMENT_LEFT, -1, 20,
+	draw_string(font, pos, "TRAPPERS", HORIZONTAL_ALIGNMENT_LEFT, -1, 26,
 		Enums.role_color(Enums.Role.TRAPPER))
-	var y := pos.y + 32.0
+	var y := pos.y + 42.0
 	for trapper_data: Dictionary in _get_trapper_guide_data():
 		var color: Color = trapper_data["color"] as Color
 		draw_string(font, Vector2(pos.x, y), trapper_data["name"] as String,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, color)
-		y += 17.0
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
+		y += 23.0
 		var abilities: Array = trapper_data["abilities"] as Array
 		for ability: Dictionary in abilities:
 			var line := "[%s] %s - %s" % [
@@ -259,8 +259,8 @@ func _draw_trapper_guide(font: Font, pos: Vector2, width: float) -> void:
 				ability["desc"] as String,
 			]
 			y += _draw_wrapped_text(font, line, Vector2(pos.x + 12.0, y),
-				width - 12.0, 11, Color(0.68, 0.68, 0.68), 13.0, 2)
-		y += 11.0
+				width - 12.0, 14, Color(0.74, 0.74, 0.74), 17.0, 2)
+		y += 14.0
 
 
 func _draw_wrapped_text(font: Font, text: String, position: Vector2,

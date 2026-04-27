@@ -114,6 +114,14 @@ func get_device_id(player_index: int) -> int:
 	return device_assignments.get(player_index, -1)
 
 
+func vibrate_player(player_index: int, weak_magnitude: float = 0.22,
+		strong_magnitude: float = 0.55, duration: float = 0.18) -> void:
+	var device_id := get_device_id(player_index)
+	if device_id < 0:
+		return
+	Input.start_joy_vibration(device_id, weak_magnitude, strong_magnitude, duration)
+
+
 func get_assigned_player_count() -> int:
 	return device_assignments.size()
 

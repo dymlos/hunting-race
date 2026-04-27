@@ -341,6 +341,8 @@ func _complete_recharge_step() -> void:
 		return
 	_queued_recharges -= 1
 	_charges_remaining = mini(_charges_remaining + 1, max_charges)
+	if trapper != null and is_instance_valid(trapper):
+		trapper.notify_ability_recharged(get_display_color())
 	if _queued_recharges > 0:
 		_cooldown_remaining = cooldown
 	else:

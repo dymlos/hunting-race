@@ -24,6 +24,7 @@ var _fly_counter_timer: float = 0.0
 var _fly_boost_timer: float = 0.0
 var _effect_immunity_timer: float = 0.0
 var _ability_denied_flash_timer: float = 0.0
+var _ability_ready_flash_timer: float = 0.0
 var _floating_text: String = ""
 var _floating_text_timer: float = 0.0
 var _floating_text_duration: float = Constants.FLOATING_TEXT_DURATION
@@ -115,10 +116,14 @@ func _physics_process(delta: float) -> void:
 		_effect_immunity_timer -= delta
 	if _ability_denied_flash_timer > 0.0:
 		_ability_denied_flash_timer -= delta
+	if _ability_ready_flash_timer > 0.0:
+		_ability_ready_flash_timer = maxf(_ability_ready_flash_timer - delta, 0.0)
+		queue_redraw()
 	if _ability_cooldown_remaining > 0.0:
 		_ability_cooldown_remaining = maxf(_ability_cooldown_remaining - delta, 0.0)
 		if _ability_cooldown_remaining <= 0.0:
 			_ability_available = true
+			_notify_ability_recharged()
 	_update_floating_text(delta)
 	_process_patrol_bot()
 	super._physics_process(delta)
@@ -325,6 +330,7 @@ func _reset_ability() -> void:
 	_fly_boost_timer = 0.0
 	_effect_immunity_timer = 0.0
 	_ability_denied_flash_timer = 0.0
+	_ability_ready_flash_timer = 0.0
 	if is_instance_valid(_active_rat_tail):
 		_active_rat_tail.queue_free()
 	_active_rat_tail = null
@@ -400,6 +406,12 @@ func _notify_ability_denied() -> void:
 	_ability_denied_flash_timer = 0.22
 	_show_floating_text("COOLDOWN", Color(1.0, 0.18, 0.12), 0.75, 20)
 	AudioManager.play_effect(&"CooldownDenied")
+	queue_redraw()
+
+
+func _notify_ability_recharged() -> void:
+	_ability_ready_flash_timer = 0.55
+	InputManager.vibrate_player(player_index, 0.18, 0.48, 0.16)
 	queue_redraw()
 
 
@@ -609,11 +621,12 @@ func _draw() -> void:
 
 	var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
 	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
-	if _ability_cooldown_remaining > 0.0:
-		var cooldown_ratio := clampf(_ability_cooldown_remaining / _get_ability_cooldown_duration(), 0.0, 1.0)
-		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 10.5,
-			-PI / 2.0, -PI / 2.0 + TAU * (1.0 - cooldown_ratio), 20,
-			Color(animal_color, 0.85), 2.0)
+	if _ability_ready_flash_timer > 0.0:
+		var ready_ratio := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
+		var pulse_radius := Constants.CHARACTER_RADIUS + 9.0 + (1.0 - ready_ratio) * 8.0
+		draw_circle(Vector2.ZERO, pulse_radius, Color(animal_color, 0.18 * ready_ratio))
+		draw_arc(Vector2.ZERO, pulse_radius, 0.0, TAU, 28,
+			Color(animal_color, 0.9 * ready_ratio), 2.6)
 	if _rabbit_charging:
 		var ratio := _rabbit_charge_time / Constants.RABBIT_LEAP_MAX_CHARGE
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 10.0,

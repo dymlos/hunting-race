@@ -46,14 +46,14 @@ const PAGES := [
 		"title": "SKILLS",
 		"accent": Color(1.0, 0.36, 0.24),
 		"lines": [
-			"Escapists use A in-match and then wait for that animal cooldown to finish.",
-			"That same cooldown behavior now stays active in both Official and Practice.",
+			"Escapists use A in-match. After using it, that animal skill enters cooldown.",
+			"When an escapist skill is ready again, the character flashes and the controller vibrates.",
 			"Trappers use A, X and Y.",
 			"In Hunt, each trapper skill gets one free use.",
-			"In Escape, trapper charges return through their own cooldowns instead of instant easy reloads.",
+			"In Escape and Practice, each trapper skill has its own charges and cooldown.",
+			"When a trapper charge returns, the trapper cursor flashes and the controller vibrates.",
 			"Some trapper skills need placement limits or multi-point setup.",
 			"SELECT cancels multi-point placement.",
-			"If a skill is not ready, the UI flashes a cooldown warning.",
 		],
 	},
 ]
@@ -191,16 +191,16 @@ func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
 	draw_line(Vector2(right_rect.position.x, divider_y), Vector2(right_rect.end.x, divider_y), Color(accent, 0.34), 1.2)
 
 	var left_lines: Array[String] = [
-		"Escapists use A in-match and then wait for that animal cooldown to finish.",
-		"That same cooldown behavior stays active in Official and Practice.",
+		"Escapists use A in-match. After using it, that animal skill enters cooldown.",
+		"When the skill is ready again, the character flashes and the controller vibrates.",
 	]
 	var right_lines: Array[String] = [
 		"Trappers use A, X and Y.",
 		"In Hunt, each trapper skill gets one free use.",
-		"In Escape, each trapper skill recharges on its own cooldown.",
+		"In Escape and Practice, each skill has its own charges and cooldown.",
+		"When a charge returns, the trapper cursor flashes and the controller vibrates.",
 		"Some trapper skills use placement limits or multi-point setup.",
 		"SELECT cancels multi-point placement.",
-		"If a skill is not ready, the UI flashes a cooldown warning.",
 	]
 
 	_draw_skills_column(font, left_rect, accent, left_lines, 16, 17.0, 10.0)

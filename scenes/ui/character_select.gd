@@ -19,14 +19,16 @@ var _nav_cooldowns: Dictionary = {}          # {pi: float}
 var _characters: Array[Dictionary] = []      # TrapperCharacters.get_all()
 var _allow_back: bool = true                 # false between rounds
 var input_blocked: bool = false
+var _preview_timers: Dictionary = {}         # {"card:button": remaining_time}
 
 const NAV_COOLDOWN: float = 0.2
-const CARD_GAP: float = 18.0
-const CARD_MARGIN: float = 12.0
-const ABILITY_LINE_HEIGHT: float = 11.0
-const ABILITY_BLOCK_HEIGHT: float = 38.0
+const PREVIEW_DURATION: float = 0.8
+const CARD_GAP: float = 22.0
+const CARD_MARGIN: float = 16.0
+const ABILITY_LINE_HEIGHT: float = 16.0
+const ABILITY_BLOCK_HEIGHT: float = 58.0
 const CARD_TOP_PAD: float = 16.0
-const ABILITY_START_Y: float = 178.0
+const ABILITY_START_Y: float = 220.0
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
@@ -40,6 +42,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_player_cursor.clear()
 	_player_confirmed.clear()
 	_nav_cooldowns.clear()
+	_preview_timers.clear()
 
 	# Initialize cursors for trapper-team players
 	var cursor_idx := 0
@@ -169,6 +172,8 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 
+	_update_preview_timers(delta)
+
 	# Tick nav cooldowns
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
@@ -181,6 +186,13 @@ func _process(delta: float) -> void:
 		var device_id := InputManager.get_device_id(pi)
 		if device_id < 0:
 			continue
+
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			_trigger_ability_preview(pi, "A")
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_X):
+			_trigger_ability_preview(pi, "X")
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
+			_trigger_ability_preview(pi, "Y")
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			if _handle_back_for_player(pi):
@@ -215,6 +227,30 @@ func _process(delta: float) -> void:
 				return
 
 	queue_redraw()
+
+
+func _update_preview_timers(delta: float) -> void:
+	var expired: Array[String] = []
+	for key: String in _preview_timers:
+		_preview_timers[key] = maxf((_preview_timers[key] as float) - delta, 0.0)
+		if (_preview_timers[key] as float) <= 0.0:
+			expired.append(key)
+	for key in expired:
+		_preview_timers.erase(key)
+
+
+func _trigger_ability_preview(player_index: int, button: String) -> void:
+	if not _player_cursor.has(player_index):
+		return
+	var card_index: int = _player_cursor[player_index] as int
+	var char_data: Dictionary = _characters[card_index]
+	var abilities: Array = char_data["abilities"] as Array
+	for ability: Dictionary in abilities:
+		if (ability["button"] as String) == button:
+			_preview_timers["%d:%s" % [card_index, button]] = PREVIEW_DURATION
+			InputManager.vibrate_player(player_index, 0.08, 0.18, 0.08)
+			queue_redraw()
+			return
 
 func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 		max_width: float, font_size: int, color: Color, line_height: float,
@@ -279,9 +315,9 @@ func _draw() -> void:
 	# Character cards — 4 cards in a row
 	var card_count := _characters.size()
 	var card_gap := CARD_GAP
-	var available_w := maxf(760.0, screen.x - 260.0)
-	var card_w := clampf((available_w - (card_count - 1) * card_gap) / card_count, 180.0, 230.0)
-	var card_h := 340.0
+	var available_w := maxf(880.0, screen.x - 220.0)
+	var card_w := clampf((available_w - (card_count - 1) * card_gap) / card_count, 220.0, 300.0)
+	var card_h := 430.0
 	var total_w := card_count * card_w + (card_count - 1) * card_gap
 	var cards_x := cx - total_w / 2.0
 	var cards_y := 118.0
@@ -322,9 +358,10 @@ func _draw() -> void:
 		_draw_panel(card_rect, bg_color, border_color, 2.0)
 		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 5.0)), Color(char_color, 0.95))
 
-		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 54.0, card_w - CARD_MARGIN * 2.0, 100.0)
+		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
 		draw_rect(art_rect, Color(char_color, 0.10))
 		draw_rect(art_rect, Color(char_color, 0.25), false, 1.0)
+		_draw_active_trapper_preview(font, art_rect, i, char_id, char_color)
 		var silhouette_scale := 3.0
 		var silhouette_offset := Vector2(0.0, -2.0)
 		if char_id == Enums.TrapperCharacter.ESCORPION:
@@ -334,17 +371,17 @@ func _draw() -> void:
 			silhouette_scale, Color(char_color, 1.0))
 
 		# Character name
-		_draw_centered_text_in_rect(font, char_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 24.0), 20, char_color)
+		_draw_centered_text_in_rect(font, char_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 28.0), 24, char_color)
 
 		# Subtitle
-		var sub_y := cards_y + 39.0
+		var sub_y := cards_y + 44.0
 		var sub_max_w := card_w - CARD_MARGIN * 2.0
-		var subtitle_width := font.get_string_size(char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		var subtitle_width := font.get_string_size(char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 		if subtitle_width <= sub_max_w:
-			_draw_centered_text_in_rect(font, char_sub, Rect2(card_x, sub_y, card_w, 16.0), 11, Color(0.64, 0.64, 0.66))
+			_draw_centered_text_in_rect(font, char_sub, Rect2(card_x, sub_y, card_w, 18.0), 13, Color(0.64, 0.64, 0.66))
 		else:
 			_draw_wrapped_text(font, char_sub, Vector2(card_x + CARD_MARGIN, sub_y + 10.0),
-				sub_max_w, 11, Color(0.6, 0.6, 0.6), 12.0, 2)
+				sub_max_w, 13, Color(0.6, 0.6, 0.6), 15.0, 2)
 
 		# Abilities list
 		for a_i in abilities.size():
@@ -356,10 +393,10 @@ func _draw() -> void:
 			var text_w := card_w - CARD_MARGIN * 2.0
 			var block_y := cards_y + ABILITY_START_Y + a_i * ABILITY_BLOCK_HEIGHT
 			draw_string(font, Vector2(text_x, block_y),
-				a_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.82, 0.82, 0.82))
+				a_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.86, 0.86, 0.86))
 			var a_desc: String = ability["desc"] as String
-			_draw_wrapped_text(font, a_desc, Vector2(text_x, block_y + 14),
-				text_w, 9, Color(0.55, 0.55, 0.55), ABILITY_LINE_HEIGHT, 2)
+			_draw_wrapped_text(font, a_desc, Vector2(text_x, block_y + 20),
+				text_w, 12, Color(0.62, 0.62, 0.62), ABILITY_LINE_HEIGHT, 2)
 
 		# TAKEN label
 		if is_taken:
@@ -429,6 +466,92 @@ func _draw() -> void:
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
 	draw_rect(rect, fill)
 	draw_rect(rect, outline, false, outline_width)
+
+
+func _draw_active_trapper_preview(font: Font, rect: Rect2, card_index: int,
+		char_id: Enums.TrapperCharacter, color: Color) -> void:
+	var active_button := ""
+	var remaining := 0.0
+	for button in ["A", "X", "Y"]:
+		var key := "%d:%s" % [card_index, button]
+		if _preview_timers.has(key) and (_preview_timers[key] as float) > remaining:
+			active_button = button
+			remaining = _preview_timers[key] as float
+	if active_button.is_empty():
+		return
+
+	var t := 1.0 - clampf(remaining / PREVIEW_DURATION, 0.0, 1.0)
+	var center := rect.position + rect.size * 0.5
+	draw_rect(rect, Color(color, 0.14))
+	match char_id:
+		Enums.TrapperCharacter.ARANA:
+			_draw_spider_preview(center, rect, active_button, color, t)
+		Enums.TrapperCharacter.HONGO:
+			_draw_mushroom_preview(center, rect, active_button, color, t)
+		Enums.TrapperCharacter.ESCORPION:
+			_draw_scorpion_preview(center, rect, active_button, color, t)
+		Enums.TrapperCharacter.PULPO:
+			_draw_octopus_preview(center, rect, active_button, color, t)
+	draw_string(font, rect.position + Vector2(10.0, rect.size.y - 10.0),
+		"Preview [%s]" % active_button, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(color, 0.92))
+
+
+func _draw_spider_preview(center: Vector2, rect: Rect2, button: String, color: Color, t: float) -> void:
+	if button == "A":
+		draw_circle(center, 16.0 + 34.0 * t, Color(0.15, 0.95, 0.35, 0.22 * (1.0 - t)))
+	elif button == "X":
+		var y := lerpf(rect.position.y + 20.0, rect.end.y - 20.0, t)
+		for offset in [-12.0, 0.0, 12.0]:
+			draw_line(Vector2(rect.position.x + 18.0, y + offset), Vector2(rect.end.x - 18.0, y - offset),
+				Color(color, 0.72), 2.0)
+	else:
+		draw_arc(center, 26.0 + 26.0 * t, 0.0, TAU, 28, Color(color, 0.9 * (1.0 - t)), 3.0)
+
+
+func _draw_mushroom_preview(center: Vector2, rect: Rect2, button: String, color: Color, t: float) -> void:
+	if button == "A":
+		draw_circle(center + Vector2(0.0, 8.0), 10.0 + 24.0 * t, Color(color, 0.3 * (1.0 - t)))
+		draw_circle(center + Vector2(0.0, -8.0), 18.0, Color(color, 0.8))
+	elif button == "X":
+		for i in 5:
+			var angle := TAU * float(i) / 5.0 + t * PI
+			draw_circle(center + Vector2(cos(angle), sin(angle)) * (18.0 + 22.0 * t),
+				7.0, Color(color, 0.42 * (1.0 - t)))
+	else:
+		draw_arc(center, 38.0, 0.0, TAU * t, 24, Color(color, 0.85), 3.0)
+		draw_line(center + Vector2(-42.0, 0.0), center + Vector2(42.0, 0.0), Color(color, 0.42), 2.0)
+
+
+func _draw_scorpion_preview(center: Vector2, rect: Rect2, button: String, color: Color, t: float) -> void:
+	if button == "A":
+		var tip := center + Vector2(0.0, lerpf(28.0, -28.0, t))
+		draw_colored_polygon(PackedVector2Array([
+			tip,
+			tip + Vector2(-10.0, 28.0),
+			tip + Vector2(10.0, 28.0),
+		]), Color(color, 0.84))
+	elif button == "X":
+		draw_arc(center, 12.0 + 34.0 * t, 0.0, TAU, 28, Color(0.9, 0.72, 0.22, 0.5 * (1.0 - t)), 4.0)
+	else:
+		var left := rect.position.x + lerpf(20.0, rect.size.x * 0.42, t)
+		var right := rect.end.x - lerpf(20.0, rect.size.x * 0.42, t)
+		draw_line(Vector2(left, rect.position.y + 18.0), Vector2(left, rect.end.y - 18.0), Color(color, 0.9), 5.0)
+		draw_line(Vector2(right, rect.position.y + 18.0), Vector2(right, rect.end.y - 18.0), Color(color, 0.9), 5.0)
+
+
+func _draw_octopus_preview(center: Vector2, rect: Rect2, button: String, color: Color, t: float) -> void:
+	if button == "A":
+		for i in 6:
+			var angle := TAU * float(i) / 6.0
+			draw_circle(center + Vector2(cos(angle), sin(angle)) * (10.0 + 34.0 * t),
+				8.0, Color(color, 0.34 * (1.0 - t)))
+	elif button == "X":
+		var wave_y := center.y + sin(t * TAU) * 16.0
+		draw_line(Vector2(rect.position.x + 20.0, wave_y), Vector2(rect.end.x - 20.0, center.y),
+			Color(color, 0.82), 4.0)
+	else:
+		draw_circle(center + Vector2(lerpf(-34.0, 34.0, t), 0.0), 12.0, Color(color, 0.8))
+		draw_circle(center + Vector2(lerpf(34.0, -34.0, t), 0.0), 12.0, Color(1.0, 1.0, 1.0, 0.55))
 
 
 func _draw_centered_text_in_rect(font: Font, text: String, rect: Rect2, font_size: int, color: Color) -> void:

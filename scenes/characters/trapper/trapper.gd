@@ -18,6 +18,8 @@ var _set_reload_timer: float = 0.0
 var _floating_text: String = ""
 var _floating_text_timer: float = 0.0
 var _floating_text_color: Color = Color.WHITE
+var _ability_ready_flash_timer: float = 0.0
+var _ability_ready_flash_color: Color = Color.WHITE
 var _animal_mark_alpha: float = 0.78
 var _last_mark_position: Vector2 = Vector2.ZERO
 
@@ -62,6 +64,7 @@ func setup(map_size: Vector2) -> void:
 	_set_reload_timer = 0.0
 	_floating_text = ""
 	_floating_text_timer = 0.0
+	_ability_ready_flash_timer = 0.0
 	_animal_mark_alpha = 0.78
 	_last_mark_position = position
 	_setup_abilities()
@@ -170,6 +173,8 @@ func _process(delta: float) -> void:
 	# Update abilities even when locked (for cooldown ticking)
 	for ability: TrapperAbility in _abilities:
 		ability.update(delta)
+	if _ability_ready_flash_timer > 0.0:
+		_ability_ready_flash_timer = maxf(_ability_ready_flash_timer - delta, 0.0)
 	_update_set_reload(delta)
 	_update_floating_text(delta)
 
@@ -549,6 +554,13 @@ func _show_floating_text(text: String, text_color: Color) -> void:
 	queue_redraw()
 
 
+func notify_ability_recharged(ability_color: Color) -> void:
+	_ability_ready_flash_color = ability_color
+	_ability_ready_flash_timer = 0.55
+	InputManager.vibrate_player(player_index, 0.2, 0.52, 0.16)
+	queue_redraw()
+
+
 func _update_floating_text(delta: float) -> void:
 	if _floating_text_timer <= 0.0:
 		return
@@ -698,6 +710,12 @@ func _draw() -> void:
 	draw_line(Vector2(0, -size), Vector2(0, size), color, 2.0)
 	draw_arc(Vector2.ZERO, size * 0.7, 0, TAU, 12, color, 1.5)
 	draw_arc(Vector2.ZERO, size + 3.5, 0, TAU, 16, Color(team_color, 0.78), 2.0)
+	if _ability_ready_flash_timer > 0.0:
+		var ready_ratio := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
+		var pulse_radius := size + 9.0 + (1.0 - ready_ratio) * 9.0
+		draw_circle(Vector2.ZERO, pulse_radius, Color(_ability_ready_flash_color, 0.16 * ready_ratio))
+		draw_arc(Vector2.ZERO, pulse_radius, 0.0, TAU, 28,
+			Color(_ability_ready_flash_color, 0.9 * ready_ratio), 2.6)
 
 	# Player label
 	var label := "P%d" % (player_index + 1)
@@ -724,13 +742,6 @@ func _draw() -> void:
 		var ability: TrapperAbility = _abilities[i]
 		var a_color := ability.get_display_color()
 
-		# Cooldown arc
-		var ratio := ability.get_cooldown_ratio()
-		if ratio > 0.0:
-			var arc_radius := size + 4.0 + i * 4.0
-			draw_arc(Vector2.ZERO, arc_radius,
-				-PI / 2.0, -PI / 2.0 + TAU * (1.0 - ratio),
-				12, Color(a_color, 0.4), 2.0)
 		var denied_ratio := ability.get_cooldown_denied_ratio()
 		if denied_ratio > 0.0:
 			var flash_alpha := 0.25 + 0.55 * denied_ratio

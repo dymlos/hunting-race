@@ -332,7 +332,7 @@ func _build_moving_wall(def: Dictionary) -> void:
 	crush_area.monitorable = false
 	var crush_shape := RectangleShape2D.new()
 	# Very small — only triggers when character center is deep inside the wall
-	crush_shape.size = wall_size * 0.3
+	crush_shape.size = wall_size + Vector2(Constants.CHARACTER_RADIUS, Constants.CHARACTER_RADIUS)
 	var crush_col := CollisionShape2D.new()
 	crush_col.shape = crush_shape
 	crush_col.position = wall_size / 2.0
@@ -345,7 +345,11 @@ func _build_moving_wall(def: Dictionary) -> void:
 	add_child(body)
 	_hazard_nodes.append(body)
 
-	_moving_wall_data.append({"body": body, "size": wall_size})
+	_moving_wall_data.append({
+		"body": body,
+		"size": wall_size,
+		"last_position": body.global_position,
+	})
 
 	# Ping-pong tween
 	var tween := create_tween().set_loops()
@@ -356,9 +360,7 @@ func _build_moving_wall(def: Dictionary) -> void:
 
 func _on_moving_wall_crush(body: Node2D) -> void:
 	if body is Escapist:
-		var esc := body as Escapist
-		if not esc.is_dead and not esc.has_scored:
-			esc.movement.crushed.emit()
+		_crush_escapist(body as Escapist)
 
 
 func _on_moving_wall_contact(body: Node2D) -> void:
@@ -743,6 +745,7 @@ func _draw_frost_waves(rect: Rect2, direction: Vector2, alpha: float, time: floa
 
 
 func _process(_delta: float) -> void:
+	_check_moving_wall_crushes()
 	for vent_data in _frost_vent_data:
 		var area: Area2D = vent_data["area"] as Area2D
 		if not is_instance_valid(area):
@@ -752,3 +755,31 @@ func _process(_delta: float) -> void:
 			area.set_meta("pulse_timer", maxf(0.0, pulse_timer - _delta))
 	if not _moving_wall_data.is_empty() or not _frost_vent_data.is_empty():
 		queue_redraw()
+
+
+func _check_moving_wall_crushes() -> void:
+	if _moving_wall_data.is_empty():
+		return
+	for wall_data: Dictionary in _moving_wall_data:
+		var body := wall_data.get("body", null) as Node2D
+		if body == null or not is_instance_valid(body):
+			continue
+		var last_position := wall_data.get("last_position", body.global_position) as Vector2
+		var moved_distance := body.global_position.distance_to(last_position)
+		wall_data["last_position"] = body.global_position
+		if moved_distance <= 0.01:
+			continue
+		var wall_size := wall_data.get("size", Vector2.ZERO) as Vector2
+		var wall_rect := Rect2(body.global_position, wall_size).grow(Constants.CHARACTER_RADIUS * 0.85)
+		for node: Node in get_tree().get_nodes_in_group("characters"):
+			if not (node is Escapist):
+				continue
+			var esc := node as Escapist
+			if wall_rect.has_point(esc.global_position):
+				_crush_escapist(esc)
+
+
+func _crush_escapist(esc: Escapist) -> void:
+	if esc.is_dead or esc.has_scored:
+		return
+	esc.movement.crushed.emit()
