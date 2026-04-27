@@ -20,9 +20,15 @@ var _characters: Array[Dictionary] = []      # TrapperCharacters.get_all()
 var _allow_back: bool = true                 # false between rounds
 var input_blocked: bool = false
 var _preview_timers: Dictionary = {}         # {"card:button": remaining_time}
+var _demo_active: bool = false
+var _demo_player_index: int = -1
+var _demo_card_index: int = -1
+var _demo_pos: Vector2 = Vector2(0.5, 0.55)
+var _demo_effects: Array[Dictionary] = []
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
+const DEMO_EFFECT_DURATION: float = 0.75
 const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
 const ABILITY_LINE_HEIGHT: float = 16.0
@@ -43,6 +49,11 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_player_confirmed.clear()
 	_nav_cooldowns.clear()
 	_preview_timers.clear()
+	_demo_active = false
+	_demo_player_index = -1
+	_demo_card_index = -1
+	_demo_pos = Vector2(0.5, 0.55)
+	_demo_effects.clear()
 
 	# Initialize cursors for trapper-team players
 	var cursor_idx := 0
@@ -173,6 +184,10 @@ func _process(delta: float) -> void:
 		return
 
 	_update_preview_timers(delta)
+	if _demo_active:
+		_process_demo(delta)
+		queue_redraw()
+		return
 
 	# Tick nav cooldowns
 	for pi: int in _nav_cooldowns:
@@ -188,11 +203,8 @@ func _process(delta: float) -> void:
 			continue
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
-			_trigger_ability_preview(pi, "A")
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_X):
-			_trigger_ability_preview(pi, "X")
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
-			_trigger_ability_preview(pi, "Y")
+			_enter_demo(pi)
+			return
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			if _handle_back_for_player(pi):
@@ -251,6 +263,71 @@ func _trigger_ability_preview(player_index: int, button: String) -> void:
 			InputManager.vibrate_player(player_index, 0.08, 0.18, 0.08)
 			queue_redraw()
 			return
+
+
+func _enter_demo(player_index: int) -> void:
+	if not _player_cursor.has(player_index):
+		return
+	_demo_active = true
+	_demo_player_index = player_index
+	_demo_card_index = _player_cursor[player_index] as int
+	_demo_pos = Vector2(0.5, 0.58)
+	_demo_effects.clear()
+	InputManager.vibrate_player(player_index, 0.06, 0.14, 0.08)
+	queue_redraw()
+
+
+func _exit_demo() -> void:
+	_demo_active = false
+	_demo_player_index = -1
+	_demo_card_index = -1
+	_demo_effects.clear()
+	InputManager.suppress_edge_detection(2)
+	queue_redraw()
+
+
+func _process_demo(delta: float) -> void:
+	var device_id := InputManager.get_device_id(_demo_player_index)
+	if device_id < 0:
+		_exit_demo()
+		return
+	if InputManager.is_menu_back_just_pressed(device_id):
+		_exit_demo()
+		return
+	var move_vec := InputManager.get_move_vector(_demo_player_index)
+	_demo_pos += move_vec * delta * 0.62
+	_demo_pos.x = clampf(_demo_pos.x, 0.10, 0.90)
+	_demo_pos.y = clampf(_demo_pos.y, 0.18, 0.86)
+	for button in ["A", "X", "Y"]:
+		var joy_button := JOY_BUTTON_A if button == "A" else (JOY_BUTTON_X if button == "X" else JOY_BUTTON_Y)
+		if InputManager.is_button_just_pressed_on_device(device_id, joy_button):
+			_trigger_demo_ability(button)
+	_update_demo_effects(delta)
+
+
+func _trigger_demo_ability(button: String) -> void:
+	if _demo_card_index < 0 or _demo_card_index >= _characters.size():
+		return
+	var abilities: Array = (_characters[_demo_card_index] as Dictionary)["abilities"] as Array
+	for ability: Dictionary in abilities:
+		if (ability["button"] as String) == button:
+			_demo_effects.append({
+				"button": button,
+				"time": 0.0,
+				"duration": DEMO_EFFECT_DURATION,
+				"origin": _demo_pos,
+			})
+			InputManager.vibrate_player(_demo_player_index, 0.08, 0.22, 0.1)
+			return
+
+
+func _update_demo_effects(delta: float) -> void:
+	var keep: Array[Dictionary] = []
+	for effect: Dictionary in _demo_effects:
+		effect["time"] = (effect["time"] as float) + delta
+		if (effect["time"] as float) < (effect["duration"] as float):
+			keep.append(effect)
+	_demo_effects = keep
 
 func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 		max_width: float, font_size: int, color: Color, line_height: float,
@@ -361,14 +438,17 @@ func _draw() -> void:
 		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
 		draw_rect(art_rect, Color(char_color, 0.10))
 		draw_rect(art_rect, Color(char_color, 0.25), false, 1.0)
-		_draw_active_trapper_preview(font, art_rect, i, char_id, char_color)
-		var silhouette_scale := 3.0
-		var silhouette_offset := Vector2(0.0, -2.0)
-		if char_id == Enums.TrapperCharacter.ESCORPION:
-			silhouette_scale = 2.15
-			silhouette_offset = Vector2(0.0, 6.0)
-		_draw_trapper_silhouette(char_id, art_rect.position + art_rect.size * 0.5 + silhouette_offset,
-			silhouette_scale, Color(char_color, 1.0))
+		var demo_running := _demo_active and _demo_card_index == i
+		if demo_running:
+			_draw_trapper_demo(font, art_rect, char_id, char_color)
+		else:
+			var silhouette_scale := 3.0
+			var silhouette_offset := Vector2(0.0, -2.0)
+			if char_id == Enums.TrapperCharacter.ESCORPION:
+				silhouette_scale = 2.15
+				silhouette_offset = Vector2(0.0, 6.0)
+			_draw_trapper_silhouette(char_id, art_rect.position + art_rect.size * 0.5 + silhouette_offset,
+				silhouette_scale, Color(char_color, 1.0))
 
 		# Character name
 		_draw_centered_text_in_rect(font, char_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 28.0), 24, char_color)
@@ -453,9 +533,9 @@ func _draw() -> void:
 		status_y += 20
 
 	# Hints
-	var hint := "Left stick move | START confirm | SELECT cancel"
+	var hint := "A demo | Left stick move | START confirm | SELECT cancel"
 	if _allow_back:
-		hint = "Left stick move | START confirm | SELECT back or cancel"
+		hint = "A demo | Left stick move | START confirm | SELECT back or cancel"
 	if _selection_complete():
 		hint = "START to begin | SELECT back or change" if _allow_back else "START to begin | SELECT to change"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
@@ -466,6 +546,77 @@ func _draw() -> void:
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
 	draw_rect(rect, fill)
 	draw_rect(rect, outline, false, outline_width)
+
+
+func _draw_trapper_demo(font: Font, rect: Rect2,
+		char_id: Enums.TrapperCharacter, color: Color) -> void:
+	draw_rect(rect, Color(0.02, 0.025, 0.03, 0.96))
+	draw_rect(rect, Color(color, 0.55), false, 1.5)
+	var obstacle := Rect2(rect.position + Vector2(rect.size.x * 0.62, rect.size.y * 0.34),
+		Vector2(rect.size.x * 0.18, rect.size.y * 0.20))
+	draw_rect(obstacle, Color(0.62, 0.62, 0.62, 0.85))
+	draw_rect(obstacle, Color(0.86, 0.86, 0.86, 0.55), false, 1.0)
+	var target := rect.position + Vector2(rect.size.x * 0.78, rect.size.y * 0.72)
+	draw_circle(target, 8.0, Color(1.0, 0.25, 0.18, 0.78))
+	var player := rect.position + Vector2(_demo_pos.x * rect.size.x, _demo_pos.y * rect.size.y)
+	for effect: Dictionary in _demo_effects:
+		var button := effect["button"] as String
+		var t := clampf((effect["time"] as float) / (effect["duration"] as float), 0.0, 1.0)
+		_draw_trapper_demo_effect(rect, player, target, char_id, button, color, t)
+	draw_circle(player, 10.0, Color(color, 0.95))
+	draw_line(player + Vector2(-13.0, 0.0), player + Vector2(13.0, 0.0), Color.WHITE, 1.6)
+	draw_line(player + Vector2(0.0, -13.0), player + Vector2(0.0, 13.0), Color.WHITE, 1.6)
+	draw_string(font, rect.position + Vector2(9.0, rect.size.y - 9.0),
+		"SELECT exit | A/X/Y test", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
+
+
+func _draw_trapper_demo_effect(rect: Rect2, player: Vector2, target: Vector2,
+		char_id: Enums.TrapperCharacter, button: String, color: Color, t: float) -> void:
+	var fade := 1.0 - t
+	match char_id:
+		Enums.TrapperCharacter.ARANA:
+			if button == "A":
+				draw_circle(player, 12.0 + 28.0 * t, Color(0.16, 0.9, 0.34, 0.28 * fade))
+			elif button == "X":
+				draw_line(player, target, Color(color, 0.85 * fade), 3.0)
+				draw_circle(target, 7.0 + 9.0 * t, Color(color, 0.45 * fade))
+			else:
+				for offset in [-18.0, 0.0, 18.0]:
+					draw_line(Vector2(rect.position.x + 14.0, player.y + offset),
+						Vector2(rect.end.x - 14.0, player.y - offset), Color(color, 0.58 * fade), 2.0)
+		Enums.TrapperCharacter.HONGO:
+			if button == "A":
+				draw_circle(player, 16.0, Color(color, 0.8))
+				draw_arc(player, 24.0 + 20.0 * t, 0.0, TAU, 24, Color(color, 0.55 * fade), 3.0)
+			elif button == "X":
+				draw_circle(target, 18.0 + 26.0 * t, Color(color, 0.25 * fade))
+			else:
+				draw_circle(player, 10.0, Color(color, 0.8))
+				draw_circle(target, 10.0, Color(color, 0.8))
+				draw_line(player, target, Color(color, 0.42 * fade), 2.0)
+		Enums.TrapperCharacter.ESCORPION:
+			if button == "A":
+				var tip := player + Vector2(0.0, lerpf(20.0, -20.0, t))
+				draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-9.0, 22.0), tip + Vector2(9.0, 22.0)]),
+					Color(color, 0.85 * fade))
+			elif button == "X":
+				draw_circle(target, 18.0 + 18.0 * t, Color(0.9, 0.72, 0.22, 0.35 * fade))
+				draw_arc(target, 26.0, 0.0, TAU, 24, Color(0.9, 0.72, 0.22, 0.8 * fade), 3.0)
+			else:
+				var left := player.x - lerpf(48.0, 12.0, t)
+				var right := player.x + lerpf(48.0, 12.0, t)
+				draw_line(Vector2(left, rect.position.y + 12.0), Vector2(left, rect.end.y - 12.0), Color(color, 0.9), 5.0)
+				draw_line(Vector2(right, rect.position.y + 12.0), Vector2(right, rect.end.y - 12.0), Color(color, 0.9), 5.0)
+		Enums.TrapperCharacter.PULPO:
+			if button == "A":
+				draw_circle(player, 18.0 + 22.0 * t, Color(0.04, 0.04, 0.06, 0.55 * fade))
+			elif button == "X":
+				draw_line(player, target, Color(color, 0.8 * fade), 4.0)
+				draw_circle(target, 10.0, Color(color, 0.45 * fade))
+			else:
+				var wave_y := player.y + sin(t * TAU) * 12.0
+				draw_line(Vector2(rect.position.x + 12.0, wave_y), Vector2(rect.end.x - 12.0, wave_y),
+					Color(color, 0.75 * fade), 4.0)
 
 
 func _draw_active_trapper_preview(font: Font, rect: Rect2, card_index: int,

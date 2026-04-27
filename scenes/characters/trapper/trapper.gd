@@ -741,6 +741,14 @@ func _draw() -> void:
 	for i in _abilities.size():
 		var ability: TrapperAbility = _abilities[i]
 		var a_color := ability.get_display_color()
+		var ratio := ability.get_cooldown_ratio()
+		if ratio > 0.0:
+			var arc_radius := size + 7.0 + i * 4.0
+			draw_arc(Vector2.ZERO, arc_radius, 0.0, TAU, 18,
+				Color(0.0, 0.0, 0.0, 0.28), 1.8)
+			draw_arc(Vector2.ZERO, arc_radius,
+				-PI / 2.0, -PI / 2.0 + TAU * (1.0 - ratio),
+				18, Color(a_color, 0.82), 2.2)
 
 		var denied_ratio := ability.get_cooldown_denied_ratio()
 		if denied_ratio > 0.0:

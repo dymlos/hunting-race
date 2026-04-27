@@ -231,7 +231,10 @@ func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:
 		var header := "%s  [%s] %s" % [
 			animal_data["name"] as String,
 			ability["button"] as String,
-			ability["name"] as String,
+			"%s  CD %ds" % [
+				ability["name"] as String,
+				int(_get_escapist_cooldown(animal_data["id"] as Enums.EscapistAnimal)),
+			],
 		]
 		draw_string(font, Vector2(pos.x, y), header,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
@@ -255,7 +258,13 @@ func _draw_trapper_guide(font: Font, pos: Vector2, width: float) -> void:
 		for ability: Dictionary in abilities:
 			var line := "[%s] %s - %s" % [
 				ability["button"] as String,
-				ability["name"] as String,
+				"%s  CD %ds" % [
+					ability["name"] as String,
+					int(_get_trapper_cooldown(
+						trapper_data["id"] as Enums.TrapperCharacter,
+						ability["button"] as String
+					)),
+				],
 				ability["desc"] as String,
 			]
 			y += _draw_wrapped_text(font, line, Vector2(pos.x + 12.0, y),
@@ -301,3 +310,53 @@ func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 
 func _get_trapper_guide_data() -> Array[Dictionary]:
 	return TrapperCharacters.get_all()
+
+
+func _get_escapist_cooldown(animal: Enums.EscapistAnimal) -> float:
+	match animal:
+		Enums.EscapistAnimal.RABBIT:
+			return Constants.RABBIT_ABILITY_COOLDOWN
+		Enums.EscapistAnimal.RAT:
+			return Constants.RAT_ABILITY_COOLDOWN
+		Enums.EscapistAnimal.SQUIRREL:
+			return Constants.SQUIRREL_ABILITY_COOLDOWN
+		Enums.EscapistAnimal.FLY:
+			return Constants.FLY_ABILITY_COOLDOWN
+	return 0.0
+
+
+func _get_trapper_cooldown(character: Enums.TrapperCharacter, button: String) -> float:
+	match character:
+		Enums.TrapperCharacter.ARANA:
+			match button:
+				"A":
+					return Constants.ARANA_VENOM_COOLDOWN
+				"X":
+					return Constants.ARANA_ELASTIC_COOLDOWN
+				"Y":
+					return Constants.ARANA_WEB_COOLDOWN
+		Enums.TrapperCharacter.HONGO:
+			match button:
+				"A":
+					return Constants.HONGO_CONFUSE_COOLDOWN
+				"X":
+					return Constants.HONGO_SPORE_COOLDOWN
+				"Y":
+					return Constants.HONGO_TELEPORT_COOLDOWN
+		Enums.TrapperCharacter.ESCORPION:
+			match button:
+				"A":
+					return Constants.ESCORPION_STINGER_COOLDOWN
+				"X":
+					return Constants.ESCORPION_QUICKSAND_COOLDOWN
+				"Y":
+					return Constants.ESCORPION_PINCERS_COOLDOWN
+		Enums.TrapperCharacter.PULPO:
+			match button:
+				"A":
+					return Constants.PULPO_INK_COOLDOWN
+				"X":
+					return Constants.PULPO_TENTACLE_COOLDOWN
+				"Y":
+					return Constants.PULPO_CURRENT_COOLDOWN
+	return 0.0

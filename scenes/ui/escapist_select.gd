@@ -14,9 +14,15 @@ var _animals: Array[Dictionary] = []
 var _allow_back: bool = true
 var input_blocked: bool = false
 var _preview_timers: Dictionary = {}         # {card_index: remaining_time}
+var _demo_active: bool = false
+var _demo_player_index: int = -1
+var _demo_card_index: int = -1
+var _demo_pos: Vector2 = Vector2(0.35, 0.62)
+var _demo_effects: Array[Dictionary] = []
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
+const DEMO_EFFECT_DURATION: float = 0.75
 const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
 const CARD_TOP_PAD: float = 16.0
@@ -35,6 +41,11 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_player_confirmed.clear()
 	_nav_cooldowns.clear()
 	_preview_timers.clear()
+	_demo_active = false
+	_demo_player_index = -1
+	_demo_card_index = -1
+	_demo_pos = Vector2(0.35, 0.62)
+	_demo_effects.clear()
 
 	var cursor_idx := 0
 	for pi: int in _player_indices:
@@ -142,6 +153,10 @@ func _process(delta: float) -> void:
 		return
 
 	_update_preview_timers(delta)
+	if _demo_active:
+		_process_demo(delta)
+		queue_redraw()
+		return
 
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
@@ -156,7 +171,8 @@ func _process(delta: float) -> void:
 			continue
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
-			_trigger_ability_preview(pi)
+			_enter_demo(pi)
+			return
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			if _handle_back_for_player(pi):
@@ -209,6 +225,69 @@ func _trigger_ability_preview(player_index: int) -> void:
 	_preview_timers[card_index] = PREVIEW_DURATION
 	InputManager.vibrate_player(player_index, 0.08, 0.18, 0.08)
 	queue_redraw()
+
+
+func _enter_demo(player_index: int) -> void:
+	if not _player_cursor.has(player_index):
+		return
+	_demo_active = true
+	_demo_player_index = player_index
+	_demo_card_index = _player_cursor[player_index] as int
+	_demo_pos = Vector2(0.35, 0.62)
+	_demo_effects.clear()
+	InputManager.vibrate_player(player_index, 0.06, 0.14, 0.08)
+	queue_redraw()
+
+
+func _exit_demo() -> void:
+	_demo_active = false
+	_demo_player_index = -1
+	_demo_card_index = -1
+	_demo_effects.clear()
+	InputManager.suppress_edge_detection(2)
+	queue_redraw()
+
+
+func _process_demo(delta: float) -> void:
+	var device_id := InputManager.get_device_id(_demo_player_index)
+	if device_id < 0:
+		_exit_demo()
+		return
+	if InputManager.is_menu_back_just_pressed(device_id):
+		_exit_demo()
+		return
+	var move_vec := InputManager.get_move_vector(_demo_player_index)
+	_demo_pos += move_vec * delta * 0.62
+	_demo_pos.x = clampf(_demo_pos.x, 0.10, 0.90)
+	_demo_pos.y = clampf(_demo_pos.y, 0.18, 0.86)
+	if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+		_trigger_demo_ability()
+	_update_demo_effects(delta)
+
+
+func _trigger_demo_ability() -> void:
+	if _demo_card_index < 0 or _demo_card_index >= _animals.size():
+		return
+	var animal_data: Dictionary = _animals[_demo_card_index]
+	var animal_id := animal_data["id"] as Enums.EscapistAnimal
+	if animal_id == Enums.EscapistAnimal.RABBIT:
+		_demo_pos.x = clampf(_demo_pos.x + 0.28, 0.10, 0.90)
+	_demo_effects.append({
+		"time": 0.0,
+		"duration": DEMO_EFFECT_DURATION,
+		"origin": _demo_pos,
+		"animal": animal_id,
+	})
+	InputManager.vibrate_player(_demo_player_index, 0.08, 0.22, 0.1)
+
+
+func _update_demo_effects(delta: float) -> void:
+	var keep: Array[Dictionary] = []
+	for effect: Dictionary in _demo_effects:
+		effect["time"] = (effect["time"] as float) + delta
+		if (effect["time"] as float) < (effect["duration"] as float):
+			keep.append(effect)
+	_demo_effects = keep
 
 
 func _draw_wrapped_text(font: Font, text: String, position: Vector2,
@@ -305,9 +384,12 @@ func _draw() -> void:
 		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
 		draw_rect(art_rect, Color(animal_color, 0.10))
 		draw_rect(art_rect, Color(animal_color, 0.25), false, 1.0)
-		_draw_active_escapist_preview(font, art_rect, i, animal_id, animal_color)
-		_draw_escapist_silhouette(animal_id, art_rect.position + art_rect.size * 0.5 + Vector2(0.0, 4.0),
-			3.1, Color(animal_color, 1.0))
+		var demo_running := _demo_active and _demo_card_index == i
+		if demo_running:
+			_draw_escapist_demo(font, art_rect, animal_id, animal_color)
+		else:
+			_draw_escapist_silhouette(animal_id, art_rect.position + art_rect.size * 0.5 + Vector2(0.0, 4.0),
+				3.1, Color(animal_color, 1.0))
 
 		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 28.0), 24, animal_color)
 
@@ -370,9 +452,9 @@ func _draw() -> void:
 			Color.YELLOW if confirmed else Color(0.6, 0.6, 0.6))
 		status_y += 20.0
 
-	var hint := "Left stick move | START confirm | SELECT cancel"
+	var hint := "A demo | Left stick move | START confirm | SELECT cancel"
 	if _allow_back:
-		hint = "Left stick move | START confirm | SELECT back or cancel"
+		hint = "A demo | Left stick move | START confirm | SELECT back or cancel"
 	if _selection_complete():
 		hint = "START continue | SELECT back or change" if _allow_back else "START continue | SELECT to change"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
@@ -383,6 +465,49 @@ func _draw() -> void:
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
 	draw_rect(rect, fill)
 	draw_rect(rect, outline, false, outline_width)
+
+
+func _draw_escapist_demo(font: Font, rect: Rect2,
+		animal_id: Enums.EscapistAnimal, color: Color) -> void:
+	draw_rect(rect, Color(0.02, 0.025, 0.03, 0.96))
+	draw_rect(rect, Color(color, 0.55), false, 1.5)
+	var obstacle := Rect2(rect.position + Vector2(rect.size.x * 0.52, rect.size.y * 0.24),
+		Vector2(rect.size.x * 0.12, rect.size.y * 0.46))
+	draw_rect(obstacle, Color(0.58, 0.58, 0.58, 0.86))
+	draw_rect(obstacle, Color(0.86, 0.86, 0.86, 0.48), false, 1.0)
+	var trap := rect.position + Vector2(rect.size.x * 0.78, rect.size.y * 0.66)
+	draw_rect(Rect2(trap - Vector2(9.0, 9.0), Vector2(18.0, 18.0)), Color(1.0, 0.22, 0.18, 0.72))
+	var ally := rect.position + Vector2(rect.size.x * 0.78, rect.size.y * 0.32)
+	draw_circle(ally, 8.0, Color(0.25, 0.85, 1.0, 0.82))
+	var player := rect.position + Vector2(_demo_pos.x * rect.size.x, _demo_pos.y * rect.size.y)
+	for effect: Dictionary in _demo_effects:
+		var t := clampf((effect["time"] as float) / (effect["duration"] as float), 0.0, 1.0)
+		_draw_escapist_demo_effect(rect, player, ally, trap, animal_id, color, t)
+	draw_circle(player, 11.0, Color(color, 0.95))
+	draw_arc(player, 14.0, 0.0, TAU, 18, Color.WHITE, 1.4)
+	draw_string(font, rect.position + Vector2(9.0, rect.size.y - 9.0),
+		"SELECT exit | A skill", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
+
+
+func _draw_escapist_demo_effect(rect: Rect2, player: Vector2, ally: Vector2, trap: Vector2,
+		animal_id: Enums.EscapistAnimal, color: Color, t: float) -> void:
+	var fade := 1.0 - t
+	match animal_id:
+		Enums.EscapistAnimal.RABBIT:
+			var start := player - Vector2(44.0, 0.0)
+			draw_arc(start + Vector2(30.0, 0.0), 36.0, PI, TAU, 24, Color(color, 0.35 * fade), 2.0)
+			draw_circle(player, 10.0 + 12.0 * t, Color(color, 0.45 * fade))
+		Enums.EscapistAnimal.RAT:
+			draw_line(player, ally, Color(color, 0.9 * fade), 4.0)
+			draw_circle(ally, 8.0 + 10.0 * t, Color(color, 0.45 * fade))
+		Enums.EscapistAnimal.SQUIRREL:
+			var acorn := player.lerp(trap, t)
+			draw_circle(acorn, 8.0, Color(color, 0.9 * fade))
+			draw_line(player, acorn, Color(color, 0.32 * fade), 2.0)
+		Enums.EscapistAnimal.FLY:
+			draw_arc(player, 18.0 + 32.0 * t, 0.0, TAU, 28,
+				Color(color, 0.9 * fade), 3.0)
+			draw_line(player, trap, Color(color, 0.38 * fade), 2.0)
 
 
 func _draw_active_escapist_preview(font: Font, rect: Rect2, card_index: int,

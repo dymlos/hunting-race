@@ -332,7 +332,7 @@ func _build_moving_wall(def: Dictionary) -> void:
 	crush_area.monitorable = false
 	var crush_shape := RectangleShape2D.new()
 	# Very small — only triggers when character center is deep inside the wall
-	crush_shape.size = wall_size + Vector2(Constants.CHARACTER_RADIUS, Constants.CHARACTER_RADIUS)
+	crush_shape.size = wall_size * 0.35
 	var crush_col := CollisionShape2D.new()
 	crush_col.shape = crush_shape
 	crush_col.position = wall_size / 2.0
@@ -359,8 +359,7 @@ func _build_moving_wall(def: Dictionary) -> void:
 
 
 func _on_moving_wall_crush(body: Node2D) -> void:
-	if body is Escapist:
-		_crush_escapist(body as Escapist)
+	_register_map_hazard_contact(body)
 
 
 func _on_moving_wall_contact(body: Node2D) -> void:
@@ -765,18 +764,36 @@ func _check_moving_wall_crushes() -> void:
 		if body == null or not is_instance_valid(body):
 			continue
 		var last_position := wall_data.get("last_position", body.global_position) as Vector2
-		var moved_distance := body.global_position.distance_to(last_position)
+		var move_delta := body.global_position - last_position
+		var moved_distance := move_delta.length()
 		wall_data["last_position"] = body.global_position
 		if moved_distance <= 0.01:
 			continue
+		var move_dir := move_delta / moved_distance
 		var wall_size := wall_data.get("size", Vector2.ZERO) as Vector2
-		var wall_rect := Rect2(body.global_position, wall_size).grow(Constants.CHARACTER_RADIUS * 0.85)
+		var wall_rect := Rect2(body.global_position, wall_size).grow(Constants.CHARACTER_RADIUS * 0.45)
 		for node: Node in get_tree().get_nodes_in_group("characters"):
 			if not (node is Escapist):
 				continue
 			var esc := node as Escapist
-			if wall_rect.has_point(esc.global_position):
+			if wall_rect.has_point(esc.global_position) and _has_wall_blocking_push(esc, move_dir, body):
 				_crush_escapist(esc)
+
+
+func _has_wall_blocking_push(esc: Escapist, push_dir: Vector2, moving_body: Node2D) -> bool:
+	if push_dir.length_squared() <= 0.01:
+		return false
+	var space_state := get_world_2d().direct_space_state
+	var from := esc.global_position
+	var to := from + push_dir.normalized() * (Constants.CHARACTER_RADIUS + 20.0)
+	var query := PhysicsRayQueryParameters2D.create(from, to)
+	query.collision_mask = Constants.LAYER_WALLS
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	if moving_body is CollisionObject2D:
+		query.exclude = [(moving_body as CollisionObject2D).get_rid()]
+	var hit := space_state.intersect_ray(query)
+	return not hit.is_empty()
 
 
 func _crush_escapist(esc: Escapist) -> void:

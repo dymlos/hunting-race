@@ -621,6 +621,13 @@ func _draw() -> void:
 
 	var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
 	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
+	if _ability_cooldown_remaining > 0.0:
+		var cooldown_ratio := clampf(_ability_cooldown_remaining / _get_ability_cooldown_duration(), 0.0, 1.0)
+		var arc_radius := Constants.CHARACTER_RADIUS + 10.5
+		draw_arc(Vector2.ZERO, arc_radius, 0.0, TAU, 24, Color(0.0, 0.0, 0.0, 0.32), 2.2)
+		draw_arc(Vector2.ZERO, arc_radius,
+			-PI / 2.0, -PI / 2.0 + TAU * (1.0 - cooldown_ratio), 24,
+			Color(animal_color, 0.88), 2.6)
 	if _ability_ready_flash_timer > 0.0:
 		var ready_ratio := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
 		var pulse_radius := Constants.CHARACTER_RADIUS + 9.0 + (1.0 - ready_ratio) * 8.0
