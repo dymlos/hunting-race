@@ -188,7 +188,7 @@ func _get_hud_entries_for_role(role: Enums.Role) -> Array[Dictionary]:
 	player_indices.sort()
 
 	for player_index in player_indices:
-		var node := GameManager.player_characters[player_index]
+		var node: Node = GameManager.player_characters[player_index] as Node
 		if role == Enums.Role.ESCAPIST and node is Escapist:
 			var esc := node as Escapist
 			var animal_data := EscapistAnimals.get_by_id(esc.escapist_animal)
