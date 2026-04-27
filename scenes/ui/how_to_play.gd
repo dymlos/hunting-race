@@ -46,6 +46,7 @@ const PAGES := [
 		"title": "SKILLS",
 		"accent": Color(1.0, 0.36, 0.24),
 		"lines": [
+			"Cooldowns recharge by time: after using a skill, wait until its timed cooldown finishes.",
 			"Escapists use A in-match. After using it, that animal skill enters cooldown.",
 			"When an escapist skill is ready again, the character flashes and the controller vibrates.",
 			"Trappers use A, X and Y.",
@@ -191,6 +192,7 @@ func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
 	draw_line(Vector2(right_rect.position.x, divider_y), Vector2(right_rect.end.x, divider_y), Color(accent, 0.34), 1.2)
 
 	var left_lines: Array[String] = [
+		"Cooldowns recharge by time, not by pickups or score.",
 		"Escapists use A in-match. After using it, that animal skill enters cooldown.",
 		"When the skill is ready again, the character flashes and the controller vibrates.",
 	]

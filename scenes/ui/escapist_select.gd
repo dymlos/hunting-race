@@ -19,6 +19,7 @@ var _demo_player_index: int = -1
 var _demo_card_index: int = -1
 var _demo_pos: Vector2 = Vector2(0.35, 0.62)
 var _demo_effects: Array[Dictionary] = []
+var _demo_entities: Dictionary = {}
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
@@ -46,6 +47,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_demo_card_index = -1
 	_demo_pos = Vector2(0.35, 0.62)
 	_demo_effects.clear()
+	_demo_entities.clear()
 
 	var cursor_idx := 0
 	for pi: int in _player_indices:
@@ -235,6 +237,7 @@ func _enter_demo(player_index: int) -> void:
 	_demo_card_index = _player_cursor[player_index] as int
 	_demo_pos = Vector2(0.35, 0.62)
 	_demo_effects.clear()
+	_reset_escapist_demo_state(_animals[_demo_card_index]["id"] as Enums.EscapistAnimal)
 	InputManager.vibrate_player(player_index, 0.06, 0.14, 0.08)
 	queue_redraw()
 
@@ -244,6 +247,7 @@ func _exit_demo() -> void:
 	_demo_player_index = -1
 	_demo_card_index = -1
 	_demo_effects.clear()
+	_demo_entities.clear()
 	InputManager.suppress_edge_detection(2)
 	queue_redraw()
 
@@ -263,6 +267,7 @@ func _process_demo(delta: float) -> void:
 	if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 		_trigger_demo_ability()
 	_update_demo_effects(delta)
+	_update_escapist_demo_entities(delta)
 
 
 func _trigger_demo_ability() -> void:
@@ -270,14 +275,13 @@ func _trigger_demo_ability() -> void:
 		return
 	var animal_data: Dictionary = _animals[_demo_card_index]
 	var animal_id := animal_data["id"] as Enums.EscapistAnimal
-	if animal_id == Enums.EscapistAnimal.RABBIT:
-		_demo_pos.x = clampf(_demo_pos.x + 0.28, 0.10, 0.90)
 	_demo_effects.append({
 		"time": 0.0,
 		"duration": DEMO_EFFECT_DURATION,
 		"origin": _demo_pos,
 		"animal": animal_id,
 	})
+	_apply_escapist_demo_ability(animal_id)
 	InputManager.vibrate_player(_demo_player_index, 0.08, 0.22, 0.1)
 
 
@@ -288,6 +292,94 @@ func _update_demo_effects(delta: float) -> void:
 		if (effect["time"] as float) < (effect["duration"] as float):
 			keep.append(effect)
 	_demo_effects = keep
+
+
+func _reset_escapist_demo_state(_animal_id: Enums.EscapistAnimal) -> void:
+	_demo_entities = {
+		"ally": Vector2(0.78, 0.30),
+		"opponent": Vector2(0.80, 0.58),
+		"opponent_velocity": Vector2(-0.16, 0.0),
+		"trap": Vector2(0.76, 0.72),
+		"trap_alive": true,
+		"status": "",
+		"status_timer": 0.0,
+		"counter_timer": 0.0,
+		"boost_timer": 0.0,
+	}
+
+
+func _update_escapist_demo_entities(delta: float) -> void:
+	if _demo_entities.is_empty():
+		return
+	var status_timer := maxf((_demo_entities.get("status_timer", 0.0) as float) - delta, 0.0)
+	_demo_entities["status_timer"] = status_timer
+	if status_timer <= 0.0:
+		_demo_entities["status"] = ""
+
+	var opponent := _demo_entities["opponent"] as Vector2
+	var velocity := _demo_entities["opponent_velocity"] as Vector2
+	opponent += velocity * delta
+	if opponent.x < 0.58 or opponent.x > 0.88:
+		velocity.x *= -1.0
+		opponent.x = clampf(opponent.x, 0.58, 0.88)
+	_demo_entities["opponent"] = opponent
+	_demo_entities["opponent_velocity"] = velocity
+
+	var boost_timer := maxf((_demo_entities.get("boost_timer", 0.0) as float) - delta, 0.0)
+	_demo_entities["boost_timer"] = boost_timer
+	if boost_timer > 0.0:
+		_demo_pos.x = clampf(_demo_pos.x + delta * 0.34, 0.10, 0.90)
+
+	var counter_timer := maxf((_demo_entities.get("counter_timer", 0.0) as float) - delta, 0.0)
+	_demo_entities["counter_timer"] = counter_timer
+	if counter_timer > 0.0 and _fly_counter_can_trigger():
+		_demo_entities["counter_timer"] = 0.0
+		_demo_entities["boost_timer"] = 0.55
+		_demo_pos.x = clampf(_demo_pos.x + 0.20, 0.10, 0.90)
+		_set_escapist_demo_status("COUNTER BOOST", 0.9)
+
+
+func _apply_escapist_demo_ability(animal_id: Enums.EscapistAnimal) -> void:
+	if _demo_entities.is_empty():
+		return
+	match animal_id:
+		Enums.EscapistAnimal.RABBIT:
+			_demo_pos.x = clampf(_demo_pos.x + 0.30, 0.10, 0.90)
+			_demo_pos.y = clampf(_demo_pos.y - 0.04, 0.18, 0.86)
+			_set_escapist_demo_status("LONG LEAP", 0.9)
+		Enums.EscapistAnimal.RAT:
+			var ally := _demo_entities["ally"] as Vector2
+			_demo_entities["ally"] = ally.move_toward(_demo_pos, 0.34)
+			_set_escapist_demo_status("ALLY RESCUED", 1.0)
+		Enums.EscapistAnimal.SQUIRREL:
+			_demo_entities["trap_alive"] = false
+			_set_escapist_demo_status("TRAP BROKEN", 1.0)
+		Enums.EscapistAnimal.FLY:
+			_demo_entities["counter_timer"] = 1.25
+			if _fly_counter_can_trigger():
+				_demo_entities["counter_timer"] = 0.0
+				_demo_entities["boost_timer"] = 0.55
+				_demo_pos.x = clampf(_demo_pos.x + 0.20, 0.10, 0.90)
+				_set_escapist_demo_status("COUNTER BOOST", 0.9)
+			else:
+				_set_escapist_demo_status("COUNTER ARMED", 1.0)
+
+
+func _fly_counter_can_trigger() -> bool:
+	if _demo_entities.is_empty():
+		return false
+	var opponent := _demo_entities["opponent"] as Vector2
+	if _demo_pos.distance_to(opponent) < 0.22:
+		return true
+	if _demo_entities.get("trap_alive", true) as bool:
+		var trap := _demo_entities["trap"] as Vector2
+		return _demo_pos.distance_to(trap) < 0.24
+	return false
+
+
+func _set_escapist_demo_status(text: String, duration: float) -> void:
+	_demo_entities["status"] = text
+	_demo_entities["status_timer"] = duration
 
 
 func _draw_wrapped_text(font: Font, text: String, position: Vector2,
@@ -475,16 +567,38 @@ func _draw_escapist_demo(font: Font, rect: Rect2,
 		Vector2(rect.size.x * 0.12, rect.size.y * 0.46))
 	draw_rect(obstacle, Color(0.58, 0.58, 0.58, 0.86))
 	draw_rect(obstacle, Color(0.86, 0.86, 0.86, 0.48), false, 1.0)
-	var trap := rect.position + Vector2(rect.size.x * 0.78, rect.size.y * 0.66)
-	draw_rect(Rect2(trap - Vector2(9.0, 9.0), Vector2(18.0, 18.0)), Color(1.0, 0.22, 0.18, 0.72))
-	var ally := rect.position + Vector2(rect.size.x * 0.78, rect.size.y * 0.32)
-	draw_circle(ally, 8.0, Color(0.25, 0.85, 1.0, 0.82))
+	var trap_norm := _demo_entities.get("trap", Vector2(0.76, 0.72)) as Vector2
+	var trap := rect.position + Vector2(trap_norm.x * rect.size.x, trap_norm.y * rect.size.y)
+	var trap_alive := _demo_entities.get("trap_alive", true) as bool
+	if trap_alive:
+		draw_rect(Rect2(trap - Vector2(9.0, 9.0), Vector2(18.0, 18.0)), Color(1.0, 0.22, 0.18, 0.72))
+		draw_rect(Rect2(trap - Vector2(11.0, 11.0), Vector2(22.0, 22.0)), Color(1.0, 0.72, 0.18, 0.55), false, 1.2)
+	else:
+		draw_line(trap + Vector2(-12.0, -9.0), trap + Vector2(12.0, 9.0), Color(0.8, 0.8, 0.8, 0.55), 2.0)
+		draw_line(trap + Vector2(-12.0, 9.0), trap + Vector2(12.0, -9.0), Color(0.8, 0.8, 0.8, 0.55), 2.0)
+
+	var ally_norm := _demo_entities.get("ally", Vector2(0.78, 0.30)) as Vector2
+	var ally := rect.position + Vector2(ally_norm.x * rect.size.x, ally_norm.y * rect.size.y)
+	if animal_id == Enums.EscapistAnimal.RAT:
+		draw_circle(ally, 8.0, Color(0.25, 0.85, 1.0, 0.82))
+		draw_string(font, ally + Vector2(-10.0, -12.0), "ALLY", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(0.65, 0.95, 1.0))
+
+	var opponent_norm := _demo_entities.get("opponent", Vector2(0.80, 0.58)) as Vector2
+	var opponent := rect.position + Vector2(opponent_norm.x * rect.size.x, opponent_norm.y * rect.size.y)
+	if animal_id == Enums.EscapistAnimal.FLY:
+		draw_circle(opponent, 8.5, Color(1.0, 0.18, 0.16, 0.86))
+		draw_string(font, opponent + Vector2(-12.0, -12.0), "HIT", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.55, 0.45))
+
 	var player := rect.position + Vector2(_demo_pos.x * rect.size.x, _demo_pos.y * rect.size.y)
 	for effect: Dictionary in _demo_effects:
 		var t := clampf((effect["time"] as float) / (effect["duration"] as float), 0.0, 1.0)
 		_draw_escapist_demo_effect(rect, player, ally, trap, animal_id, color, t)
 	draw_circle(player, 11.0, Color(color, 0.95))
 	draw_arc(player, 14.0, 0.0, TAU, 18, Color.WHITE, 1.4)
+	var status := _demo_entities.get("status", "") as String
+	if not status.is_empty():
+		_draw_centered_text_in_rect(font, status,
+			Rect2(rect.position.x, rect.position.y + 8.0, rect.size.x, 18.0), 11, Color.YELLOW)
 	draw_string(font, rect.position + Vector2(9.0, rect.size.y - 9.0),
 		"SELECT exit | A skill", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
 

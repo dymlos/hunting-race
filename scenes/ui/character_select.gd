@@ -25,6 +25,7 @@ var _demo_player_index: int = -1
 var _demo_card_index: int = -1
 var _demo_pos: Vector2 = Vector2(0.5, 0.55)
 var _demo_effects: Array[Dictionary] = []
+var _demo_entities: Dictionary = {}
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
@@ -54,6 +55,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_demo_card_index = -1
 	_demo_pos = Vector2(0.5, 0.55)
 	_demo_effects.clear()
+	_demo_entities.clear()
 
 	# Initialize cursors for trapper-team players
 	var cursor_idx := 0
@@ -273,6 +275,7 @@ func _enter_demo(player_index: int) -> void:
 	_demo_card_index = _player_cursor[player_index] as int
 	_demo_pos = Vector2(0.5, 0.58)
 	_demo_effects.clear()
+	_reset_trapper_demo_state(_characters[_demo_card_index]["id"] as Enums.TrapperCharacter)
 	InputManager.vibrate_player(player_index, 0.06, 0.14, 0.08)
 	queue_redraw()
 
@@ -282,6 +285,7 @@ func _exit_demo() -> void:
 	_demo_player_index = -1
 	_demo_card_index = -1
 	_demo_effects.clear()
+	_demo_entities.clear()
 	InputManager.suppress_edge_detection(2)
 	queue_redraw()
 
@@ -303,12 +307,14 @@ func _process_demo(delta: float) -> void:
 		if InputManager.is_button_just_pressed_on_device(device_id, joy_button):
 			_trigger_demo_ability(button)
 	_update_demo_effects(delta)
+	_update_trapper_demo_entities(delta)
 
 
 func _trigger_demo_ability(button: String) -> void:
 	if _demo_card_index < 0 or _demo_card_index >= _characters.size():
 		return
-	var abilities: Array = (_characters[_demo_card_index] as Dictionary)["abilities"] as Array
+	var char_data: Dictionary = _characters[_demo_card_index] as Dictionary
+	var abilities: Array = char_data["abilities"] as Array
 	for ability: Dictionary in abilities:
 		if (ability["button"] as String) == button:
 			_demo_effects.append({
@@ -317,6 +323,7 @@ func _trigger_demo_ability(button: String) -> void:
 				"duration": DEMO_EFFECT_DURATION,
 				"origin": _demo_pos,
 			})
+			_apply_trapper_demo_ability(char_data["id"] as Enums.TrapperCharacter, button)
 			InputManager.vibrate_player(_demo_player_index, 0.08, 0.22, 0.1)
 			return
 
@@ -328,6 +335,90 @@ func _update_demo_effects(delta: float) -> void:
 		if (effect["time"] as float) < (effect["duration"] as float):
 			keep.append(effect)
 	_demo_effects = keep
+
+
+func _reset_trapper_demo_state(_char_id: Enums.TrapperCharacter) -> void:
+	_demo_entities = {
+		"opponent": Vector2(0.78, 0.64),
+		"opponent_velocity": Vector2(-0.18, 0.0),
+		"status": "",
+		"status_timer": 0.0,
+		"root_timer": 0.0,
+		"placed_a": Vector2(-1.0, -1.0),
+		"placed_x": Vector2(-1.0, -1.0),
+		"placed_y": Vector2(-1.0, -1.0),
+	}
+
+
+func _update_trapper_demo_entities(delta: float) -> void:
+	if _demo_entities.is_empty():
+		return
+	var root_timer := maxf((_demo_entities.get("root_timer", 0.0) as float) - delta, 0.0)
+	_demo_entities["root_timer"] = root_timer
+	var status_timer := maxf((_demo_entities.get("status_timer", 0.0) as float) - delta, 0.0)
+	_demo_entities["status_timer"] = status_timer
+	if status_timer <= 0.0:
+		_demo_entities["status"] = ""
+	var opponent := _demo_entities["opponent"] as Vector2
+	var velocity := _demo_entities["opponent_velocity"] as Vector2
+	if root_timer <= 0.0:
+		var speed_scale := 0.35 if status_timer > 0.0 else 1.0
+		opponent += velocity * delta * speed_scale
+		if opponent.x < 0.18 or opponent.x > 0.86:
+			velocity.x *= -1.0
+			opponent.x = clampf(opponent.x, 0.18, 0.86)
+	_demo_entities["opponent"] = opponent
+	_demo_entities["opponent_velocity"] = velocity
+
+
+func _apply_trapper_demo_ability(char_id: Enums.TrapperCharacter, button: String) -> void:
+	if _demo_entities.is_empty():
+		return
+	_demo_entities["placed_%s" % button.to_lower()] = _demo_pos
+	var opponent := _demo_entities["opponent"] as Vector2
+	var distance := opponent.distance_to(_demo_pos)
+	match char_id:
+		Enums.TrapperCharacter.ARANA:
+			if button == "A" and distance < 0.34:
+				_set_trapper_demo_status("POISON", 1.8)
+			elif button == "X":
+				_demo_entities["opponent"] = opponent.move_toward(Vector2(0.20, opponent.y), 0.22)
+				_set_trapper_demo_status("BOUNCE", 0.9)
+			elif button == "Y" and distance < 0.42:
+				_set_trapper_demo_status("SLOWED", 1.6)
+		Enums.TrapperCharacter.HONGO:
+			if button == "A" and distance < 0.35:
+				var velocity := _demo_entities["opponent_velocity"] as Vector2
+				_demo_entities["opponent_velocity"] = -velocity
+				_set_trapper_demo_status("CONFUSED", 1.5)
+			elif button == "X" and distance < 0.42:
+				_set_trapper_demo_status("SPORES", 1.7)
+			elif button == "Y":
+				_demo_entities["opponent"] = Vector2(0.22, 0.34)
+				_set_trapper_demo_status("PORTAL", 0.9)
+		Enums.TrapperCharacter.ESCORPION:
+			if button == "A" and distance < 0.26:
+				_set_trapper_demo_status("STUNG", 1.4)
+			elif button == "X":
+				_demo_entities["opponent"] = opponent.move_toward(_demo_pos, 0.20)
+				_set_trapper_demo_status("PULLED", 1.2)
+			elif button == "Y":
+				_demo_entities["root_timer"] = 0.8
+				_set_trapper_demo_status("CRUSH", 0.9)
+		Enums.TrapperCharacter.PULPO:
+			if button == "A" and distance < 0.38:
+				_set_trapper_demo_status("BLINDED", 1.6)
+			elif button == "X" and distance < 0.38:
+				_demo_entities["root_timer"] = 1.5
+				_set_trapper_demo_status("ROOTED", 1.5)
+			elif button == "Y":
+				_demo_entities["opponent"] = opponent.move_toward(Vector2(0.88, opponent.y), 0.24)
+				_set_trapper_demo_status("PUSHED", 1.1)
+
+
+func _set_trapper_demo_status(text: String, duration: float) -> void:
+	_demo_entities["status"] = text
+	_demo_entities["status_timer"] = duration
 
 func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 		max_width: float, font_size: int, color: Color, line_height: float,
@@ -556,16 +647,29 @@ func _draw_trapper_demo(font: Font, rect: Rect2,
 		Vector2(rect.size.x * 0.18, rect.size.y * 0.20))
 	draw_rect(obstacle, Color(0.62, 0.62, 0.62, 0.85))
 	draw_rect(obstacle, Color(0.86, 0.86, 0.86, 0.55), false, 1.0)
-	var target := rect.position + Vector2(rect.size.x * 0.78, rect.size.y * 0.72)
-	draw_circle(target, 8.0, Color(1.0, 0.25, 0.18, 0.78))
+	var opponent_norm := _demo_entities.get("opponent", Vector2(0.78, 0.64)) as Vector2
+	var target := rect.position + Vector2(opponent_norm.x * rect.size.x, opponent_norm.y * rect.size.y)
+	draw_circle(target, 8.0, Color(1.0, 0.25, 0.18, 0.82))
+	draw_string(font, target + Vector2(-10.0, -12.0), "RUN", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.60, 0.50))
 	var player := rect.position + Vector2(_demo_pos.x * rect.size.x, _demo_pos.y * rect.size.y)
 	for effect: Dictionary in _demo_effects:
 		var button := effect["button"] as String
 		var t := clampf((effect["time"] as float) / (effect["duration"] as float), 0.0, 1.0)
 		_draw_trapper_demo_effect(rect, player, target, char_id, button, color, t)
+	for button in ["A", "X", "Y"]:
+		var key := "placed_%s" % (button as String).to_lower()
+		var placed := _demo_entities.get(key, Vector2(-1.0, -1.0)) as Vector2
+		if placed.x >= 0.0:
+			var p := rect.position + Vector2(placed.x * rect.size.x, placed.y * rect.size.y)
+			draw_arc(p, 8.0, 0.0, TAU, 16, Color(color, 0.54), 1.4)
+			draw_string(font, p + Vector2(-4.0, 3.0), button, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color.WHITE)
 	draw_circle(player, 10.0, Color(color, 0.95))
 	draw_line(player + Vector2(-13.0, 0.0), player + Vector2(13.0, 0.0), Color.WHITE, 1.6)
 	draw_line(player + Vector2(0.0, -13.0), player + Vector2(0.0, 13.0), Color.WHITE, 1.6)
+	var status := _demo_entities.get("status", "") as String
+	if not status.is_empty():
+		_draw_centered_text_in_rect(font, status,
+			Rect2(rect.position.x, rect.position.y + 8.0, rect.size.x, 18.0), 11, Color.YELLOW)
 	draw_string(font, rect.position + Vector2(9.0, rect.size.y - 9.0),
 		"SELECT exit | A/X/Y test", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
 
