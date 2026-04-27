@@ -55,8 +55,8 @@ static func get_gauntlet_map() -> Dictionary:
 		# SECTION 1: SPAWN ROOM (x: 0–300)
 		# 3 exits: top (y=250-350), middle (y=500-700), bottom (y=850-1000)
 		# ============================================================
-		{"pos": Vector2(300, t), "size": Vector2(t, 230)},           # y=20–250
-		{"pos": Vector2(300, 350), "size": Vector2(t, 150)},         # y=350–500
+		{"pos": Vector2(300, t), "size": Vector2(t, 210)},
+		{"pos": Vector2(300, 400), "size": Vector2(t, 100)},
 		{"pos": Vector2(300, 700), "size": Vector2(t, 150)},         # y=700–850
 		{"pos": Vector2(300, 1000), "size": Vector2(t, 70)},
 		{"pos": Vector2(300, 1160), "size": Vector2(t, h - 1160 - t)},
@@ -67,7 +67,7 @@ static func get_gauntlet_map() -> Dictionary:
 
 		# --- TOP PATH floor (separates top from middle) ---
 		# y=350 wall from x=300 to x=900
-		{"pos": Vector2(300, 350), "size": Vector2(600, t)},
+		{"pos": Vector2(300, 380), "size": Vector2(600, t)},
 		# TOP PATH: open corridor y=20–350, x=300–900
 		# (sticky walls placed as hazards inside)
 
@@ -83,7 +83,7 @@ static func get_gauntlet_map() -> Dictionary:
 
 		# --- BOTTOM PATH: narrow tunnel y=870–1000, x=320–880 ---
 		# Inner ceiling (creates narrow passage)
-		{"pos": Vector2(320, 940), "size": Vector2(560, t)},
+		{"pos": Vector2(320, 990), "size": Vector2(560, t)},
 		# BOTTOM PATH: passable strip y=850–940 (90px tall), x=320–880
 		# Below the inner ceiling is dead space (y=960–1180)
 		# Decorative fill below tunnel
@@ -100,13 +100,13 @@ static func get_gauntlet_map() -> Dictionary:
 
 		# Separator between merge zone and bottom — with gap for bottom path
 		# Left segment x=900-1050
-		{"pos": Vector2(900, 830), "size": Vector2(150, t)},
+		{"pos": Vector2(900, 830), "size": Vector2(100, t)},
 		# Gap at x=1050-1150 (100px) — bottom path enters here
 		# Right segment x=1150-1300
-		{"pos": Vector2(1150, 830), "size": Vector2(150, t)},
+		{"pos": Vector2(1180, 830), "size": Vector2(120, t)},
 
 		# Bottom path corridor to reach the gap (x=880-1050, y=850-1000)
-		{"pos": Vector2(880, 1000), "size": Vector2(280, t)},        # floor of bottom connector
+		{"pos": Vector2(880, 1050), "size": Vector2(320, t)},
 
 		# Top narrows into merge — wall guides top path down
 		{"pos": Vector2(900, t), "size": Vector2(t, 200)},           # x=900, y=20-220
@@ -146,8 +146,8 @@ static func get_gauntlet_map() -> Dictionary:
 	var top_sticky_left_bounds := Rect2(Vector2(380, 40), Vector2(110, 210))
 	var top_sticky_mid_bounds := Rect2(Vector2(535, 125), Vector2(120, 185))
 	var top_sticky_right_bounds := Rect2(Vector2(700, 55), Vector2(120, 210))
-	var top_sticky_low_left_bounds := Rect2(Vector2(390, 315), Vector2(170, 25))
-	var top_sticky_low_right_bounds := Rect2(Vector2(585, 315), Vector2(185, 25))
+	var top_sticky_low_left_bounds := Rect2(Vector2(405, 342), Vector2(135, 22))
+	var top_sticky_low_right_bounds := Rect2(Vector2(620, 342), Vector2(150, 22))
 	var moving_sweeper_bounds := Rect2(Vector2(300, 370), Vector2(620, 460))
 	var moving_blocker_bounds := Rect2(Vector2(320, 370), Vector2(600, 460))
 	var middle_sticky_bounds := Rect2(Vector2(360, 420), Vector2(500, 330))
@@ -155,11 +155,11 @@ static func get_gauntlet_map() -> Dictionary:
 	var bottom_sticky_mid_lower_bounds := Rect2(Vector2(500, 896), Vector2(95, 44))
 	var bottom_sticky_mid_upper_bounds := Rect2(Vector2(620, 850), Vector2(95, 44))
 	var bottom_sticky_right_lower_bounds := Rect2(Vector2(760, 896), Vector2(95, 44))
-	var bottom_sticky_upper_lane_bounds := Rect2(Vector2(380, 972), Vector2(250, 60))
-	var bottom_sticky_lower_lane_bounds := Rect2(Vector2(500, 1092), Vector2(260, 60))
-	var bottom_sticky_lower_left_bounds := Rect2(Vector2(350, 1088), Vector2(150, 70))
-	var bottom_sticky_lower_right_bounds := Rect2(Vector2(720, 1088), Vector2(130, 70))
-	var bottom_slippery_bounds := Rect2(Vector2(760, 850), Vector2(360, 150))
+	var bottom_sticky_upper_lane_bounds := Rect2(Vector2(405, 1006), Vector2(210, 48))
+	var bottom_sticky_lower_lane_bounds := Rect2(Vector2(520, 1102), Vector2(210, 56))
+	var bottom_sticky_lower_left_bounds := Rect2(Vector2(365, 1098), Vector2(118, 60))
+	var bottom_sticky_lower_right_bounds := Rect2(Vector2(742, 1098), Vector2(96, 60))
+	var bottom_slippery_bounds := Rect2(Vector2(790, 860), Vector2(390, 180))
 	var center_ice_rect := Rect2(Vector2(900, 250), Vector2(780, 580))
 	var center_ice_box_left_top_bounds := Rect2(Vector2(955, 305), Vector2(130, 170))
 	var center_ice_box_left_bottom_bounds := Rect2(Vector2(1035, 565), Vector2(145, 175))
@@ -212,16 +212,16 @@ static func get_gauntlet_map() -> Dictionary:
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(430, 320),
-			"size": Vector2(130, 18),
-			"jitter": Vector2(35, 4),
+			"pos": Vector2(428, 344),
+			"size": Vector2(96, 16),
+			"jitter": Vector2(24, 2),
 			"bounds": top_sticky_low_left_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(625, 320),
-			"size": Vector2(130, 18),
-			"jitter": Vector2(45, 4),
+			"pos": Vector2(640, 344),
+			"size": Vector2(96, 16),
+			"jitter": Vector2(24, 2),
 			"bounds": top_sticky_low_right_bounds,
 		},
 
@@ -272,14 +272,14 @@ static func get_gauntlet_map() -> Dictionary:
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(410, 850),
-			"size": Vector2(18, 44),
+			"size": Vector2(14, 36),
 			"jitter": Vector2(45, 0),
 			"bounds": bottom_sticky_left_upper_bounds,
 		},
 		{
 			"type": "sticky_wall",
 			"pos": Vector2(535, 896),
-			"size": Vector2(18, 44),
+			"size": Vector2(14, 36),
 			"jitter": Vector2(45, 0),
 			"bounds": bottom_sticky_mid_lower_bounds,
 		},
@@ -299,37 +299,37 @@ static func get_gauntlet_map() -> Dictionary:
 		},
 		{
 			"type": "slippery_zone",
-			"pos": Vector2(835, 850),
-			"size": Vector2(170, 90),
-			"jitter": Vector2(110, 40),
+			"pos": Vector2(860, 866),
+			"size": Vector2(190, 108),
+			"jitter": Vector2(110, 50),
 			"bounds": bottom_slippery_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(470, 982),
-			"size": Vector2(18, 40),
-			"jitter": Vector2(85, 10),
+			"pos": Vector2(470, 1016),
+			"size": Vector2(14, 34),
+			"jitter": Vector2(64, 8),
 			"bounds": bottom_sticky_upper_lane_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(620, 1102),
-			"size": Vector2(18, 40),
-			"jitter": Vector2(85, 10),
+			"pos": Vector2(620, 1112),
+			"size": Vector2(14, 34),
+			"jitter": Vector2(64, 8),
 			"bounds": bottom_sticky_lower_lane_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(400, 1110),
-			"size": Vector2(18, 44),
-			"jitter": Vector2(55, 12),
+			"pos": Vector2(404, 1110),
+			"size": Vector2(14, 36),
+			"jitter": Vector2(36, 10),
 			"bounds": bottom_sticky_lower_left_bounds,
 		},
 		{
 			"type": "sticky_wall",
-			"pos": Vector2(770, 1108),
-			"size": Vector2(18, 46),
-			"jitter": Vector2(50, 12),
+			"pos": Vector2(776, 1110),
+			"size": Vector2(14, 36),
+			"jitter": Vector2(30, 10),
 			"bounds": bottom_sticky_lower_right_bounds,
 		},
 

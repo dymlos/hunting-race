@@ -1,8 +1,8 @@
 class_name SettingsMenu
 extends Control
 
-## Settings menu opened with SELECT from team setup. UP/DOWN to navigate,
-## LEFT/RIGHT to change values, B or SELECT to close.
+## Settings menu opened with Y from team setup. UP/DOWN to navigate,
+## LEFT/RIGHT to change values, SELECT to close.
 
 signal closed
 signal setting_changed(key: String, value: Variant)
@@ -128,9 +128,7 @@ func _process(delta: float) -> void:
 		_prev_stick_x = stick_x
 		_prev_stick_y = stick_y
 
-		# B or SELECT to close
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B) \
-				or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
+		if InputManager.is_menu_back_just_pressed(device_id):
 			closed.emit()
 			return
 
@@ -231,7 +229,7 @@ func _draw() -> void:
 				setting["value"] as int, color)
 
 	# Hint
-	var hint := "LEFT/RIGHT change | UP/DOWN navigate | B or SELECT close"
+	var hint := "LEFT/RIGHT change | UP/DOWN navigate | SELECT close"
 	var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	draw_string(font, Vector2(cx - hw / 2.0, screen.y - margin - 10),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.5, 0.5, 0.5))

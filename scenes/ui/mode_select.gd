@@ -42,10 +42,10 @@ func _process(delta: float) -> void:
 			_selected_index = (_selected_index + direction + OPTIONS.size()) % OPTIONS.size()
 			_nav_cooldown = NAV_COOLDOWN
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+		if InputManager.is_menu_confirm_just_pressed(device_id):
 			_confirm_selection()
 			return
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+		if InputManager.is_menu_back_just_pressed(device_id):
 			back_requested.emit()
 			return
 
@@ -129,7 +129,7 @@ func _draw() -> void:
 		if is_help:
 			_draw_centered_text_in_rect(font, "HELP", Rect2(rect.position.x, rect.position.y + 12.0, rect.size.x, 14.0), 11, Color(0.9, 0.8, 0.45))
 
-	var hint := "LEFT/RIGHT select | A confirm | B back"
+	var hint := "LEFT/RIGHT select | START confirm | SELECT back"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, cy + 110.0),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

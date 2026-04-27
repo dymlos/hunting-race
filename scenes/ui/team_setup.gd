@@ -1,7 +1,7 @@
 class_name TeamSetup
 extends Control
 
-## Team assignment screen. Players press A to join or continue, stick to pick teams, B to go back.
+## Team assignment screen. Players press START to join or continue, stick to pick teams, SELECT to go back.
 ## Roles (Escapist/Trapper) are assigned per-round by GameManager, not here.
 
 signal teams_ready(team_assignments: Dictionary)
@@ -64,14 +64,14 @@ func _process(delta: float) -> void:
 	for device_id: int in pads:
 		if _player_joined.get(device_id, false):
 			if _awaiting_start_confirmation:
-				if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+				if InputManager.is_menu_confirm_just_pressed(device_id):
 					_advance()
 					return
-				elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				elif InputManager.is_menu_back_just_pressed(device_id):
 					_awaiting_start_confirmation = false
 					return
 				continue
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			if InputManager.is_menu_back_just_pressed(device_id):
 				_awaiting_start_confirmation = false
 				back_requested.emit()
 				return
@@ -84,20 +84,20 @@ func _process(delta: float) -> void:
 					_set_player_team_if_available(device_id, Enums.Team.TEAM_2)
 					_nav_cooldowns[device_id] = NAV_COOLDOWN
 		else:
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			if InputManager.is_menu_confirm_just_pressed(device_id):
 				_player_joined[device_id] = true
 				_player_teams[device_id] = _pick_join_team()
 				_nav_cooldowns[device_id] = NAV_COOLDOWN
 				_awaiting_start_confirmation = false
 				joined_this_frame = true
-			elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			elif InputManager.is_menu_back_just_pressed(device_id):
 				_awaiting_start_confirmation = false
 				back_requested.emit()
 				return
 
-	# SELECT to open settings
+	# Y opens settings so SELECT can be reserved for back/cancel.
 	for device_id: int in pads:
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
 			_awaiting_start_confirmation = false
 			settings_requested.emit()
 			return
@@ -105,7 +105,7 @@ func _process(delta: float) -> void:
 	if _has_valid_teams() and not joined_this_frame:
 		for device_id: int in pads:
 			if _player_joined.get(device_id, false):
-				if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+				if InputManager.is_menu_confirm_just_pressed(device_id):
 					_awaiting_start_confirmation = true
 					queue_redraw()
 					return
@@ -340,7 +340,7 @@ func _draw() -> void:
 			var col := int(floor(float(i) / float(join_row_count)))
 			var row := i % join_row_count
 			var cell_rect := Rect2(join_box_rect.position.x + float(col) * join_col_w, list_y + float(row) * join_row_h, join_col_w, join_row_h)
-			var text := "Controller %d  -  Press A to join" % device_id
+			var text := "Controller %d  -  Press START to join" % device_id
 			_draw_centered_text_in_rect(font, text, cell_rect, SLOT_DETAIL_FONT_SIZE, Color(0.62, 0.62, 0.64))
 	else:
 		_draw_centered_text_in_rect(font, "ALL CONTROLLERS ASSIGNED", Rect2(cx - 220.0, screen.y - 160.0, 440.0, 22.0), FOOTER_FONT_SIZE, Color(0.68, 0.8, 0.68))
@@ -348,15 +348,15 @@ func _draw() -> void:
 	var footer_rect := Rect2(cx - 350.0, screen.y - 72.0, 700.0, 42.0)
 	_draw_panel(footer_rect, Color(0.03, 0.03, 0.035, 0.94), Color(0.24, 0.24, 0.26, 0.88), 1.5)
 	if _has_valid_teams():
-		var continue_text := "PRESS A TO CONTINUE"
+		var continue_text := "PRESS START TO CONTINUE"
 		if auto_fill_bots:
-			continue_text = "PRESS A TO CONTINUE WITH BOTS"
+			continue_text = "PRESS START TO CONTINUE WITH BOTS"
 		if _awaiting_start_confirmation:
-			continue_text = "A: START MATCH   |   B: CANCEL"
+			continue_text = "START: BEGIN MATCH   |   SELECT: CANCEL"
 		_draw_centered_text_in_rect(font, continue_text, Rect2(footer_rect.position.x, footer_rect.position.y + 1.0, footer_rect.size.x, 18.0), FOOTER_FONT_SIZE, Color(0.98, 0.92, 0.48))
 	else:
 		_draw_centered_text_in_rect(font, "NEED AT LEAST 1 PLAYER", Rect2(footer_rect.position.x, footer_rect.position.y + 1.0, footer_rect.size.x, 18.0), FOOTER_FONT_SIZE, Color(0.82, 0.52, 0.52))
-	_draw_centered_text_in_rect(font, "B: BACK   |   SELECT: SETTINGS", Rect2(footer_rect.position.x, footer_rect.position.y + 18.0, footer_rect.size.x, 18.0), FOOTER_SMALL_FONT_SIZE, Color(0.52, 0.52, 0.55))
+	_draw_centered_text_in_rect(font, "SELECT: BACK   |   Y: SETTINGS", Rect2(footer_rect.position.x, footer_rect.position.y + 18.0, footer_rect.size.x, 18.0), FOOTER_SMALL_FONT_SIZE, Color(0.52, 0.52, 0.55))
 
 	if _awaiting_start_confirmation:
 		var panel_size := Vector2(540.0, 206.0)
@@ -382,7 +382,7 @@ func _draw() -> void:
 		if auto_fill_bots:
 			confirm_bot_text = "BOTS: ON (+%d)" % total_bots
 		_draw_centered_text_in_rect(font, confirm_bot_text, Rect2(panel_pos.x, panel_pos.y + 88.0, panel_size.x, 28.0), 14, Color(0.98, 0.9, 0.42))
-		_draw_centered_text_in_rect(font, "A: CONFIRM   |   B: CANCEL", Rect2(panel_pos.x, panel_pos.y + 132.0, panel_size.x, 24.0), 16, Color(0.95, 0.95, 0.72))
+		_draw_centered_text_in_rect(font, "START: CONFIRM   |   SELECT: CANCEL", Rect2(panel_pos.x, panel_pos.y + 132.0, panel_size.x, 24.0), 16, Color(0.95, 0.95, 0.72))
 
 
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
@@ -429,7 +429,7 @@ func _draw_team_panel(font: Font, rect: Rect2, team: Enums.Team, devices: Array,
 	var slot_y := rect.position.y + 92.0
 	if devices.is_empty():
 		_draw_centered_text_in_rect(font, "Waiting for players", Rect2(rect.position.x, slot_y + 6.0, rect.size.x, 18.0), SLOT_TITLE_FONT_SIZE, Color(0.58, 0.58, 0.6))
-		_draw_centered_text_in_rect(font, "Press A on a controller to join", Rect2(rect.position.x, slot_y + 28.0, rect.size.x, 18.0), SLOT_DETAIL_FONT_SIZE, Color(0.42, 0.42, 0.45))
+		_draw_centered_text_in_rect(font, "Press START on a controller to join", Rect2(rect.position.x, slot_y + 28.0, rect.size.x, 18.0), SLOT_DETAIL_FONT_SIZE, Color(0.42, 0.42, 0.45))
 		return
 
 	for i in devices.size():

@@ -17,6 +17,7 @@ var controls_inverted: bool = false
 var _inversion_timer: float = 0.0
 
 var _ability_available: bool = true
+var _ability_cooldown_remaining: float = 0.0
 var _rabbit_charging: bool = false
 var _rabbit_charge_time: float = 0.0
 var _fly_counter_timer: float = 0.0
@@ -45,6 +46,7 @@ func _setup_role() -> void:
 	# Setup poison component
 	poison = PoisonComponent.new()
 	poison.setup(self)
+	poison.cured.connect(_on_poison_cured)
 	poison.poison_expired.connect(_on_poison_expired)
 	add_child(poison)
 
@@ -87,6 +89,10 @@ func _on_poison_expired() -> void:
 	respawn()
 
 
+func _on_poison_cured() -> void:
+	_show_floating_text("CURED", Color(0.3, 0.95, 1.0), 0.75, 18)
+
+
 func invert_controls(duration: float) -> void:
 	if is_effect_immune():
 		return
@@ -109,6 +115,10 @@ func _physics_process(delta: float) -> void:
 		_effect_immunity_timer -= delta
 	if _ability_denied_flash_timer > 0.0:
 		_ability_denied_flash_timer -= delta
+	if _ability_cooldown_remaining > 0.0:
+		_ability_cooldown_remaining = maxf(_ability_cooldown_remaining - delta, 0.0)
+		if _ability_cooldown_remaining <= 0.0:
+			_ability_available = true
 	_update_floating_text(delta)
 	_process_patrol_bot()
 	super._physics_process(delta)
@@ -233,7 +243,7 @@ func _handle_rabbit_ability(delta: float) -> void:
 		movement.start_dash(direction, distance, Callable(), Constants.RABBIT_LEAP_DURATION, true)
 		_rabbit_charging = false
 		if _skills_cooldowns_enabled():
-			_ability_available = false
+			_start_ability_cooldown()
 
 
 func _use_rat_rescue() -> void:
@@ -247,7 +257,7 @@ func _use_rat_rescue() -> void:
 	tail.finished.connect(_on_rat_tail_finished)
 	AudioManager.play_skill(&"RatWhipOut")
 	if _skills_cooldowns_enabled():
-		_ability_available = false
+		_start_ability_cooldown()
 
 
 func _on_rat_tail_finished(tail: Node) -> void:
@@ -277,13 +287,13 @@ func _use_squirrel_acorn() -> void:
 	get_parent().add_child(acorn)
 	AudioManager.play_skill(&"AcornThrow")
 	if _skills_cooldowns_enabled():
-		_ability_available = false
+		_start_ability_cooldown()
 
 
 func _use_fly_counter() -> void:
 	_fly_counter_timer = Constants.FLY_COUNTER_DURATION
 	if _skills_cooldowns_enabled():
-		_ability_available = false
+		_start_ability_cooldown()
 	AudioManager.play_skill(&"FlyCounter")
 
 
@@ -308,6 +318,7 @@ func is_effect_immune() -> bool:
 
 func _reset_ability() -> void:
 	_ability_available = true
+	_ability_cooldown_remaining = 0.0
 	_rabbit_charging = false
 	_rabbit_charge_time = 0.0
 	_fly_counter_timer = 0.0
@@ -325,6 +336,28 @@ func _skills_cooldowns_enabled() -> bool:
 	return GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
 
 
+func get_hud_ability_entry() -> Dictionary:
+	var animal_data := EscapistAnimals.get_by_id(escapist_animal)
+	var ability: Dictionary = animal_data.get("ability", {}) as Dictionary
+	var state := "READY"
+	if _rabbit_charging:
+		state = "CHARGING"
+	elif _ability_cooldown_remaining > 0.0:
+		state = "%.1fs" % _ability_cooldown_remaining
+	elif not _ability_available and _skills_cooldowns_enabled():
+		state = "LOCKED"
+	return {
+		"button": ability.get("button", "A"),
+		"name": ability.get("name", "Skill"),
+		"state": state,
+		"color": animal_data.get("color", Color.WHITE),
+	}
+
+
+func get_ability_cooldown_remaining() -> float:
+	return maxf(_ability_cooldown_remaining, 0.0)
+
+
 func _get_ability_direction() -> Vector2:
 	var direction := aim_direction
 	var move_vec := InputManager.get_move_vector(player_index)
@@ -333,6 +366,24 @@ func _get_ability_direction() -> Vector2:
 	if direction.length() < 0.1:
 		direction = Vector2.RIGHT
 	return direction.normalized()
+
+
+func _start_ability_cooldown() -> void:
+	_ability_available = false
+	_ability_cooldown_remaining = _get_ability_cooldown_duration()
+
+
+func _get_ability_cooldown_duration() -> float:
+	match escapist_animal:
+		Enums.EscapistAnimal.RABBIT:
+			return Constants.RABBIT_ABILITY_COOLDOWN
+		Enums.EscapistAnimal.RAT:
+			return Constants.RAT_ABILITY_COOLDOWN
+		Enums.EscapistAnimal.SQUIRREL:
+			return Constants.SQUIRREL_ABILITY_COOLDOWN
+		Enums.EscapistAnimal.FLY:
+			return Constants.FLY_ABILITY_COOLDOWN
+	return 8.0
 
 
 func _get_animal_mark_alpha() -> float:
@@ -531,16 +582,18 @@ func _draw() -> void:
 			0.0, TAU, 28, Color(animal_color, lerpf(0.32, 0.08, lift_ratio)), 1.6)
 		draw_set_transform(Vector2(0.0, -jump_lift), 0.0, Vector2.ONE)
 
+	draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS + 6.5, Color(team_color, 0.14))
+
 	# Animal mark with outer team ring
 	_draw_animal_mark(draw_color)
 	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 5.5, 0, TAU, 24,
-		Color(team_color, 0.55), 1.4)
+		Color(team_color, 0.78), 2.2)
 
 	# Label
 	var label := "P%d" % (player_index + 1)
 	if player_index >= 100:
 		label = "BOT"
-	_draw_player_label(label, Vector2(-10, -Constants.CHARACTER_RADIUS - 6), 12, team_color)
+	_draw_player_label(label, Vector2(-10, -Constants.CHARACTER_RADIUS - 8), 14, team_color)
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / maxf(_floating_text_duration, 0.01), 0.0, 1.0)
 		var text_size := _floating_text_size
@@ -556,6 +609,11 @@ func _draw() -> void:
 
 	var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
 	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
+	if _ability_cooldown_remaining > 0.0:
+		var cooldown_ratio := clampf(_ability_cooldown_remaining / _get_ability_cooldown_duration(), 0.0, 1.0)
+		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 10.5,
+			-PI / 2.0, -PI / 2.0 + TAU * (1.0 - cooldown_ratio), 20,
+			Color(animal_color, 0.85), 2.0)
 	if _rabbit_charging:
 		var ratio := _rabbit_charge_time / Constants.RABBIT_LEAP_MAX_CHARGE
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 10.0,

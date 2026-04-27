@@ -123,6 +123,16 @@ func _get_human_device_ids() -> Array[int]:
 	return device_ids
 
 
+func _handle_back_for_player(pi: int) -> bool:
+	if _player_confirmed.get(pi, false):
+		_player_confirmed[pi] = false
+		return true
+	if _allow_back and not _any_human_confirmed():
+		back_requested.emit()
+		return true
+	return false
+
+
 func _process(delta: float) -> void:
 	if not visible or input_blocked:
 		queue_redraw()
@@ -130,12 +140,6 @@ func _process(delta: float) -> void:
 
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
-
-	if _allow_back:
-		for device_id: int in _get_human_device_ids():
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				back_requested.emit()
-				return
 
 	var confirmed_this_frame := false
 	for pi: int in _player_cursor:
@@ -146,9 +150,13 @@ func _process(delta: float) -> void:
 		if device_id < 0:
 			continue
 
+		if InputManager.is_menu_back_just_pressed(device_id):
+			if _handle_back_for_player(pi):
+				queue_redraw()
+				return
+
 		if _player_confirmed.get(pi, false):
-			if not _allow_back and InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				_player_confirmed[pi] = false
+			pass
 		else:
 			if _nav_cooldowns.get(pi, 0.0) <= 0.0:
 				var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
@@ -159,7 +167,7 @@ func _process(delta: float) -> void:
 					_player_cursor[pi] = (_player_cursor[pi] - 1 + _animals.size()) % _animals.size()
 					_nav_cooldowns[pi] = NAV_COOLDOWN
 
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			if InputManager.is_menu_confirm_just_pressed(device_id):
 				var idx: int = _player_cursor[pi] as int
 				if not _is_animal_taken(idx, pi):
 					_player_confirmed[pi] = true
@@ -169,7 +177,7 @@ func _process(delta: float) -> void:
 
 	if _selection_complete() and not confirmed_this_frame:
 		for device_id: int in _get_human_device_ids():
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			if InputManager.is_menu_confirm_just_pressed(device_id):
 				escapists_ready.emit(_build_selections())
 				return
 
@@ -228,7 +236,7 @@ func _draw() -> void:
 	var team_col := Enums.team_color(_escapist_team)
 	var sub := "%s picks escapists" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
-	_draw_centered_text_in_rect(font, "Escapists use A. Official matches add cooldowns; practice keeps skills free.",
+	_draw_centered_text_in_rect(font, "Escapists use A in-match. START confirms menus and SELECT cancels or goes back.",
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	var card_count := _animals.size()
@@ -334,11 +342,11 @@ func _draw() -> void:
 			Color.YELLOW if confirmed else Color(0.6, 0.6, 0.6))
 		status_y += 20.0
 
-	var hint := "Left stick move | A confirm | B cancel"
+	var hint := "Left stick move | START confirm | SELECT cancel"
 	if _allow_back:
-		hint = "Left stick move | A confirm | B back"
+		hint = "Left stick move | START confirm | SELECT back or cancel"
 	if _selection_complete():
-		hint = "A continue | B back" if _allow_back else "A continue | B to change"
+		hint = "START continue | SELECT back or change" if _allow_back else "START continue | SELECT to change"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

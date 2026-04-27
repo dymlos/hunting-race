@@ -505,29 +505,41 @@ func _is_bot_position_clear(candidate: Vector2) -> bool:
 
 
 func _on_ability_escape_charge_used(_ability: TrapperAbility, ability_index: int) -> void:
-	if GameManager.current_state != Enums.GameState.ESCAPE \
-			and GameManager.current_state != Enums.GameState.PRACTICE:
-		return
-	_spent_ability_indices[ability_index] = true
-	if _spent_ability_indices.size() >= _abilities.size() and _set_reload_timer <= 0.0:
-		_set_reload_timer = Constants.TRAPPER_SET_RELOAD_DELAY
+	pass
 
 
 func _update_set_reload(delta: float) -> void:
-	if _set_reload_timer <= 0.0:
-		return
-	if GameManager.current_state != Enums.GameState.ESCAPE \
-			and GameManager.current_state != Enums.GameState.PRACTICE:
-		_set_reload_timer = 0.0
-		_spent_ability_indices.clear()
-		return
-	_set_reload_timer -= delta
-	if _set_reload_timer > 0.0:
-		return
-	for ability: TrapperAbility in _abilities:
-		ability.refill_charges()
+	_set_reload_timer = 0.0
 	_spent_ability_indices.clear()
-	_show_floating_text("Reloaded !!", Color.WHITE)
+
+
+func get_hud_ability_entries() -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	for i in _abilities.size():
+		var button := ""
+		if i < 3:
+			button = ["A", "X", "Y"][i]
+		var ability := _abilities[i]
+		var state := "READY"
+		if ability.is_placing:
+			state = "PLACING"
+		elif GameManager.current_state == Enums.GameState.HUNT:
+			state = "READY" if ability.get_strategy_uses_remaining() > 0 else "SET"
+		elif ability.get_cooldown_remaining() > 0.0:
+			state = "%.1fs" % ability.get_cooldown_remaining()
+		elif ability.get_charges_remaining() <= 0:
+			state = "EMPTY"
+		elif ability.max_charges > 1:
+			state = "%d/%d" % [ability.get_charges_remaining(), ability.max_charges]
+		entries.append({
+			"button": button,
+			"name": ability.get_display_name(),
+			"state": state,
+			"charges": ability.get_charges_remaining(),
+			"max_charges": ability.max_charges,
+			"color": ability.get_display_color(),
+		})
+	return entries
 
 
 func _show_floating_text(text: String, text_color: Color) -> void:
@@ -678,18 +690,20 @@ func _draw() -> void:
 	var team_color := Enums.team_color(team)
 
 	# Crosshair cursor
-	var size := 12.0
+	var size := 14.0
 	var color := Color(char_color, 0.8)
+	draw_circle(Vector2.ZERO, size + 4.0, Color(team_color, 0.14))
 	_draw_trapper_character_mark(size, char_color)
 	draw_line(Vector2(-size, 0), Vector2(size, 0), color, 2.0)
 	draw_line(Vector2(0, -size), Vector2(0, size), color, 2.0)
 	draw_arc(Vector2.ZERO, size * 0.7, 0, TAU, 12, color, 1.5)
+	draw_arc(Vector2.ZERO, size + 3.5, 0, TAU, 16, Color(team_color, 0.78), 2.0)
 
 	# Player label
 	var label := "P%d" % (player_index + 1)
 	if player_index >= 100:
 		label = "BOT"
-	_draw_player_label(label, Vector2(-10, -size - 4), 12, team_color)
+	_draw_player_label(label, Vector2(-10, -size - 6), 14, team_color)
 
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / Constants.FLOATING_TEXT_DURATION, 0.0, 1.0)

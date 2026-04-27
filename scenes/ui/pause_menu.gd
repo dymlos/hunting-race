@@ -134,7 +134,7 @@ func _draw_ability_guide(font: Font, screen: Vector2) -> void:
 	draw_string(font, panel.position + Vector2(28.0, 42.0),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
 	draw_string(font, panel.position + Vector2(28.0, 68.0),
-		"Escapists use A. Trappers use A, X, and Y. B cancels multi-point trap placement.",
+		"Escapists use A. Trappers use A, X, and Y. SELECT cancels multi-point trap placement.",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.68, 0.68, 0.68))
 
 	var left_x := panel.position.x + 30.0

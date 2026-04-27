@@ -42,7 +42,7 @@ func _process(delta: float) -> void:
 	var joined_this_frame := false
 	for device_id: int in connected_pads:
 		if _player_joined.get(device_id, false):
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			if InputManager.is_menu_back_just_pressed(device_id):
 				back_requested.emit()
 				return
 
@@ -52,24 +52,24 @@ func _process(delta: float) -> void:
 					_toggle_role(device_id)
 					_nav_cooldowns[device_id] = NAV_COOLDOWN
 		else:
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			if InputManager.is_menu_confirm_just_pressed(device_id):
 				_player_joined[device_id] = true
 				_player_roles[device_id] = Enums.Role.ESCAPIST
 				_nav_cooldowns[device_id] = NAV_COOLDOWN
 				joined_this_frame = true
-			elif InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			elif InputManager.is_menu_back_just_pressed(device_id):
 				back_requested.emit()
 				return
 
 	if _get_joined_devices().is_empty():
 		for device_id: int in connected_pads:
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			if InputManager.is_menu_back_just_pressed(device_id):
 				back_requested.emit()
 				return
 
 	if not _get_joined_devices().is_empty() and not joined_this_frame:
 		for device_id: int in _get_joined_devices():
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+			if InputManager.is_menu_confirm_just_pressed(device_id):
 				_advance()
 				return
 
@@ -131,7 +131,7 @@ func _draw() -> void:
 	draw_rect(panel, Color(0.55, 0.55, 0.55, 0.75), false, 2.0)
 
 	if joined.is_empty():
-		var empty_text := "Press A to join Practice Mode"
+		var empty_text := "Press START to join Practice Mode"
 		var empty_width := font.get_string_size(empty_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
 		draw_string(font, Vector2(cx - empty_width / 2.0, panel.position.y + 150.0),
 			empty_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.YELLOW)
@@ -155,15 +155,15 @@ func _draw() -> void:
 	for device_id: int in Input.get_connected_joypads():
 		if _player_joined.get(device_id, false):
 			continue
-		var text := "Controller %d - Press A to join" % device_id
+		var text := "Controller %d - Press START to join" % device_id
 		var text_width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		draw_string(font, Vector2(cx - text_width / 2.0, unjoined_y),
 			text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.5, 0.5, 0.5))
 		unjoined_y += 24.0
 
-	var hint := "A continue | B back"
+	var hint := "START continue | SELECT back"
 	if joined.is_empty():
-		hint = "A join | B back"
+		hint = "START join | SELECT back"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 34.0),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

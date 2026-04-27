@@ -46,15 +46,13 @@ const PAGES := [
 		"title": "SKILLS",
 		"accent": Color(1.0, 0.36, 0.24),
 		"lines": [
-			"Escapists use A once per round.",
-			"Their use refreshes when any escapist escapes.",
-			"Official matches give that skill a cooldown.",
-			"Practice keeps escapist skills free.",
+			"Escapists use A in-match and then wait for that animal cooldown to finish.",
+			"That same cooldown behavior now stays active in both Official and Practice.",
 			"Trappers use A, X and Y.",
 			"In Hunt, each trapper skill gets one free use.",
-			"In Escape, every escapist death refills all trapper skills.",
+			"In Escape, trapper charges return through their own cooldowns instead of instant easy reloads.",
 			"Some trapper skills need placement limits or multi-point setup.",
-			"B cancels multi-point placement.",
+			"SELECT cancels multi-point placement.",
 			"If a skill is not ready, the UI flashes a cooldown warning.",
 		],
 	},
@@ -90,10 +88,10 @@ func _process(delta: float) -> void:
 				_previous_page()
 				_nav_cooldown = NAV_COOLDOWN
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+		if InputManager.is_menu_confirm_just_pressed(device_id):
 			_next_page()
 			return
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+		if InputManager.is_menu_back_just_pressed(device_id):
 			back_requested.emit()
 			return
 
@@ -149,7 +147,7 @@ func _draw() -> void:
 		var indicator := "%d / %d" % [_page_index + 1, PAGES.size()]
 		_draw_centered_text_in_rect(font, indicator, Rect2(cx - 100.0, panel_rect.end.y - 42.0, 200.0, 24.0),
 			16, Color(0.72, 0.72, 0.74))
-		var hint := "Left/Right pages | A next | B back"
+		var hint := "Left/Right pages | START next | SELECT back"
 		_draw_centered_text_in_rect(font, hint, Rect2(cx - 250.0, screen.y - 58.0, 500.0, 24.0),
 			16, Color(0.98, 0.92, 0.25))
 		return
@@ -168,7 +166,7 @@ func _draw() -> void:
 	_draw_centered_text_in_rect(font, indicator, Rect2(cx - 100.0, panel_rect.end.y - 42.0, 200.0, 24.0),
 		16, Color(0.72, 0.72, 0.74))
 
-	var hint := "Left/Right pages | A next | B back"
+	var hint := "Left/Right pages | START next | SELECT back"
 	_draw_centered_text_in_rect(font, hint, Rect2(cx - 250.0, screen.y - 58.0, 500.0, 24.0),
 		16, Color(0.98, 0.92, 0.25))
 
@@ -193,17 +191,15 @@ func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
 	draw_line(Vector2(right_rect.position.x, divider_y), Vector2(right_rect.end.x, divider_y), Color(accent, 0.34), 1.2)
 
 	var left_lines: Array[String] = [
-		"Escapists use A once per round.",
-		"It refreshes when any escapist escapes.",
-		"Official matches give it a cooldown.",
-		"Practice keeps escapist skills free.",
+		"Escapists use A in-match and then wait for that animal cooldown to finish.",
+		"That same cooldown behavior stays active in Official and Practice.",
 	]
 	var right_lines: Array[String] = [
 		"Trappers use A, X and Y.",
 		"In Hunt, each trapper skill gets one free use.",
-		"In Escape, every escapist death refills all trapper skills.",
+		"In Escape, each trapper skill recharges on its own cooldown.",
 		"Some trapper skills use placement limits or multi-point setup.",
-		"B cancels multi-point placement.",
+		"SELECT cancels multi-point placement.",
 		"If a skill is not ready, the UI flashes a cooldown warning.",
 	]
 

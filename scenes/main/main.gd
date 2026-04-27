@@ -293,7 +293,7 @@ func _start_practice_setup() -> void:
 	_practice_bots_added = false
 	_active_player_indices.clear()
 	GameManager.reset_match()
-	GameManager.settings_overrides[&"skill_cooldowns_enabled"] = false
+	GameManager.settings_overrides[&"skill_cooldowns_enabled"] = true
 	GameManager.settings_overrides[&"practice_obstacles_enabled"] = true
 	GameManager.settings_overrides[&"practice_bots_enabled"] = true
 	_is_practice_flow = true
@@ -470,9 +470,9 @@ func _setup_camera() -> void:
 	var map_size := arena.get_map_size()
 	camera.position = map_size / 2.0
 	var viewport_size := get_viewport_rect().size
-	var zoom_x := viewport_size.x / (map_size.x + 100.0)
-	var zoom_y := viewport_size.y / (map_size.y + 100.0)
-	var target_zoom := minf(zoom_x, zoom_y)
+	var zoom_x := viewport_size.x / (map_size.x + 40.0)
+	var zoom_y := viewport_size.y / (map_size.y + 40.0)
+	var target_zoom := minf(zoom_x, zoom_y) * 1.12
 	camera.zoom = Vector2(target_zoom, target_zoom)
 
 

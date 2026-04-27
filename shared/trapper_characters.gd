@@ -11,9 +11,9 @@ static func get_all() -> Array[Dictionary]:
 			"subtitle": "Movement control",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ARANA),
 			"abilities": [
-				{"name": "Persistent Venom", "desc": "Place a poison puddle. Allies can cure poisoned targets before death.", "button": "A"},
-				{"name": "Elastic Web", "desc": "Place 2 points to stretch a line that bounces enemies away.", "button": "X"},
-				{"name": "Expansive Web", "desc": "Place 3 points to form a web zone that slows enemies inside.", "button": "Y"},
+				{"name": "Persistent Venom", "desc": "Drop a poison puddle. If allies do not touch the victim in time, they respawn.", "button": "A"},
+				{"name": "Elastic Web", "desc": "Place 2 points to stretch a web line that throws enemies away on contact.", "button": "X"},
+				{"name": "Expansive Web", "desc": "Place 3 points to create a large web zone that slows everyone inside.", "button": "Y"},
 			],
 		},
 		{
@@ -22,9 +22,9 @@ static func get_all() -> Array[Dictionary]:
 			"subtitle": "Status disruption",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.HONGO),
 			"abilities": [
-				{"name": "Confusing Mushroom", "desc": "Single-use trap that inverts enemy movement on contact.", "button": "A"},
-				{"name": "Toxic Spores", "desc": "Slow enemies inside the cloud; poison them when they leave.", "button": "X"},
-				{"name": "Fungal Teleport", "desc": "Place 2 linked portals. Enter one to exit from the other.", "button": "Y"},
+				{"name": "Confusing Mushroom", "desc": "Single-use trap that flips enemy movement controls for a few seconds.", "button": "A"},
+				{"name": "Toxic Spores", "desc": "Create a cloud that slows enemies inside; leaving the cloud poisons them.", "button": "X"},
+				{"name": "Fungal Teleport", "desc": "Place 2 linked portals. Step into one to instantly come out of the other.", "button": "Y"},
 			],
 		},
 		{
@@ -33,9 +33,9 @@ static func get_all() -> Array[Dictionary]:
 			"subtitle": "Lethal control",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ESCORPION),
 			"abilities": [
-				{"name": "Buried Stinger", "desc": "Place a faint hidden trap that poisons; fast movement drains faster.", "button": "A"},
-				{"name": "Quicksand", "desc": "Pulls enemies to a tiny lethal center; changing direction helps escape.", "button": "X"},
-				{"name": "Crushing Pincers", "desc": "Place 2 toothed walls. Wider gaps snap shut faster and can crush.", "button": "Y"},
+				{"name": "Buried Stinger", "desc": "Hide a tiny stinger mine that poisons on contact. Running while poisoned is dangerous.", "button": "A"},
+				{"name": "Quicksand", "desc": "Create a pull zone that drags enemies to a lethal center unless they keep changing direction.", "button": "X"},
+				{"name": "Crushing Pincers", "desc": "Place 2 toothed walls that slam shut and kill if the teeth touch from any angle.", "button": "Y"},
 			],
 		},
 		{
@@ -44,9 +44,9 @@ static func get_all() -> Array[Dictionary]:
 			"subtitle": "Vision and movement manipulation",
 			"color": Enums.trapper_character_color(Enums.TrapperCharacter.PULPO),
 			"abilities": [
-				{"name": "Ink Stain", "desc": "Create dark ink that blocks almost all vision inside.", "button": "A"},
-				{"name": "Binding Tentacle", "desc": "Roots one enemy for 5s; linking another extends the effect.", "button": "X"},
-				{"name": "Water Current", "desc": "Place 2 points to push enemies strongly from start to end.", "button": "Y"},
+				{"name": "Ink Stain", "desc": "Spread dark ink that hides almost everything inside the cloud.", "button": "A"},
+				{"name": "Binding Tentacle", "desc": "Root one enemy in place. If another target links in, the root lasts longer.", "button": "X"},
+				{"name": "Water Current", "desc": "Place 2 points to build a strong stream that shoves enemies along its path.", "button": "Y"},
 			],
 		},
 	]

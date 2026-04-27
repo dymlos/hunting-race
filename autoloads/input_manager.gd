@@ -164,6 +164,14 @@ func is_button_just_pressed_on_device(device_id: int, button: int) -> bool:
 	return current and not previous
 
 
+func is_menu_confirm_just_pressed(device_id: int) -> bool:
+	return is_button_just_pressed_on_device(device_id, JOY_BUTTON_START)
+
+
+func is_menu_back_just_pressed(device_id: int) -> bool:
+	return is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK)
+
+
 func is_action_just_pressed(player_index: int, action: StringName) -> bool:
 	if _edge_suppress_frames > 0:
 		return false

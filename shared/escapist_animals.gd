@@ -10,7 +10,7 @@ static func get_all() -> Array[Dictionary]:
 			"color": Enums.escapist_animal_color(Enums.EscapistAnimal.RABBIT),
 			"ability": {
 				"name": "Charged Leap",
-				"desc": "Hold A to charge; release to leap over walls and hazards.",
+				"desc": "Hold A, then release to jump a long distance over walls, traps and hazards.",
 				"button": "A",
 			},
 		},
@@ -21,7 +21,7 @@ static func get_all() -> Array[Dictionary]:
 			"color": Enums.escapist_animal_color(Enums.EscapistAnimal.RAT),
 			"ability": {
 				"name": "Rescue Tail",
-				"desc": "Fire or retract a long hook. Pull allies through walls and movement traps; poison remains.",
+				"desc": "Throw a hook to grab an ally and drag them to you, even through walls or movement traps.",
 				"button": "A",
 			},
 		},
@@ -32,7 +32,7 @@ static func get_all() -> Array[Dictionary]:
 			"color": Enums.escapist_animal_color(Enums.EscapistAnimal.SQUIRREL),
 			"ability": {
 				"name": "Ricochet Acorn",
-				"desc": "Throw a bouncing acorn. It breaks the first trap hit and sticks to sticky walls.",
+				"desc": "Throw a bouncing acorn that destroys the first trap it touches and can stick to sticky walls.",
 				"button": "A",
 			},
 		},
@@ -43,7 +43,7 @@ static func get_all() -> Array[Dictionary]:
 			"color": Enums.escapist_animal_color(Enums.EscapistAnimal.FLY),
 			"ability": {
 				"name": "Adrenaline Reflex",
-				"desc": "Prime a counter. If hit by a trap or hazard, gain speed and effect immunity.",
+				"desc": "Arm a counter. If a trap or hazard hits you, you burst with speed and temporary immunity.",
 				"button": "A",
 			},
 		},

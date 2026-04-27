@@ -149,12 +149,14 @@ class PincersNode extends Node2D:
 				var local_b := _pos_b - _center
 				_wall_a.position = local_a.lerp(Vector2.ZERO, ratio)
 				_wall_b.position = local_b.lerp(Vector2.ZERO, ratio)
+				_damage_targets_touching_walls()
 				_crush_targets_between_pincers()
 				if _state_timer <= 0.0:
 					_state = PincerState.CLOSED
 					_state_timer = Constants.ESCORPION_PINCERS_RESET_TIME
 
 			PincerState.CLOSED:
+				_damage_targets_touching_walls()
 				_crush_targets_between_pincers()
 				_state_timer -= delta
 				if _state_timer <= 0.0:
@@ -251,6 +253,35 @@ class PincersNode extends Node2D:
 			if absf(offset.dot(wall_axis)) > half_length:
 				continue
 			esc.movement.crushed.emit()
+
+	func _damage_targets_touching_walls() -> void:
+		for node: Node in get_tree().get_nodes_in_group("characters"):
+			if not node is Escapist:
+				continue
+			var esc := node as Escapist
+			if esc.team == owner_team or esc.is_dead or esc.has_scored:
+				continue
+			if _is_touching_wall_segment(esc.global_position, _wall_a.global_position) \
+					or _is_touching_wall_segment(esc.global_position, _wall_b.global_position):
+				esc.notify_trap_status("PINCHED", Color(1.0, 0.32, 0.12), 0.8)
+				esc.movement.crushed.emit()
+
+	func _is_touching_wall_segment(target: Vector2, wall_center: Vector2) -> bool:
+		var wall_axis := Vector2.from_angle(_wall_angle + PI / 2.0)
+		var segment_start := wall_center - wall_axis * (Constants.ESCORPION_PINCERS_WALL_LENGTH * 0.5)
+		var segment_end := wall_center + wall_axis * (Constants.ESCORPION_PINCERS_WALL_LENGTH * 0.5)
+		var touch_radius := Constants.CHARACTER_RADIUS \
+			+ Constants.ESCORPION_PINCERS_WALL_THICKNESS * 0.5 \
+			+ Constants.ESCORPION_PINCERS_TOOTH_DEPTH * 0.55
+		return _distance_point_to_segment(target, segment_start, segment_end) <= touch_radius
+
+	func _distance_point_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
+		var segment := b - a
+		var length_sq := segment.length_squared()
+		if length_sq <= 0.01:
+			return point.distance_to(a)
+		var t := clampf((point - a).dot(segment) / length_sq, 0.0, 1.0)
+		return point.distance_to(a + segment * t)
 
 	func _draw() -> void:
 		var local_a := _wall_a.position

@@ -5,8 +5,8 @@ const STICK_DEADZONE_INNER: float = 0.15
 const STICK_DEADZONE_OUTER: float = 0.95
 
 # --- Movement ---
-const SPEED_ESCAPIST: float = 220.0
-const TRAPPER_CURSOR_SPEED: float = 400.0
+const SPEED_ESCAPIST: float = 200.0
+const TRAPPER_CURSOR_SPEED: float = 340.0
 
 # --- Trapper ---
 const TRAP_MAX_ACTIVE: int = 3
@@ -19,7 +19,7 @@ const TRAP_LETHAL_COOLDOWN: float = 8.0
 const TRAP_LETHAL_RADIUS: float = 20.0
 const TRAPPER_SET_RELOAD_DELAY: float = 4.0
 const FLOATING_TEXT_DURATION: float = 2.8
-const TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE: float = 90.0
+const TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE: float = 110.0
 const TRAPPER_MOVING_ESCAPIST_SPEED_THRESHOLD: float = 20.0
 
 # --- Phase durations ---
@@ -29,7 +29,7 @@ const ROUND_END_DURATION: float = 3.0
 
 # --- Match ---
 const SCORE_TO_WIN: int = 3
-const HUNT_DURATION: float = 60.0
+const HUNT_DURATION: float = 75.0
 
 # --- Scoring ---
 const SCORE_ESCAPE_BASE: int = 100
@@ -159,7 +159,7 @@ const PULPO_CURRENT_MAX: int = 2
 
 # --- Shared ability ---
 const POISON_DURATION: float = 5.0
-const POISON_CURE_RADIUS: float = 30.0
+const POISON_CURE_RADIUS: float = 42.0
 
 # --- Escapist animals ---
 const RABBIT_LEAP_MIN_DIST: float = 90.0
@@ -167,6 +167,7 @@ const RABBIT_LEAP_MAX_DIST: float = 260.0
 const RABBIT_LEAP_MAX_CHARGE: float = 1.2
 const RABBIT_LEAP_DURATION: float = 0.16
 const RABBIT_LEAP_VISUAL_HEIGHT: float = 34.0
+const RABBIT_ABILITY_COOLDOWN: float = 8.0
 
 const RAT_RESCUE_RANGE: float = 620.0
 const RAT_RESCUE_WIDTH: float = 42.0
@@ -174,12 +175,15 @@ const RAT_RESCUE_HOLD_DURATION: float = 5.0
 const RAT_RESCUE_PULL_STOP_DISTANCE: float = 38.0
 const RAT_RESCUE_HOOK_SPEED: float = 1800.0
 const RAT_RESCUE_PULL_SPEED: float = 1050.0
+const RAT_ABILITY_COOLDOWN: float = 10.0
 
 const SQUIRREL_ACORN_SPEED: float = 620.0
 const SQUIRREL_ACORN_LIFETIME: float = 2.4
 const SQUIRREL_ACORN_RADIUS: float = 8.0
 const SQUIRREL_ACORN_BOUNCES: int = 3
+const SQUIRREL_ABILITY_COOLDOWN: float = 9.0
 
 const FLY_COUNTER_DURATION: float = 2.0
 const FLY_BOOST_DURATION: float = 3.0
 const FLY_SPEED_BOOST: float = 1.75
+const FLY_ABILITY_COOLDOWN: float = 11.0

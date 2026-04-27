@@ -154,6 +154,16 @@ func _get_human_device_ids() -> Array[int]:
 	return device_ids
 
 
+func _handle_back_for_player(pi: int) -> bool:
+	if _player_confirmed.get(pi, false):
+		_player_confirmed[pi] = false
+		return true
+	if _allow_back and not _any_human_confirmed():
+		back_requested.emit()
+		return true
+	return false
+
+
 func _process(delta: float) -> void:
 	if not visible or input_blocked:
 		queue_redraw()
@@ -162,12 +172,6 @@ func _process(delta: float) -> void:
 	# Tick nav cooldowns
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
-
-	if _allow_back:
-		for device_id: int in _get_human_device_ids():
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				back_requested.emit()
-				return
 
 	var confirmed_this_frame := false
 	for pi: int in _player_cursor:
@@ -178,38 +182,39 @@ func _process(delta: float) -> void:
 		if device_id < 0:
 			continue
 
-		if _player_confirmed.get(pi, false):
-			# Already confirmed — B to un-confirm
-			if not _allow_back and InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				_player_confirmed[pi] = false
-		else:
-			# Navigate
-			if _nav_cooldowns.get(pi, 0.0) <= 0.0:
-				var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-				if x > 0.5:
-					_player_cursor[pi] = (_player_cursor[pi] + 1) % _characters.size()
-					_nav_cooldowns[pi] = NAV_COOLDOWN
-				elif x < -0.5:
-					_player_cursor[pi] = (_player_cursor[pi] - 1 + _characters.size()) % _characters.size()
-					_nav_cooldowns[pi] = NAV_COOLDOWN
+		if InputManager.is_menu_back_just_pressed(device_id):
+			if _handle_back_for_player(pi):
+				queue_redraw()
+				return
 
-			# A to confirm (if not taken)
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
-				var idx: int = _player_cursor[pi] as int
-				if not _is_character_taken(idx, pi):
-					_player_confirmed[pi] = true
-					confirmed_this_frame = true
-					if _all_humans_confirmed():
-						_auto_assign_bots()
+		if _player_confirmed.get(pi, false):
+			continue
+
+		# Navigate
+		if _nav_cooldowns.get(pi, 0.0) <= 0.0:
+			var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
+			if x > 0.5:
+				_player_cursor[pi] = (_player_cursor[pi] + 1) % _characters.size()
+				_nav_cooldowns[pi] = NAV_COOLDOWN
+			elif x < -0.5:
+				_player_cursor[pi] = (_player_cursor[pi] - 1 + _characters.size()) % _characters.size()
+				_nav_cooldowns[pi] = NAV_COOLDOWN
+
+		if InputManager.is_menu_confirm_just_pressed(device_id):
+			var idx: int = _player_cursor[pi] as int
+			if not _is_character_taken(idx, pi):
+				_player_confirmed[pi] = true
+				confirmed_this_frame = true
+				if _all_humans_confirmed():
+					_auto_assign_bots()
 
 	if _selection_complete() and not confirmed_this_frame:
 		for device_id: int in _get_human_device_ids():
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START):
+			if InputManager.is_menu_confirm_just_pressed(device_id):
 				characters_ready.emit(_build_selections())
 				return
 
 	queue_redraw()
-
 
 func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 		max_width: float, font_size: int, color: Color, line_height: float,
@@ -268,7 +273,7 @@ func _draw() -> void:
 	var team_col := Enums.team_color(_trapping_team)
 	var sub := "%s picks trappers" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
-	_draw_centered_text_in_rect(font, "Trappers use A, X and Y. Skills may have cooldowns, limits or lifetimes.",
+	_draw_centered_text_in_rect(font, "Trappers use A, X and Y in-match. START confirms menus and SELECT cancels or goes back.",
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	# Character cards — 4 cards in a row
@@ -411,11 +416,11 @@ func _draw() -> void:
 		status_y += 20
 
 	# Hints
-	var hint := "Left stick move | A confirm | B cancel"
+	var hint := "Left stick move | START confirm | SELECT cancel"
 	if _allow_back:
-		hint = "Left stick move | A confirm | B back"
+		hint = "Left stick move | START confirm | SELECT back or cancel"
 	if _selection_complete():
-		hint = "START to begin | B back" if _allow_back else "START to begin | B to change"
+		hint = "START to begin | SELECT back or change" if _allow_back else "START to begin | SELECT to change"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

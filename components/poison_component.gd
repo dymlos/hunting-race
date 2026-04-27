@@ -85,7 +85,7 @@ func _check_ally_cure() -> bool:
 			if other_esc.poison and other_esc.poison.is_poisoned:
 				continue
 		var dist: float = owner_pos.distance_to(other.global_position)
-		if dist < Constants.POISON_CURE_RADIUS:
+		if dist <= Constants.POISON_CURE_RADIUS:
 			return true
 
 	return false
@@ -113,4 +113,4 @@ func _get_poison_tick_multiplier() -> float:
 		current_speed = maxf(current_speed, base_speed * 1.35)
 
 	var move_ratio := clampf(current_speed / base_speed, 0.0, 1.5)
-	return lerpf(0.35, 1.7, move_ratio)
+	return lerpf(0.55, 1.25, move_ratio)

@@ -14,6 +14,7 @@ var _cooldown_remaining: float = 0.0
 var _cooldown_denied_timer: float = 0.0
 var _active_objects: Array[Node2D] = []
 var _charges_remaining: int = 1
+var _queued_recharges: int = 0
 var _strategy_uses_remaining: int = 1
 var _strategy_uses_spent: int = 0
 
@@ -33,8 +34,6 @@ func can_activate() -> bool:
 	if _skills_cooldowns_enabled():
 		if _cooldown_remaining > 0.0:
 			return false
-		if GameManager.current_state == Enums.GameState.PRACTICE:
-			return true
 		if _get_available_uses() <= 0:
 			return false
 		if _active_objects.size() >= _get_active_limit():
@@ -88,7 +87,7 @@ func activate() -> void:
 
 
 func cancel_placement() -> void:
-	## Cancel mid-placement (B button).
+	## Cancel mid-placement.
 	_placement_points.clear()
 	is_placing = false
 
@@ -96,8 +95,12 @@ func cancel_placement() -> void:
 func update(delta: float) -> void:
 	if not _skills_cooldowns_enabled():
 		_cooldown_remaining = 0.0
+		_charges_remaining = max_charges
+		_queued_recharges = 0
 	if _cooldown_remaining > 0.0:
 		_cooldown_remaining -= delta
+		if _cooldown_remaining <= 0.0:
+			_complete_recharge_step()
 	if _cooldown_denied_timer > 0.0:
 		_cooldown_denied_timer -= delta
 
@@ -128,6 +131,7 @@ func _register_object(obj: Node2D) -> void:
 
 func reset_round_uses() -> void:
 	_charges_remaining = max_charges
+	_queued_recharges = 0
 	_strategy_uses_remaining = 1
 	_strategy_uses_spent = 0
 	_cooldown_remaining = 0.0
@@ -140,7 +144,7 @@ func _get_available_uses() -> int:
 		return _strategy_uses_remaining
 	if GameManager.current_state == Enums.GameState.ESCAPE \
 			or GameManager.current_state == Enums.GameState.PRACTICE:
-		if GameManager.current_state == Enums.GameState.PRACTICE or not _skills_cooldowns_enabled():
+		if not _skills_cooldowns_enabled():
 			return max_charges
 		return _charges_remaining
 	return 0
@@ -153,13 +157,13 @@ func _consume_use() -> bool:
 		_strategy_uses_remaining -= 1
 		_strategy_uses_spent += 1
 		return true
-	if GameManager.current_state == Enums.GameState.PRACTICE:
-		return true
-	if GameManager.current_state == Enums.GameState.ESCAPE:
+	if GameManager.current_state == Enums.GameState.PRACTICE \
+			or GameManager.current_state == Enums.GameState.ESCAPE:
 		if _skills_cooldowns_enabled():
 			if _charges_remaining <= 0:
 				return false
 			_charges_remaining -= 1
+			_queued_recharges = mini(_queued_recharges + 1, max_charges)
 			escape_charge_used.emit(self)
 		return true
 	return false
@@ -169,7 +173,8 @@ func _start_cooldown_if_needed() -> void:
 	if _skills_cooldowns_enabled() and (
 			GameManager.current_state == Enums.GameState.ESCAPE \
 			or GameManager.current_state == Enums.GameState.PRACTICE):
-		_cooldown_remaining = cooldown
+		if _queued_recharges > 0 and _cooldown_remaining <= 0.0:
+			_cooldown_remaining = cooldown
 	else:
 		_cooldown_remaining = 0.0
 
@@ -184,6 +189,10 @@ func get_display_name() -> String:
 
 func get_display_color() -> Color:
 	return Color.WHITE
+
+
+func get_cooldown_remaining() -> float:
+	return maxf(_cooldown_remaining, 0.0)
 
 
 func get_cooldown_ratio() -> float:
@@ -203,7 +212,7 @@ func get_active_count() -> int:
 
 
 func get_charges_remaining() -> int:
-	if GameManager.current_state == Enums.GameState.PRACTICE or not _skills_cooldowns_enabled():
+	if not _skills_cooldowns_enabled():
 		return max_charges
 	return _charges_remaining
 
@@ -214,6 +223,7 @@ func get_strategy_uses_remaining() -> int:
 
 func refill_charges() -> void:
 	_charges_remaining = max_charges
+	_queued_recharges = 0
 	_cooldown_remaining = 0.0
 	_cooldown_denied_timer = 0.0
 
@@ -275,7 +285,7 @@ func _is_placement_segment_safe(pos: Vector2) -> bool:
 		if not node is Escapist:
 			continue
 		var esc := node as Escapist
-		if not _is_moving_enemy_escapist(esc):
+		if not _is_enemy_escapist_placement_blocker(esc):
 			continue
 		var distance := _distance_point_to_segment(esc.global_position, previous, pos)
 		if distance < Constants.TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE:
@@ -284,10 +294,9 @@ func _is_placement_segment_safe(pos: Vector2) -> bool:
 
 
 func _should_protect_moving_escapists() -> bool:
-	if GameManager.practice_mode:
-		return false
 	return GameManager.current_state == Enums.GameState.HUNT \
-		or GameManager.current_state == Enums.GameState.ESCAPE
+		or GameManager.current_state == Enums.GameState.ESCAPE \
+		or GameManager.current_state == Enums.GameState.PRACTICE
 
 
 func _is_near_moving_enemy_escapist(pos: Vector2) -> bool:
@@ -295,7 +304,7 @@ func _is_near_moving_enemy_escapist(pos: Vector2) -> bool:
 		if not node is Escapist:
 			continue
 		var esc := node as Escapist
-		if not _is_moving_enemy_escapist(esc):
+		if not _is_enemy_escapist_placement_blocker(esc):
 			continue
 		if esc.global_position.distance_to(pos) < Constants.TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE:
 			return true
@@ -311,6 +320,12 @@ func _is_moving_enemy_escapist(esc: Escapist) -> bool:
 	return speed >= Constants.TRAPPER_MOVING_ESCAPIST_SPEED_THRESHOLD
 
 
+func _is_enemy_escapist_placement_blocker(esc: Escapist) -> bool:
+	if esc.team == trapper.team or esc.is_dead or esc.has_scored:
+		return false
+	return true
+
+
 func _distance_point_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
 	var segment := b - a
 	var length_sq := segment.length_squared()
@@ -318,3 +333,15 @@ func _distance_point_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float
 		return point.distance_to(a)
 	var t := clampf((point - a).dot(segment) / length_sq, 0.0, 1.0)
 	return point.distance_to(a + segment * t)
+
+
+func _complete_recharge_step() -> void:
+	if _queued_recharges <= 0:
+		_cooldown_remaining = 0.0
+		return
+	_queued_recharges -= 1
+	_charges_remaining = mini(_charges_remaining + 1, max_charges)
+	if _queued_recharges > 0:
+		_cooldown_remaining = cooldown
+	else:
+		_cooldown_remaining = 0.0
