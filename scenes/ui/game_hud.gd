@@ -5,6 +5,8 @@ extends Control
 
 var input_blocked: bool = false
 
+const HUD_HEIGHT: float = 168.0
+
 
 func _process(_delta: float) -> void:
 	if visible:
@@ -16,8 +18,8 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var cx := screen.x / 2.0
 
-	var bar_h := 86.0
-	draw_rect(Rect2(0, 0, screen.x, bar_h), Color(0, 0, 0, 0.56))
+	var bar_h := minf(HUD_HEIGHT, screen.y * 0.24)
+	_draw_command_deck(screen, bar_h)
 
 	if GameManager.current_state == Enums.GameState.PRACTICE:
 		_draw_practice_hud(font, screen, bar_h)
@@ -28,30 +30,30 @@ func _draw() -> void:
 	var leg_color := Color(0.2, 0.8, 1.0)
 	if leg_text == "Ronda de caza":
 		leg_color = Color(1.0, 0.35, 0.2)
-	var round_panel := Rect2(Vector2(12.0, 10.0), Vector2(220.0, 60.0))
+	var round_panel := Rect2(Vector2(12.0, 14.0), Vector2(220.0, 64.0))
 	draw_rect(round_panel, Color(0.02, 0.02, 0.02, 0.74))
 	draw_rect(round_panel, Color(leg_color, 0.82), false, 2.4)
-	draw_string(font, Vector2(24.0, 32.0), round_text,
+	draw_string(font, Vector2(24.0, 38.0), round_text,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 21, Color.WHITE)
 	if not leg_text.is_empty():
-		draw_string(font, Vector2(24.0, 57.0), leg_text,
+		draw_string(font, Vector2(24.0, 64.0), leg_text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 15, leg_color)
 
 	var t1c := Enums.team_color(Enums.Team.TEAM_1)
 	var t2c := Enums.team_color(Enums.Team.TEAM_2)
 	var score_text := "%d - %d" % [GameManager.match_scores[0], GameManager.match_scores[1]]
-	var score_panel := Rect2(Vector2(cx - 200.0, 8.0), Vector2(400.0, 68.0))
+	var score_panel := Rect2(Vector2(cx - 230.0, 12.0), Vector2(460.0, 64.0))
 	draw_rect(score_panel, Color(0.03, 0.03, 0.03, 0.68))
 	draw_rect(score_panel, Color(0.78, 0.78, 0.78, 0.42), false, 2.0)
 	var blue_name := Enums.team_name(Enums.Team.TEAM_1).to_upper()
 	var red_name := Enums.team_name(Enums.Team.TEAM_2).to_upper()
 	var red_w := font.get_string_size(red_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 	var score_w := font.get_string_size(score_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 34).x
-	draw_string(font, Vector2(score_panel.position.x + 16.0, 26.0),
+	draw_string(font, Vector2(score_panel.position.x + 18.0, 31.0),
 		blue_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, t1c)
-	draw_string(font, Vector2(cx - score_w / 2.0, 40.0),
+	draw_string(font, Vector2(cx - score_w / 2.0, 50.0),
 		score_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 34, Color.WHITE)
-	draw_string(font, Vector2(score_panel.position.x + score_panel.size.x - red_w - 16.0, 26.0),
+	draw_string(font, Vector2(score_panel.position.x + score_panel.size.x - red_w - 18.0, 31.0),
 		red_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, t2c)
 
 	var esc_team := GameManager.escapist_team
@@ -60,23 +62,22 @@ func _draw() -> void:
 		Enums.team_name(esc_team).to_upper(),
 		Enums.team_name(trap_team).to_upper(),
 	]
-	var role_w := font.get_string_size(role_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
-	draw_string(font, Vector2(cx - role_w * 0.5, 70.0),
-		role_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.74, 0.74, 0.76))
+	var role_rect := Rect2(Vector2(cx - 260.0, 82.0), Vector2(520.0, 24.0))
+	draw_rect(role_rect, Color(0.015, 0.015, 0.018, 0.62))
+	draw_rect(role_rect, Color(0.56, 0.56, 0.56, 0.22), false, 1.0)
+	_draw_centered_text_in_rect(font, role_text, role_rect, 13, Color(0.74, 0.74, 0.76))
 
 	if GameManager.current_state == Enums.GameState.ESCAPE:
-		var alive_panel := Rect2(Vector2(screen.x - 220.0, 12.0), Vector2(200.0, 28.0))
+		var alive_text := "Escapistas vivos: %d" % GameManager.get_living_escapists()
+		var alive_w := maxf(198.0, font.get_string_size(alive_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 28.0)
+		var alive_panel := Rect2(Vector2(screen.x - alive_w - 20.0, 18.0), Vector2(alive_w, 30.0))
 		draw_rect(alive_panel, Color(0.03, 0.03, 0.03, 0.72))
 		draw_rect(alive_panel, Color(Enums.role_color(Enums.Role.ESCAPIST), 0.36), false, 1.5)
-		var alive_text := "Escapistas vivos: %d" % GameManager.get_living_escapists()
-		draw_string(font, Vector2(alive_panel.position.x + 12.0, alive_panel.position.y + 19.0),
+		draw_string(font, Vector2(alive_panel.position.x + 12.0, alive_panel.position.y + 21.0),
 			alive_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Enums.role_color(Enums.Role.ESCAPIST))
 
-		var time_left := GameManager.get_hunt_time()
-		var timer_text := "%d" % ceili(time_left)
-		var timer_color := Color.WHITE if time_left > 10.0 else Color(1.0, 0.3, 0.2)
-		draw_string(font, Vector2(cx - 10.0, bar_h + 30.0), timer_text,
-			HORIZONTAL_ALIGNMENT_CENTER, -1, 32, timer_color)
+		if GameManager.is_escape_timer_running():
+			_draw_escape_timer(font, screen, bar_h)
 
 	var phase := ""
 	match GameManager.current_state:
@@ -89,8 +90,11 @@ func _draw() -> void:
 		Enums.GameState.PAUSED: phase = "PAUSA"
 
 	if not phase.is_empty():
-		draw_string(font, Vector2(screen.x - 150.0, 66.0), phase,
-			HORIZONTAL_ALIGNMENT_RIGHT, -1, 15, Color.YELLOW)
+		var phase_w := font.get_string_size(phase, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 34.0
+		var phase_panel := Rect2(Vector2(screen.x - phase_w - 20.0, 102.0), Vector2(phase_w, 30.0))
+		draw_rect(phase_panel, Color(0.03, 0.03, 0.0, 0.62))
+		draw_rect(phase_panel, Color(1.0, 0.95, 0.1, 0.28), false, 1.2)
+		_draw_centered_text_in_rect(font, phase, phase_panel, 15, Color.YELLOW)
 
 func _draw_practice_hud(font: Font, screen: Vector2, _bar_h: float) -> void:
 	draw_string(font, Vector2(24.0, 34.0),
@@ -102,6 +106,36 @@ func _draw_practice_hud(font: Font, screen: Vector2, _bar_h: float) -> void:
 		"PRÁCTICA", HORIZONTAL_ALIGNMENT_RIGHT, -1, 15, Color.YELLOW)
 
 
+func _draw_command_deck(screen: Vector2, bar_h: float) -> void:
+	draw_rect(Rect2(0.0, 0.0, screen.x, bar_h), Color(0.0, 0.0, 0.0, 0.9))
+	draw_rect(Rect2(0.0, bar_h - 34.0, screen.x, 34.0), Color(0.02, 0.025, 0.025, 0.94))
+	draw_line(Vector2(0.0, bar_h - 1.0), Vector2(screen.x, bar_h - 1.0), Color(0.55, 0.72, 0.70, 0.65), 2.0)
+	draw_line(Vector2(0.0, bar_h + 2.0), Vector2(screen.x, bar_h + 2.0), Color(0.0, 0.0, 0.0, 0.55), 5.0)
+	for x in range(0, int(screen.x), 180):
+		draw_line(Vector2(float(x), bar_h - 30.0), Vector2(float(x) + 86.0, bar_h - 30.0),
+			Color(0.35, 0.45, 0.43, 0.18), 1.0)
+
+
+func _draw_escape_timer(font: Font, screen: Vector2, bar_h: float) -> void:
+	var time_left := GameManager.get_hunt_time()
+	var timer_text := "%d" % ceili(time_left)
+	var urgent := time_left <= 10.0
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 105.0)
+	var timer_color := Color(1.0, 0.95, 0.22) if not urgent else Color(1.0, 0.18 + 0.28 * pulse, 0.12)
+	var panel_w := 190.0
+	var panel_h := 40.0
+	var panel := Rect2(Vector2(screen.x * 0.5 - panel_w * 0.5, bar_h - panel_h - 10.0), Vector2(panel_w, panel_h))
+	var glow_alpha := 0.22 if not urgent else 0.34 + 0.26 * pulse
+	draw_rect(panel.grow(6.0), Color(timer_color, glow_alpha * 0.36))
+	draw_rect(panel, Color(0.015, 0.015, 0.018, 0.88))
+	draw_rect(panel, Color(timer_color, 0.94), false, 2.4)
+	draw_rect(Rect2(panel.position, Vector2(panel.size.x, 5.0)), Color(timer_color, 0.95))
+	_draw_centered_text_in_rect(font, "TIEMPO", Rect2(panel.position.x + 12.0, panel.position.y + 8.0, 64.0, 22.0),
+		10, Color(0.76, 0.76, 0.76))
+	_draw_centered_text_in_rect(font, timer_text, Rect2(panel.position.x + 78.0, panel.position.y + 4.0, 96.0, 32.0),
+		30, timer_color)
+
+
 func _draw_team_ability_panels(font: Font, screen: Vector2) -> void:
 	var panel_y := 100.0
 	var panel_w := minf(400.0, screen.x * 0.27)
@@ -110,6 +144,16 @@ func _draw_team_ability_panels(font: Font, screen: Vector2) -> void:
 
 	_draw_role_panel(font, left_rect, Enums.Role.ESCAPIST)
 	_draw_role_panel(font, right_rect, Enums.Role.TRAPPER)
+
+
+func _draw_centered_text_in_rect(font: Font, text: String, rect: Rect2, font_size: int, color: Color) -> void:
+	var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var line_height := font.get_height(font_size)
+	var baseline_y := rect.position.y + (rect.size.y - line_height) * 0.5 + font.get_ascent(font_size)
+	var pos := Vector2(rect.position.x + (rect.size.x - text_size.x) * 0.5, baseline_y)
+	draw_string(font, pos + Vector2(2.0, 2.0), text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.0, 0.0, 0.0, 0.72 * color.a))
+	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 
 func _draw_role_panel(font: Font, rect: Rect2, role: Enums.Role) -> void:

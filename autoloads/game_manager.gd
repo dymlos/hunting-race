@@ -223,6 +223,10 @@ func start_escape_timer() -> void:
 	_escape_timer_running = true
 
 
+func is_escape_timer_running() -> bool:
+	return _escape_timer_running
+
+
 func get_hunt_time() -> float:
 	return _hunt_timer
 

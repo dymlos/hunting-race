@@ -344,12 +344,12 @@ func _draw() -> void:
 
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
-	var cy := 112.0 if _anchor_top else screen.y / 2.0
+	var cy := minf(236.0, screen.y * 0.30) if _anchor_top else screen.y / 2.0
 	var font := ThemeDB.fallback_font
 	var now := Time.get_ticks_msec() / 1000.0
 	var anim_time := _escape_anim_time if _text == "¡ESCAPA!" else now
 
-	var text_size := 36
+	var text_size := 30 if _anchor_top else 36
 	var sub_text_size := 18
 	var display_sub_text := _get_display_sub_text()
 	if _text == "¡ESCAPA!":

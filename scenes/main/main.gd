@@ -38,6 +38,7 @@ const PRACTICE_BOT_INDICES := [
 	PRACTICE_MUSHROOM_BOT_INDEX,
 	PRACTICE_OCTOPUS_BOT_INDEX,
 ]
+const GAMEPLAY_TOP_MARGIN: float = 168.0
 
 var arena: Arena
 var characters: Array[Node2D] = []  # Mix of Escapist and Trapper nodes
@@ -496,12 +497,16 @@ func _setup_camera() -> void:
 	if not arena:
 		return
 	var map_size := arena.get_map_size()
-	camera.position = map_size / 2.0
 	var viewport_size := get_viewport_rect().size
-	var padding := Vector2(18.0, 18.0)
+	var reserved_top := minf(GAMEPLAY_TOP_MARGIN, viewport_size.y * 0.24)
+	var gameplay_size := Vector2(viewport_size.x, maxf(viewport_size.y - reserved_top, viewport_size.y * 0.55))
+	var padding := Vector2(24.0, 24.0)
 	var zoom_x := viewport_size.x / (map_size.x + padding.x)
-	var zoom_y := viewport_size.y / (map_size.y + padding.y)
+	var zoom_y := gameplay_size.y / (map_size.y + padding.y)
 	var target_zoom := minf(zoom_x, zoom_y)
+	camera.position = map_size / 2.0
+	if target_zoom > 0.0:
+		camera.position.y -= reserved_top / (target_zoom * 2.0)
 	camera.zoom = Vector2(target_zoom, target_zoom)
 
 
@@ -588,9 +593,8 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 			_freeze_escapists_only()
 			_start_round_replay_recording()
 		Enums.GameState.ESCAPE:
-			_round_replay_escape_start_time = _round_replay_elapsed
 			phase_overlay.show_escape()
-			_unfreeze_all()
+			_freeze_all()
 			_start_round_replay_recording()
 		Enums.GameState.ROUND_END:
 			_round_replay_recording = false
@@ -605,6 +609,10 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 
 
 func _on_escape_overlay_finished() -> void:
+	if GameManager.current_state != Enums.GameState.ESCAPE:
+		return
+	_round_replay_escape_start_time = _round_replay_elapsed
+	_unfreeze_all()
 	GameManager.start_escape_timer()
 
 
