@@ -19,7 +19,7 @@ func _spawn_from_points(points: Array[Vector2]) -> void:
 
 
 func get_display_name() -> String:
-	return "Teleport"
+	return "Portal"
 
 
 func get_display_color() -> Color:

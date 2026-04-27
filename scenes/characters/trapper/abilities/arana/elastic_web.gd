@@ -19,7 +19,7 @@ func _spawn_from_points(points: Array[Vector2]) -> void:
 
 
 func get_display_name() -> String:
-	return "Elastic"
+	return "Elástica"
 
 
 func get_display_color() -> Color:
@@ -109,7 +109,7 @@ class ElasticLine extends Area2D:
 				return
 			GameManager.register_trap_contact(character.player_index, int(get_meta("owner_player_index", -1)))
 			if character is Escapist:
-				(character as Escapist).notify_trap_status("BOUNCED", Color(0.95, 0.35, 1.0), 0.75)
+				(character as Escapist).notify_trap_status("REBOTE", Color(0.95, 0.35, 1.0), 0.75)
 			AudioManager.play_effect(&"Bounce")
 
 			# Calculate bounce direction: push away from the line

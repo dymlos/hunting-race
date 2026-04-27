@@ -19,7 +19,7 @@ func _spawn_from_points(points: Array[Vector2]) -> void:
 
 
 func get_display_name() -> String:
-	return "Pincers"
+	return "Pinzas"
 
 
 func get_display_color() -> Color:
@@ -188,7 +188,7 @@ class PincersNode extends Node2D:
 				return
 			GameManager.register_trap_contact(character.player_index, int(get_meta("owner_player_index", -1)))
 			if character is Escapist:
-				(character as Escapist).notify_trap_status("PINCHED", Color(1.0, 0.32, 0.12), 0.8)
+				(character as Escapist).notify_trap_status("APRETADO", Color(1.0, 0.32, 0.12), 0.8)
 			_close_time = _get_close_time()
 			if _should_break_from_blocker():
 				queue_free()
@@ -267,7 +267,7 @@ class PincersNode extends Node2D:
 				continue
 			if _is_touching_wall_segment(esc.global_position, _wall_a.global_position) \
 					or _is_touching_wall_segment(esc.global_position, _wall_b.global_position):
-				esc.notify_trap_status("PINCHED", Color(1.0, 0.32, 0.12), 0.8)
+				esc.notify_trap_status("APRETADO", Color(1.0, 0.32, 0.12), 0.8)
 				esc.movement.crushed.emit()
 
 	func _is_touching_wall_segment(target: Vector2, wall_center: Vector2) -> bool:

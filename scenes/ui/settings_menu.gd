@@ -25,65 +25,65 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_settings = [
 		{
-			"key": "bot_fill", "label": "Bot Auto-Fill",
-			"type": "options", "options": ["On", "Off"],
+			"key": "bot_fill", "label": "Rellenar con bots",
+			"type": "options", "options": ["Sí", "No"],
 			"value": 1,
 		},
 		{
-			"key": "bot_ai", "label": "Bot Trapper AI",
-			"type": "options", "options": ["Off", "On"],
+			"key": "bot_ai", "label": "IA de cazadores",
+			"type": "options", "options": ["No", "Sí"],
 			"value": 0,
 		},
 		{
-			"key": "hunt_duration", "label": "Round Time",
+			"key": "hunt_duration", "label": "Tiempo de ronda",
 			"type": "int", "min": 15, "max": 180, "step": 15,
 			"value": int(Constants.HUNT_DURATION),
 		},
 		{
-			"key": "hunt_countdown_enabled", "label": "Strategy Hunt",
-			"type": "options", "options": ["On", "Off"],
+			"key": "hunt_countdown_enabled", "label": "Caza estratégica",
+			"type": "options", "options": ["Sí", "No"],
 			"value": 0,
 		},
 		{
-			"key": "observation_duration", "label": "Observation Time",
+			"key": "observation_duration", "label": "Tiempo de vista previa",
 			"type": "int", "min": 1, "max": 20, "step": 1,
 			"value": int(Constants.OBSERVATION_DURATION),
 		},
 		{
-			"key": "hunt_countdown_duration", "label": "Strategy Hunt Time",
+			"key": "hunt_countdown_duration", "label": "Tiempo de caza",
 			"type": "int", "min": 1, "max": 10, "step": 1,
 			"value": int(Constants.HUNT_COUNTDOWN_DURATION),
 		},
 		{
-			"key": "score_to_win", "label": "Rounds to Play",
+			"key": "score_to_win", "label": "Rondas a jugar",
 			"type": "int", "min": 1, "max": 30, "step": 1,
 			"value": Constants.SCORE_TO_WIN,
 		},
 		{
-			"key": "team_size", "label": "Team Size",
+			"key": "team_size", "label": "Tamaño de equipo",
 			"type": "int", "min": 1, "max": 4, "step": 1,
 			"value": 4,
 		},
 		{
-			"key": "escapist_speed", "label": "Escapist Speed",
+			"key": "escapist_speed", "label": "Velocidad escapista",
 			"type": "number", "default": Constants.SPEED_ESCAPIST,
 			"value": 1.0, "min_mult": 0.5, "max_mult": 1.5, "step": 0.1,
 		},
 		{
-			"key": "trapper_speed", "label": "Cursor Speed",
+			"key": "trapper_speed", "label": "Velocidad del cursor",
 			"type": "number", "default": Constants.TRAPPER_CURSOR_SPEED,
 			"value": 1.0, "min_mult": 0.5, "max_mult": 1.5, "step": 0.1,
 		},
 		{
-			"key": "music_volume", "label": "Music Volume",
+			"key": "music_volume", "label": "Volumen de música",
 			"type": "volume", "value": 100, "min": 0, "max": 100, "step": 5,
 		},
 		{
-			"key": "effects_volume", "label": "SFX Volume",
+			"key": "effects_volume", "label": "Volumen de efectos",
 			"type": "volume", "value": 100, "min": 0, "max": 100, "step": 5,
 		},
 		{
-			"key": "poison_duration", "label": "Poison Time",
+			"key": "poison_duration", "label": "Tiempo de veneno",
 			"type": "int", "min": 2, "max": 15, "step": 1,
 			"value": int(Constants.POISON_DURATION),
 		},
@@ -187,7 +187,7 @@ func _draw() -> void:
 	draw_rect(border_rect, Color(0.3, 0.3, 0.3), false, 2.0)
 
 	# Title
-	var title := "SETTINGS"
+	var title := "AJUSTES"
 	var title_w := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x
 	draw_string(font, Vector2(cx - title_w / 2.0, margin + 40),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
@@ -229,7 +229,7 @@ func _draw() -> void:
 				setting["value"] as int, color)
 
 	# Hint
-	var hint := "LEFT/RIGHT change | UP/DOWN navigate | SELECT close"
+	var hint := "Izq./Der. cambiar | Arriba/Abajo navegar | Select cerrar"
 	var hw := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	draw_string(font, Vector2(cx - hw / 2.0, screen.y - margin - 10),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.5, 0.5, 0.5))

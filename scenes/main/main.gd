@@ -8,6 +8,7 @@ const CoverScreenScene := preload("res://scenes/ui/cover_screen.tscn")
 const ModeSelectScene := preload("res://scenes/ui/mode_select.gd")
 const HowToPlayScene := preload("res://scenes/ui/how_to_play.gd")
 const PracticeSetupScene := preload("res://scenes/ui/practice_setup.gd")
+const OfficialBriefingScene := preload("res://scenes/ui/official_briefing.gd")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const EscapistSelectScene := preload("res://scenes/ui/escapist_select.tscn")
 const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
@@ -68,6 +69,7 @@ var cover_screen: CoverScreen
 var mode_select: ModeSelect
 var how_to_play: HowToPlay
 var practice_setup: PracticeSetup
+var official_briefing: OfficialBriefing
 var team_setup: TeamSetup
 var stage_select: StageSelect
 var escapist_select: EscapistSelect
@@ -118,6 +120,11 @@ func _ready() -> void:
 	practice_setup.hide()
 	practice_setup.practice_ready.connect(_on_practice_ready)
 	practice_setup.back_requested.connect(_start_mode_select)
+
+	official_briefing = OfficialBriefingScene.new() as OfficialBriefing
+	ui_layer.add_child(official_briefing)
+	official_briefing.hide()
+	official_briefing.briefing_finished.connect(_on_official_briefing_finished)
 
 	team_setup = TeamSetupScene.instantiate() as TeamSetup
 	ui_layer.add_child(team_setup)
@@ -405,10 +412,30 @@ func _on_characters_ready(selections: Dictionary) -> void:
 
 	if _is_first_round:
 		_setup_arena()
-	_is_first_round = false
+		_is_first_round = false
+		_show_official_briefing()
+		return
 	menu_music.use_round_volume()
 	game_hud.show()
 	GameManager.start_observation()
+
+
+func _show_official_briefing() -> void:
+	game_hud.hide()
+	phase_overlay.clear()
+	menu_music.use_menu_volume()
+	menu_music.start_music()
+	official_briefing.open()
+	push_view(official_briefing)
+
+
+func _on_official_briefing_finished() -> void:
+	pop_view()
+	menu_music.use_round_volume()
+	game_hud.show()
+	GameManager.start_observation()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
 
 
 func _on_character_back() -> void:
@@ -426,6 +453,7 @@ func _on_escapist_back() -> void:
 func _on_round_advancing() -> void:
 	# Between rounds: pick escapists first, then trappers.
 	phase_overlay.clear()
+	game_hud.hide()
 	menu_music.use_menu_volume()
 	menu_music.start_music()
 	_show_escapist_select(false)
@@ -706,25 +734,25 @@ func _get_or_create_round_replay_track(character: Node2D) -> Dictionary:
 	var team := Enums.Team.NONE
 	var color := Color.WHITE
 	var role := Enums.Role.NONE
-	var label := "REPLAY"
+	var label := "REPETICIÓN"
 	if character is Escapist:
 		var esc := character as Escapist
 		player_index = esc.player_index
 		team = esc.team
 		color = esc.player_color
 		role = Enums.Role.ESCAPIST
-		label = "P%d FASTEST ESCAPE" % (player_index + 1)
+		label = "P%d ESCAPE MÁS RÁPIDO" % (player_index + 1)
 		if player_index >= 100:
-			label = "BOT FASTEST ESCAPE"
+			label = "BOT ESCAPE MÁS RÁPIDO"
 	elif character is Trapper:
 		var trapper := character as Trapper
 		player_index = trapper.player_index
 		team = trapper.team
 		color = Enums.trapper_character_color(trapper.trapper_character)
 		role = Enums.Role.TRAPPER
-		label = "P%d TRAPPER REPLAY" % (player_index + 1)
+		label = "P%d REPETICIÓN CAZADOR" % (player_index + 1)
 		if player_index >= 100:
-			label = "BOT TRAPPER REPLAY"
+			label = "BOT REPETICIÓN CAZADOR"
 
 	if _round_replay_tracks.has(player_index):
 		return _round_replay_tracks[player_index] as Dictionary
@@ -768,7 +796,7 @@ func _build_fastest_round_replay(entries: Array[Dictionary]) -> Dictionary:
 	var best_player_index := best_entry.get("player_index", -1) as int
 	var best_track: Dictionary = (_round_replay_tracks[best_player_index] as Dictionary).duplicate(true)
 	var player_label := "P%d" % (best_player_index + 1) if best_player_index < 100 else "BOT"
-	best_track["label"] = "%s FASTEST ESCAPE  %.1fs" % [
+	best_track["label"] = "%s ESCAPE MÁS RÁPIDO  %.1fs" % [
 		player_label,
 		best_entry.get("escape_time", 0.0) as float,
 	]
@@ -796,7 +824,7 @@ func _build_trapper_impact_replay() -> Dictionary:
 	if positions.size() < 2 or times.size() < 2:
 		return {}
 	var player_label := "P%d" % (best_player_index + 1) if best_player_index < 100 else "BOT"
-	track["label"] = "%s TRAPPER IMPACT  %d hits" % [player_label, best_count]
+	track["label"] = "%s IMPACTO CAZADOR  %d golpes" % [player_label, best_count]
 	track["impact_count"] = best_count
 	track["playback_start_time"] = 0.0
 	track["rivals"] = _get_rival_replay_tracks(track)
@@ -1000,7 +1028,10 @@ func _check_round_end_skip_input() -> void:
 				and InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_X):
 			_start_round_replay(_last_round_trapper_replay)
 			return
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+		var pressed := Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
+		var was_pressed: bool = _prev_start_pressed.get(pi, false)
+		_prev_start_pressed[pi] = pressed
+		if pressed and not was_pressed:
 			GameManager.confirm_round_end()
 			_prime_start_button_state()
 			InputManager.suppress_edge_detection(3)

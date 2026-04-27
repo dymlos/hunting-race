@@ -19,7 +19,7 @@ func _spawn_from_points(points: Array[Vector2]) -> void:
 
 
 func get_display_name() -> String:
-	return "Current"
+	return "Corriente"
 
 
 func get_display_color() -> Color:
@@ -114,7 +114,7 @@ class CurrentZone extends Area2D:
 				return
 			GameManager.register_trap_contact(character.player_index, int(get_meta("owner_player_index", -1)))
 			if character is Escapist:
-				(character as Escapist).notify_trap_status("PUSHED", Color(0.25, 0.8, 1.0), 0.75)
+				(character as Escapist).notify_trap_status("EMPUJADO", Color(0.25, 0.8, 1.0), 0.75)
 			_bodies_inside[body] = true
 			AudioManager.play_effect(&"WaterCurrentStep")
 

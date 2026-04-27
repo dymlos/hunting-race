@@ -58,10 +58,10 @@ static func team_color(team: Team) -> Color:
 static func team_name(team: Team) -> String:
 	match team:
 		Team.TEAM_1:
-			return "Team Blue"
+			return "Equipo Azul"
 		Team.TEAM_2:
-			return "Team Red"
-	return "Unknown Team"
+			return "Equipo Rojo"
+	return "Equipo desconocido"
 
 
 static func role_color(role: Role) -> Color:
@@ -75,18 +75,18 @@ static func role_color(role: Role) -> Color:
 
 static func role_name(role: Role) -> String:
 	match role:
-		Role.ESCAPIST: return "Escapist"
-		Role.TRAPPER:  return "Trapper"
-	return "None"
+		Role.ESCAPIST: return "Escapista"
+		Role.TRAPPER:  return "Cazador"
+	return "Ninguno"
 
 
 static func trapper_character_name(tc: TrapperCharacter) -> String:
 	match tc:
-		TrapperCharacter.ARANA: return "SPIDER"
-		TrapperCharacter.HONGO: return "MUSHROOM"
-		TrapperCharacter.ESCORPION: return "SCORPION"
-		TrapperCharacter.PULPO: return "OCTOPUS"
-	return "None"
+		TrapperCharacter.ARANA: return "ARAÑA"
+		TrapperCharacter.HONGO: return "HONGO"
+		TrapperCharacter.ESCORPION: return "ESCORPIÓN"
+		TrapperCharacter.PULPO: return "PULPO"
+	return "Ninguno"
 
 
 static func trapper_character_color(tc: TrapperCharacter) -> Color:
@@ -100,11 +100,11 @@ static func trapper_character_color(tc: TrapperCharacter) -> Color:
 
 static func escapist_animal_name(animal: EscapistAnimal) -> String:
 	match animal:
-		EscapistAnimal.RABBIT: return "RABBIT"
-		EscapistAnimal.RAT: return "RAT"
-		EscapistAnimal.SQUIRREL: return "SQUIRREL"
-		EscapistAnimal.FLY: return "FLY"
-	return "None"
+		EscapistAnimal.RABBIT: return "CONEJO"
+		EscapistAnimal.RAT: return "RATA"
+		EscapistAnimal.SQUIRREL: return "ARDILLA"
+		EscapistAnimal.FLY: return "MOSCA"
+	return "Ninguno"
 
 
 static func escapist_animal_color(animal: EscapistAnimal) -> Color:

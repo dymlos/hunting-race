@@ -39,7 +39,7 @@ const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
 const ABILITY_LINE_HEIGHT: float = 16.0
 const ABILITY_BLOCK_HEIGHT: float = 58.0
-const CARD_TOP_PAD: float = 16.0
+const CARD_TOP_PAD: float = 14.0
 const ABILITY_START_Y: float = 220.0
 
 
@@ -388,7 +388,7 @@ func _update_skill_test_layout() -> void:
 		var row := int(floor(float(card_index) / float(columns)))
 		var card_x := cards_x + float(col) * (card_w + CARD_GAP)
 		var card_y := cards_y + float(row) * (card_h + row_gap)
-		var art_h := clampf(card_h * 0.48, 130.0, 205.0)
+		var art_h := clampf(card_h * 0.50, 140.0, 215.0)
 		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		view.call("set_view_rect", art_rect)
 
@@ -483,40 +483,40 @@ func _apply_trapper_demo_ability(char_id: Enums.TrapperCharacter, button: String
 	match char_id:
 		Enums.TrapperCharacter.ARANA:
 			if button == "A" and distance < 0.34:
-				_set_trapper_demo_status("POISON", 1.8)
+				_set_trapper_demo_status("VENENO", 1.8)
 			elif button == "X":
 				_demo_entities["opponent"] = opponent.move_toward(Vector2(0.20, opponent.y), 0.22)
-				_set_trapper_demo_status("BOUNCE", 0.9)
+				_set_trapper_demo_status("REBOTE", 0.9)
 			elif button == "Y" and distance < 0.42:
-				_set_trapper_demo_status("SLOWED", 1.6)
+				_set_trapper_demo_status("LENTO", 1.6)
 		Enums.TrapperCharacter.HONGO:
 			if button == "A" and distance < 0.35:
 				var velocity := _demo_entities["opponent_velocity"] as Vector2
 				_demo_entities["opponent_velocity"] = -velocity
-				_set_trapper_demo_status("CONFUSED", 1.5)
+				_set_trapper_demo_status("CONFUSO", 1.5)
 			elif button == "X" and distance < 0.42:
-				_set_trapper_demo_status("SPORES", 1.7)
+				_set_trapper_demo_status("ESPORAS", 1.7)
 			elif button == "Y":
 				_demo_entities["opponent"] = Vector2(0.22, 0.34)
 				_set_trapper_demo_status("PORTAL", 0.9)
 		Enums.TrapperCharacter.ESCORPION:
 			if button == "A" and distance < 0.26:
-				_set_trapper_demo_status("STUNG", 1.4)
+				_set_trapper_demo_status("PICADO", 1.4)
 			elif button == "X":
 				_demo_entities["opponent"] = opponent.move_toward(_demo_pos, 0.20)
-				_set_trapper_demo_status("PULLED", 1.2)
+				_set_trapper_demo_status("ARRASTRADO", 1.2)
 			elif button == "Y":
 				_demo_entities["root_timer"] = 0.8
-				_set_trapper_demo_status("CRUSH", 0.9)
+				_set_trapper_demo_status("APLASTAR", 0.9)
 		Enums.TrapperCharacter.PULPO:
 			if button == "A" and distance < 0.38:
-				_set_trapper_demo_status("BLINDED", 1.6)
+				_set_trapper_demo_status("CEGADO", 1.6)
 			elif button == "X" and distance < 0.38:
 				_demo_entities["root_timer"] = 1.5
-				_set_trapper_demo_status("ROOTED", 1.5)
+				_set_trapper_demo_status("FIJADO", 1.5)
 			elif button == "Y":
 				_demo_entities["opponent"] = opponent.move_toward(Vector2(0.88, opponent.y), 0.24)
-				_set_trapper_demo_status("PUSHED", 1.1)
+				_set_trapper_demo_status("EMPUJADO", 1.1)
 
 
 func _set_trapper_demo_status(text: String, duration: float) -> void:
@@ -562,6 +562,28 @@ func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 	return lines.size() * line_height
 
 
+func _player_display_name(player_index: int) -> String:
+	return "USUARIO %d" % (player_index + 1) if player_index < 100 else "BOT"
+
+
+func _format_player_names(player_indices: Array[int]) -> String:
+	var names: Array[String] = []
+	for pi: int in player_indices:
+		names.append(_player_display_name(pi))
+	return ", ".join(names)
+
+
+func _draw_selection_badge(font: Font, rect: Rect2, text: String, color: Color,
+		is_confirmed: bool) -> void:
+	var fill_alpha := 0.34 if is_confirmed else 0.18
+	var border_alpha := 0.95 if is_confirmed else 0.62
+	draw_rect(rect, Color(0.0, 0.0, 0.0, 0.68))
+	draw_rect(rect, Color(color, fill_alpha))
+	draw_rect(rect, Color(color, border_alpha), false, 1.5)
+	_draw_centered_text_in_rect(font, text, rect, 14 if is_confirmed else 12,
+		Color.WHITE if is_confirmed else Color(0.86, 0.86, 0.86))
+
+
 func _draw() -> void:
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
@@ -572,15 +594,15 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, Vector2(screen.x, 430.0)), Color(0.06, 0.035, 0.045, 0.18))
 
 	# Title
-	var title := "CHOOSE YOUR TRAPPER"
+	var title := "ELIGE TU CAZADOR"
 	_draw_centered_text_in_rect(font, title, Rect2(cx - 260.0, 34.0, 520.0, 38.0), 30, Color.WHITE)
 
 	# Trapping team label
 	var team_name := Enums.team_name(_trapping_team)
 	var team_col := Enums.team_color(_trapping_team)
-	var sub := "%s picks trappers" % team_name
+	var sub := "%s elige cazadores" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
-	_draw_centered_text_in_rect(font, "Trappers use A, X and Y in-match. START confirms menus and SELECT cancels or goes back.",
+	_draw_centered_text_in_rect(font, "Los cazadores usan A, X e Y en partida. Start confirma menús y Select cancela o vuelve.",
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	# Character cards — 4 cards in a row
@@ -622,9 +644,9 @@ func _draw() -> void:
 					hovering_pis.append(pi)
 
 		# Card background
-		var bg_color := Color(0.11, 0.11, 0.12)
+		var bg_color := Color(0.095, 0.095, 0.105)
 		if confirmed_pi >= 0:
-			bg_color = Color(char_color, 0.18)
+			bg_color = Color(char_color, 0.23)
 
 		# Card border
 		var border_color := Color(0.3, 0.3, 0.3)
@@ -632,43 +654,48 @@ func _draw() -> void:
 			border_color = char_color
 		elif not hovering_pis.is_empty():
 			border_color = Color(char_color, 0.82)
-		_draw_panel(card_rect, bg_color, border_color, 2.0)
-		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 5.0)), Color(char_color, 0.95))
+		_draw_panel(card_rect, bg_color, border_color, 4.0 if confirmed_pi >= 0 else 2.0)
+		if confirmed_pi >= 0:
+			draw_rect(card_rect.grow(-6.0), Color(char_color, 0.18), false, 1.5)
+		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 7.0 if confirmed_pi >= 0 else 5.0)),
+			Color(char_color, 1.0 if confirmed_pi >= 0 else 0.92))
 
-		var art_h := clampf(card_h * 0.48, 130.0, 205.0)
+		var art_h := clampf(card_h * 0.50, 140.0, 215.0)
 		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		draw_rect(art_rect, Color(char_color, 0.10))
 		draw_rect(art_rect, Color(char_color, 0.25), false, 1.0)
 		var demo_running := _is_card_testing(i)
 		if demo_running:
-			_draw_centered_text_in_rect(font, "REAL SKILL TEST",
+			_draw_centered_text_in_rect(font, "PRUEBA REAL",
 				art_rect, 12, Color(char_color, 0.9))
 		else:
-			var silhouette_scale := 3.0
+			var silhouette_scale := 3.45
 			var silhouette_offset := Vector2(0.0, -2.0)
 			if char_id == Enums.TrapperCharacter.ESCORPION:
-				silhouette_scale = 2.15
+				silhouette_scale = 2.45
 				silhouette_offset = Vector2(0.0, 6.0)
 			_draw_trapper_silhouette(char_id, art_rect.position + art_rect.size * 0.5 + silhouette_offset,
 				silhouette_scale, Color(char_color, 1.0))
 
 		# Character name
-		_draw_centered_text_in_rect(font, char_name, Rect2(card_x, card_y + CARD_TOP_PAD, card_w, 28.0), 24, char_color)
+		_draw_centered_text_in_rect(font, char_name, Rect2(card_x, card_y + CARD_TOP_PAD, card_w, 26.0), 22, char_color)
 
 		# Subtitle
 		var sub_y := card_y + 44.0
 		var sub_max_w := card_w - CARD_MARGIN * 2.0
-		var subtitle_width := font.get_string_size(char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+		var subtitle_width := font.get_string_size(char_sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 		if subtitle_width <= sub_max_w:
-			_draw_centered_text_in_rect(font, char_sub, Rect2(card_x, sub_y, card_w, 18.0), 13, Color(0.64, 0.64, 0.66))
+			_draw_centered_text_in_rect(font, char_sub, Rect2(card_x, sub_y - 2.0, card_w, 18.0), 12, Color(0.62, 0.62, 0.64))
 		else:
 			_draw_wrapped_text(font, char_sub, Vector2(card_x + CARD_MARGIN, sub_y + 10.0),
-				sub_max_w, 13, Color(0.6, 0.6, 0.6), 15.0, 2)
+				sub_max_w, 12, Color(0.6, 0.6, 0.6), 14.0, 2)
 
 		# Abilities list
-		var ability_y := art_rect.end.y + 30.0
+		var ability_y := art_rect.end.y + 22.0
 		var ability_gap := 12.0
 		var ability_col_w := (card_w - CARD_MARGIN * 2.0 - ability_gap * 2.0) / 3.0
+		draw_line(Vector2(card_x + CARD_MARGIN, ability_y - 12.0),
+			Vector2(card_x + card_w - CARD_MARGIN, ability_y - 12.0), Color(char_color, 0.24), 1.0)
 		for a_i in abilities.size():
 			var ability: Dictionary = abilities[a_i] as Dictionary
 			var a_name: String = ability["name"] as String
@@ -678,30 +705,24 @@ func _draw() -> void:
 			var text_w := ability_col_w
 			var block_y := ability_y
 			draw_string(font, Vector2(text_x, block_y),
-				a_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.86, 0.86, 0.86))
+				a_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.88, 0.88, 0.88))
 			var a_desc: String = ability["desc"] as String
-			_draw_wrapped_text(font, a_desc, Vector2(text_x, block_y + 20),
-				text_w, 11, Color(0.62, 0.62, 0.62), 14.0, 3)
+			_draw_wrapped_text(font, a_desc, Vector2(text_x, block_y + 18.0),
+				text_w, 10, Color(0.62, 0.62, 0.62), 12.5, 4)
 
 		# TAKEN label
 		if is_taken:
-			var taken_label := "P%d" % (confirmed_pi + 1) if confirmed_pi < 100 else "BOT"
-			var taken_text := "%s ✓" % taken_label
-			var tw := font.get_string_size(taken_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-			draw_string(font, Vector2(card_x + card_w / 2.0 - tw / 2.0, card_y + card_h - 15),
-				taken_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, char_color)
+			var selected_text := "%s ELIGIÓ" % _player_display_name(confirmed_pi)
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 42.0, card_w - CARD_MARGIN * 2.0, 28.0),
+				selected_text, char_color, true)
 
 		# Hovering player indicators
 		if not hovering_pis.is_empty() and not is_taken:
-			var hover_text := ""
-			for h_i in hovering_pis.size():
-				if h_i > 0:
-					hover_text += " "
-				var pi: int = hovering_pis[h_i]
-				hover_text += "P%d" % (pi + 1) if pi < 100 else "BOT"
-			var hw := font.get_string_size(hover_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			draw_string(font, Vector2(card_x + card_w / 2.0 - hw / 2.0, card_y + card_h - 15),
-				hover_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.8, 0.8, 0.8))
+			var choosing_text := "%s ELIGIENDO" % _format_player_names(hovering_pis)
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
+				choosing_text, char_color, false)
 
 	# Escapist team players
 	var escapist_pis: Array[int] = []
@@ -714,9 +735,9 @@ func _draw() -> void:
 		var esc_y := minf(grid_bottom + 24.0, screen.y - 84.0)
 		var esc_labels: Array[String] = []
 		for pi: int in escapist_pis:
-			var label := "P%d" % (pi + 1) if pi < 100 else "BOT"
+			var label := _player_display_name(pi)
 			esc_labels.append(label)
-		var esc_text := "Escapists: %s" % ", ".join(esc_labels)
+		var esc_text := "Escapistas: %s" % ", ".join(esc_labels)
 		var esc_team: Enums.Team = Enums.Team.TEAM_1 if _trapping_team == Enums.Team.TEAM_2 else Enums.Team.TEAM_2
 		var wait_rect := Rect2(cx - 230.0, esc_y - 18.0, 460.0, 30.0)
 		_draw_panel(wait_rect, Color(0.04, 0.04, 0.045, 0.9), Color(Enums.team_color(esc_team), 0.45), 1.5)
@@ -731,7 +752,7 @@ func _draw() -> void:
 		var char_data2: Dictionary = _characters[idx]
 		var cname: String = char_data2["name"] as String
 		var confirmed: bool = _player_confirmed.get(pi, false)
-		var label := "P%d: %s %s" % [pi + 1, cname, "✓" if confirmed else "..."]
+		var label := "%s: %s %s" % [_player_display_name(pi), cname, "ELEGIDO" if confirmed else "ELIGIENDO"]
 		var lw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		draw_string(font, Vector2(cx - lw / 2.0, status_y),
 			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
@@ -739,11 +760,11 @@ func _draw() -> void:
 		status_y += 20
 
 	# Hints
-	var hint := "A demo | Left stick move | START confirm | SELECT cancel"
+	var hint := "A probar | Palanca izq. mover | Start confirmar | Select cancelar"
 	if _allow_back:
-		hint = "A demo | Left stick move | START confirm | SELECT back or cancel"
+		hint = "A probar | Palanca izq. mover | Start confirmar | Select volver o cancelar"
 	if _selection_complete():
-		hint = "START to begin | SELECT back or change" if _allow_back else "START to begin | SELECT to change"
+		hint = "Start para comenzar | Select volver o cambiar" if _allow_back else "Start para comenzar | Select cambiar"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)
@@ -765,7 +786,7 @@ func _draw_trapper_demo(font: Font, rect: Rect2,
 	var opponent_norm := _demo_entities.get("opponent", Vector2(0.78, 0.64)) as Vector2
 	var target := rect.position + Vector2(opponent_norm.x * rect.size.x, opponent_norm.y * rect.size.y)
 	draw_circle(target, 8.0, Color(1.0, 0.25, 0.18, 0.82))
-	draw_string(font, target + Vector2(-10.0, -12.0), "RUN", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.60, 0.50))
+	draw_string(font, target + Vector2(-10.0, -12.0), "CORRE", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.60, 0.50))
 	var player := rect.position + Vector2(_demo_pos.x * rect.size.x, _demo_pos.y * rect.size.y)
 	for effect: Dictionary in _demo_effects:
 		var button := effect["button"] as String
@@ -786,7 +807,7 @@ func _draw_trapper_demo(font: Font, rect: Rect2,
 		_draw_centered_text_in_rect(font, status,
 			Rect2(rect.position.x, rect.position.y + 8.0, rect.size.x, 18.0), 11, Color.YELLOW)
 	draw_string(font, rect.position + Vector2(9.0, rect.size.y - 9.0),
-		"SELECT exit | A/X/Y test", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
+		"Select salir | A/X/Y probar", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
 
 
 func _draw_trapper_demo_effect(rect: Rect2, player: Vector2, target: Vector2,

@@ -13,7 +13,7 @@ static func get_test_map() -> Dictionary:
 
 	return {
 		"name": "Pasaje Técnico",
-		"description": "Simple serpentine corridors. No hazards.",
+		"description": "Pasillos serpenteantes simples. Sin peligros.",
 		"size": Vector2(w, h),
 		"walls": [
 			# Outer boundary
@@ -685,8 +685,8 @@ static func get_gauntlet_map() -> Dictionary:
 	]
 
 	return {
-		"name": "The Sticky Slide",
-		"description": "3 routes: sticky corridor, moving walls, or safe tunnel. All merge into a sticky maze.",
+		"name": "El deslizadero pegajoso",
+		"description": "3 rutas: corredor adhesivo, muros móviles o túnel seguro. Todas llegan a un laberinto adhesivo.",
 		"size": Vector2(w, h),
 		"walls": walls,
 		"hazards": hazards,
@@ -706,8 +706,8 @@ static func get_practice_map() -> Dictionary:
 	var respawn_zone := Rect2(spawn - Vector2(120.0, 65.0), Vector2(240.0, 130.0))
 
 	return {
-		"name": "Practice Room",
-		"description": "A clean room for testing movement, traps, and skills.",
+		"name": "Sala de práctica",
+		"description": "Una sala limpia para probar movimiento, trampas y habilidades.",
 		"size": Vector2(w, h),
 		"walls": [],
 		"hazards": [],

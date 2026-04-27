@@ -18,7 +18,7 @@ func _spawn_object(pos: Vector2) -> void:
 
 
 func get_display_name() -> String:
-	return "Stinger"
+	return "Aguijón"
 
 
 func get_display_color() -> Color:
@@ -71,7 +71,7 @@ class StingerTrap extends Area2D:
 			if esc.is_effect_immune():
 				queue_free()
 				return
-			esc.notify_trap_status("POISONED", Color(0.15, 0.95, 0.2), 0.9)
+			esc.notify_trap_status("ENVENENADO", Color(0.15, 0.95, 0.2), 0.9)
 			esc.poison.apply_poison()
 			queue_free()  # Single-use
 

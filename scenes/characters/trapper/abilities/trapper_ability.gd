@@ -189,7 +189,7 @@ func _get_active_limit() -> int:
 
 
 func get_display_name() -> String:
-	return "Ability"
+	return "Habilidad"
 
 
 func get_display_color() -> Color:

@@ -35,7 +35,7 @@ func play(track: Dictionary) -> void:
 	_events = _track.get("events", []) as Array
 	_rivals = _track.get("rivals", []) as Array
 	_color = _track.get("color", Color.WHITE) as Color
-	_label = _track.get("label", "FASTEST ESCAPE") as String
+	_label = _track.get("label", "ESCAPE MÁS RÁPIDO") as String
 	_is_trapper_replay = (_track.get("role", Enums.Role.NONE) as Enums.Role) == Enums.Role.TRAPPER
 	var requested_start := _track.get("playback_start_time", _get_source_start_time()) as float
 	_source_start_time = maxf(requested_start, _get_source_start_time())
@@ -140,7 +140,7 @@ func _draw_event_markers(source_time: float) -> void:
 		draw_circle(event_pos, radius, Color(1.0, 0.2, 0.05, 0.16 * alpha))
 		draw_arc(event_pos, radius, 0.0, TAU, 24, Color(1.0, 0.3, 0.1, alpha), 2.5)
 		if reached:
-			draw_string(font, event_pos + Vector2(-26.0, -24.0), "HIT",
+			draw_string(font, event_pos + Vector2(-36.0, -24.0), "GOLPE",
 				HORIZONTAL_ALIGNMENT_CENTER, 52.0, 14, Color(1.0, 0.92, 0.2, alpha))
 
 

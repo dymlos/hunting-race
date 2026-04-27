@@ -39,7 +39,7 @@ func _draw() -> void:
 	var draw_position := (screen - draw_size) / 2.0
 	draw_texture_rect(COVER_TEXTURE, Rect2(draw_position, draw_size), false)
 
-	var prompt := "Press Start"
+	var prompt := "Presiona Start"
 	var font := ThemeDB.fallback_font
 	var beat := pow(maxf(0.0, sin(_prompt_time * TAU * 1.25)), 6.0)
 	beat += pow(maxf(0.0, sin(_prompt_time * TAU * 1.25 - 0.55)), 8.0) * 0.45

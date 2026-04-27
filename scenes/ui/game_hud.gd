@@ -23,10 +23,10 @@ func _draw() -> void:
 		_draw_practice_hud(font, screen, bar_h)
 		return
 
-	var round_text := "Round %d" % GameManager.get_competitive_round_number()
+	var round_text := "Ronda %d" % GameManager.get_competitive_round_number()
 	var leg_text := GameManager.get_round_leg_label()
 	var leg_color := Color(0.2, 0.8, 1.0)
-	if leg_text == "Hunt Round":
+	if leg_text == "Ronda de caza":
 		leg_color = Color(1.0, 0.35, 0.2)
 	var round_panel := Rect2(Vector2(12.0, 10.0), Vector2(220.0, 60.0))
 	draw_rect(round_panel, Color(0.02, 0.02, 0.02, 0.74))
@@ -56,7 +56,7 @@ func _draw() -> void:
 
 	var esc_team := GameManager.escapist_team
 	var trap_team := Enums.Team.TEAM_2 if esc_team == Enums.Team.TEAM_1 else Enums.Team.TEAM_1
-	var role_text := "%s ESCAPES   |   %s TRAPS" % [
+	var role_text := "%s ESCAPA   |   %s CAZA" % [
 		Enums.team_name(esc_team).to_upper(),
 		Enums.team_name(trap_team).to_upper(),
 	]
@@ -68,7 +68,7 @@ func _draw() -> void:
 		var alive_panel := Rect2(Vector2(screen.x - 220.0, 12.0), Vector2(200.0, 28.0))
 		draw_rect(alive_panel, Color(0.03, 0.03, 0.03, 0.72))
 		draw_rect(alive_panel, Color(Enums.role_color(Enums.Role.ESCAPIST), 0.36), false, 1.5)
-		var alive_text := "Escapists alive: %d" % GameManager.get_living_escapists()
+		var alive_text := "Escapistas vivos: %d" % GameManager.get_living_escapists()
 		draw_string(font, Vector2(alive_panel.position.x + 12.0, alive_panel.position.y + 19.0),
 			alive_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Enums.role_color(Enums.Role.ESCAPIST))
 
@@ -81,12 +81,12 @@ func _draw() -> void:
 	var phase := ""
 	match GameManager.current_state:
 		Enums.GameState.OBSERVATION: phase = ""
-		Enums.GameState.HUNT: phase = "STRATEGY HUNT"
-		Enums.GameState.ESCAPE: phase = "ESCAPE"
-		Enums.GameState.ROUND_END: phase = "ROUND END"
-		Enums.GameState.MATCH_END: phase = "MATCH END"
-		Enums.GameState.PRACTICE: phase = "PRACTICE"
-		Enums.GameState.PAUSED: phase = "PAUSED"
+		Enums.GameState.HUNT: phase = "CAZA ESTRATÉGICA"
+		Enums.GameState.ESCAPE: phase = "ESCAPA"
+		Enums.GameState.ROUND_END: phase = "FIN DE RONDA"
+		Enums.GameState.MATCH_END: phase = "FIN DE PARTIDA"
+		Enums.GameState.PRACTICE: phase = "PRÁCTICA"
+		Enums.GameState.PAUSED: phase = "PAUSA"
 
 	if not phase.is_empty():
 		draw_string(font, Vector2(screen.x - 150.0, 66.0), phase,
@@ -94,12 +94,12 @@ func _draw() -> void:
 
 func _draw_practice_hud(font: Font, screen: Vector2, _bar_h: float) -> void:
 	draw_string(font, Vector2(24.0, 34.0),
-		"PRACTICE MODE", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.25, 0.85, 1.0))
+		"MODO PRÁCTICA", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.25, 0.85, 1.0))
 	draw_string(font, Vector2(24.0, 60.0),
-		"Cooldowns on | START pause | SELECT cancels trap placement",
+		"Recargas activas | Start pausa | Select cancela colocación de trampas",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.74, 0.74, 0.74))
 	draw_string(font, Vector2(screen.x - 144.0, 34.0),
-		"PRACTICE", HORIZONTAL_ALIGNMENT_RIGHT, -1, 15, Color.YELLOW)
+		"PRÁCTICA", HORIZONTAL_ALIGNMENT_RIGHT, -1, 15, Color.YELLOW)
 
 
 func _draw_team_ability_panels(font: Font, screen: Vector2) -> void:
@@ -155,7 +155,7 @@ func _draw_role_panel(font: Font, rect: Rect2, role: Enums.Role) -> void:
 				var ability_text := "%s  %s  %s" % [
 					ability_dict.get("button", "") as String,
 					ability_dict.get("name", "") as String,
-					ability_dict.get("state", "READY") as String,
+					ability_dict.get("state", "LISTA") as String,
 				]
 				draw_string(font, Vector2(block_rect.position.x + 12.0, line_y),
 					ability_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
@@ -191,12 +191,12 @@ func _get_hud_entries_for_role(role: Enums.Role) -> Array[Dictionary]:
 			var ability_entry := esc.get_hud_ability_entry()
 			result.append({
 				"team": esc.team,
-				"label": "P%d  %s" % [player_index + 1, animal_data.get("name", "ESCAPIST") as String],
+				"label": "P%d  %s" % [player_index + 1, animal_data.get("name", "ESCAPISTA") as String],
 				"label_color": animal_data.get("color", Color.WHITE) as Color,
 				"ability_line": "[%s] %s  %s" % [
 					ability_entry.get("button", "A") as String,
-					ability_entry.get("name", "Skill") as String,
-					ability_entry.get("state", "READY") as String,
+					ability_entry.get("name", "Habilidad") as String,
+					ability_entry.get("state", "LISTA") as String,
 				],
 				"desc": (animal_data.get("ability", {}) as Dictionary).get("desc", "") as String,
 			})
@@ -217,7 +217,7 @@ func _get_hud_entries_for_role(role: Enums.Role) -> Array[Dictionary]:
 				dynamic_entries.append(dynamic_entry)
 			result.append({
 				"team": trapper.team,
-				"label": "P%d  %s" % [player_index + 1, trapper_data.get("name", "TRAPPER") as String],
+				"label": "P%d  %s" % [player_index + 1, trapper_data.get("name", "CAZADOR") as String],
 				"label_color": trapper_data.get("color", Color.WHITE) as Color,
 				"abilities": dynamic_entries,
 			})

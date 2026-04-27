@@ -114,13 +114,13 @@ func _draw() -> void:
 
 	draw_rect(Rect2(Vector2.ZERO, screen), Color.BLACK)
 
-	var title := "PRACTICE MODE"
+	var title := "MODO PRÁCTICA"
 	var title_size := 34
 	var title_width := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size).x
 	draw_string(font, Vector2(cx - title_width / 2.0, 72.0),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color.WHITE)
 
-	var sub := "Join freely. Pick Escapist or Trapper. Optional obstacles in pause."
+	var sub := "Únete libremente. Elige escapista o cazador. Obstáculos opcionales desde pausa."
 	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - sub_width / 2.0, 104.0),
 		sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.65, 0.65, 0.65))
@@ -131,7 +131,7 @@ func _draw() -> void:
 	draw_rect(panel, Color(0.55, 0.55, 0.55, 0.75), false, 2.0)
 
 	if joined.is_empty():
-		var empty_text := "Press START to join Practice Mode"
+		var empty_text := "Presiona Start para unirte al modo práctica"
 		var empty_width := font.get_string_size(empty_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
 		draw_string(font, Vector2(cx - empty_width / 2.0, panel.position.y + 150.0),
 			empty_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.YELLOW)
@@ -141,29 +141,29 @@ func _draw() -> void:
 			var role: Enums.Role = _player_roles.get(device_id, Enums.Role.ESCAPIST) as Enums.Role
 			var row_y := panel.position.y + 58.0 + float(i) * 42.0
 			var player_label := "P%d" % (i + 1)
-			var role_label := "Escapist" if role == Enums.Role.ESCAPIST else "Trapper"
+			var role_label := "Escapista" if role == Enums.Role.ESCAPIST else "Cazador"
 			var role_color := Enums.role_color(role)
 			draw_string(font, Vector2(panel.position.x + 52.0, row_y),
 				player_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
 			draw_string(font, Vector2(panel.position.x + 150.0, row_y),
 				"< %s >" % role_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, role_color)
 			draw_string(font, Vector2(panel.position.x + 390.0, row_y),
-				"LEFT/RIGHT change", HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
+				"Izq./Der. cambiar", HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
 				Color(0.55, 0.55, 0.55))
 
 	var unjoined_y := panel.position.y + panel.size.y + 36.0
 	for device_id: int in Input.get_connected_joypads():
 		if _player_joined.get(device_id, false):
 			continue
-		var text := "Controller %d - Press START to join" % device_id
+		var text := "Control %d - Presiona Start para unirte" % device_id
 		var text_width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		draw_string(font, Vector2(cx - text_width / 2.0, unjoined_y),
 			text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.5, 0.5, 0.5))
 		unjoined_y += 24.0
 
-	var hint := "START continue | SELECT back"
+	var hint := "Start continuar | Select volver"
 	if joined.is_empty():
-		hint = "START join | SELECT back"
+		hint = "Start unirse | Select volver"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 34.0),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

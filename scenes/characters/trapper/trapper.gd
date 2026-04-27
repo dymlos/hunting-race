@@ -525,15 +525,15 @@ func get_hud_ability_entries() -> Array[Dictionary]:
 		if i < 3:
 			button = ["A", "X", "Y"][i]
 		var ability := _abilities[i]
-		var state := "READY"
+		var state := "LISTA"
 		if ability.is_placing:
-			state = "PLACING"
+			state = "COLOCANDO"
 		elif GameManager.current_state == Enums.GameState.HUNT:
-			state = "READY" if ability.get_strategy_uses_remaining() > 0 else "SET"
+			state = "LISTA" if ability.get_strategy_uses_remaining() > 0 else "PUESTA"
 		elif ability.get_cooldown_remaining() > 0.0:
 			state = "%.1fs" % ability.get_cooldown_remaining()
 		elif ability.get_charges_remaining() <= 0:
-			state = "EMPTY"
+			state = "VACÍA"
 		elif ability.max_charges > 1:
 			state = "%d/%d" % [ability.get_charges_remaining(), ability.max_charges]
 		entries.append({

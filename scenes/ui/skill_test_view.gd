@@ -12,6 +12,7 @@ const TrapperScene := preload("res://scenes/characters/trapper/trapper.tscn")
 const TEST_SIZE := Vector2(560.0, 300.0)
 const TEST_TEAM := Enums.Team.TEAM_1
 const OPPONENT_TEAM := Enums.Team.TEAM_2
+const TRAPPER_TEST_BOT_SPEED_SCALE := 0.38
 
 var _viewport: SubViewport
 var _root: Node2D
@@ -111,8 +112,8 @@ func _get_skill_test_map() -> Dictionary:
 	var w := TEST_SIZE.x
 	var h := TEST_SIZE.y
 	return {
-		"name": "Skill Test",
-		"description": "Embedded selector skill test.",
+		"name": "Prueba de habilidad",
+		"description": "Prueba integrada del selector.",
 		"size": TEST_SIZE,
 		"walls": [
 			{"pos": Vector2(0.0, 0.0), "size": Vector2(w, 10.0)},
@@ -150,7 +151,7 @@ func _spawn_escapist_context(animal: Enums.EscapistAnimal) -> void:
 		Enums.EscapistAnimal.RAT:
 			_spawn_ally_escapist(Vector2(390.0, 112.0))
 		Enums.EscapistAnimal.SQUIRREL:
-			_spawn_breakable_trap(Vector2(410.0, 150.0), Vector2(34.0, 34.0))
+			_spawn_breakable_obstacle(Vector2(206.0, 150.0), Vector2(40.0, 76.0))
 		Enums.EscapistAnimal.FLY:
 			_spawn_pulse_trap(Vector2(352.0, 150.0), Vector2(448.0, 150.0))
 		_:
@@ -205,7 +206,14 @@ func _spawn_enemy_escapist(pos: Vector2) -> Escapist:
 	esc.set_meta("skill_test_id", _skill_test_id)
 	_root.add_child(esc)
 	esc.unfreeze_character()
+	esc.movement.set_speed_modifier(&"skill_test_bot", TRAPPER_TEST_BOT_SPEED_SCALE)
 	return esc
+
+
+func _spawn_breakable_obstacle(pos: Vector2, obstacle_size: Vector2) -> void:
+	var obstacle := SkillTestBreakableObstacle.new()
+	obstacle.setup(pos, obstacle_size, _skill_test_id)
+	_root.add_child(obstacle)
 
 
 func _spawn_breakable_trap(pos: Vector2, trap_size: Vector2) -> void:
@@ -250,7 +258,7 @@ class SkillTestBreakableTrap extends Area2D:
 			if not _shares_skill_test_scope(esc):
 				return
 			GameManager.register_trap_contact(esc.player_index, int(get_meta("owner_player_index", -1)))
-			esc.notify_trap_status("TRAP", Color(1.0, 0.72, 0.12), 0.75)
+			esc.notify_trap_status("TRAMPA", Color(1.0, 0.72, 0.12), 0.75)
 
 	func _shares_skill_test_scope(node: Node) -> bool:
 		return node.has_meta("skill_test_id") and str(node.get_meta("skill_test_id")) == str(get_meta("skill_test_id"))
@@ -260,6 +268,33 @@ class SkillTestBreakableTrap extends Area2D:
 		rect.size = _size
 		draw_rect(Rect2(-_size * 0.5, _size), Color(_color, 0.22))
 		draw_rect(Rect2(-_size * 0.5, _size), Color(_color, 0.88), false, 2.0)
+
+
+class SkillTestBreakableObstacle extends StaticBody2D:
+	var _size: Vector2 = Vector2(40.0, 76.0)
+	var _color: Color = Enums.escapist_animal_color(Enums.EscapistAnimal.SQUIRREL)
+
+	func setup(pos: Vector2, obstacle_size: Vector2, skill_test_id: String) -> void:
+		position = pos
+		_size = obstacle_size
+		add_to_group("traps")
+		set_meta("skill_test_id", skill_test_id)
+		collision_layer = Constants.LAYER_WALLS | Constants.LAYER_TRAPS
+		collision_mask = 0
+		var shape := RectangleShape2D.new()
+		shape.size = _size
+		var col := CollisionShape2D.new()
+		col.shape = shape
+		add_child(col)
+
+	func _draw() -> void:
+		var rect := Rect2(-_size * 0.5, _size)
+		draw_rect(rect, Color(_color, 0.24))
+		draw_rect(rect, Color(_color, 0.92), false, 2.5)
+		draw_line(rect.position + Vector2(8.0, 10.0), rect.position + Vector2(rect.size.x - 8.0, rect.size.y - 12.0),
+			Color(1.0, 1.0, 1.0, 0.32), 1.5)
+		draw_line(rect.position + Vector2(rect.size.x - 9.0, 12.0), rect.position + Vector2(11.0, rect.size.y - 10.0),
+			Color(1.0, 1.0, 1.0, 0.26), 1.2)
 
 
 class SkillTestPulseTrap extends Area2D:
@@ -302,7 +337,7 @@ class SkillTestPulseTrap extends Area2D:
 			if not _shares_skill_test_scope(esc):
 				return
 			GameManager.register_trap_contact(esc.player_index, int(get_meta("owner_player_index", -1)))
-			esc.notify_trap_status("HIT", Color(1.0, 0.5, 0.16), 0.65)
+			esc.notify_trap_status("GOLPE", Color(1.0, 0.5, 0.16), 0.65)
 
 	func _shares_skill_test_scope(node: Node) -> bool:
 		return node.has_meta("skill_test_id") and str(node.get_meta("skill_test_id")) == str(get_meta("skill_test_id"))

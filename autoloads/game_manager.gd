@@ -147,8 +147,8 @@ func get_round_leg_label() -> String:
 	if round_number <= 0:
 		return ""
 	if round_number % 2 == 1:
-		return "Escape Round"
-	return "Hunt Round"
+		return "Ronda de escape"
+	return "Ronda de caza"
 
 
 func start_observation() -> void:

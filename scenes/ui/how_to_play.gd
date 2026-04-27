@@ -12,49 +12,49 @@ var _prev_keyboard_back: bool = false
 const NAV_COOLDOWN: float = 0.22
 const PAGES := [
 	{
-		"title": "MATCH FLOW",
+		"title": "FLUJO DE PARTIDA",
 		"accent": Color(0.95, 0.84, 0.18),
 		"lines": [
-			"Teams: players join Team Blue or Team Red. Bots are optional.",
-			"Each round has two roles: one team escapes, the other team traps.",
-			"Roles swap after every round, so both teams get turns escaping and trapping.",
-			"Escapists must reach the goal before time runs out. Trappers try to stop them.",
+			"Equipos: los jugadores se unen al Equipo Azul o al Equipo Rojo. Los bots son opcionales.",
+			"Cada ronda tiene dos roles: un equipo escapa y el otro caza.",
+			"Los roles cambian después de cada ronda, así ambos equipos escapan y cazan.",
+			"Los escapistas deben llegar a la meta antes de que termine el tiempo. Los cazadores intentan detenerlos.",
 		],
 	},
 	{
-		"title": "ROUND PHASES",
+		"title": "FASES DE RONDA",
 		"accent": Color(0.30, 0.82, 1.0),
 		"lines": [
-			"Observation: the round starts with a short look at the map and roles.",
-			"Strategy Hunt: trappers can prepare and place traps during the countdown.",
-			"Escape: escapists run for the goal while traps stay active.",
-			"Practice Mode skips scoring pressure and is meant for testing movement, skills and traps.",
+			"Vista previa: la ronda empieza con una mirada breve al mapa y a los roles.",
+			"Caza estratégica: los cazadores pueden preparar y colocar trampas durante la cuenta regresiva.",
+			"Escape: los escapistas corren hacia la meta mientras las trampas siguen activas.",
+			"El modo práctica evita la presión del puntaje y sirve para probar movimiento, habilidades y trampas.",
 		],
 	},
 	{
-		"title": "SCORING",
+		"title": "PUNTAJE",
 		"accent": Color(0.28, 0.95, 0.48),
 		"lines": [
-			"Escaping gives 100 base points.",
-			"Every second left on the clock adds 5 more points.",
-			"No trap contacts gives a 50 point bonus.",
-			"Exactly one trap contact still gives 25 bonus points.",
-			"Respawns and deaths subtract 10 points each.",
+			"Escapar da 100 puntos base.",
+			"Cada segundo restante suma 5 puntos.",
+			"No tocar trampas da una bonificación de 50 puntos.",
+			"Tocar exactamente una trampa todavía da 25 puntos de bonificación.",
+			"Cada reaparición o muerte resta 10 puntos.",
 		],
 	},
 	{
-		"title": "SKILLS",
+		"title": "HABILIDADES",
 		"accent": Color(1.0, 0.36, 0.24),
 		"lines": [
-			"Cooldowns recharge by time: after using a skill, wait until its timed cooldown finishes.",
-			"Escapists use A in-match. After using it, that animal skill enters cooldown.",
-			"When an escapist skill is ready again, the character flashes and the controller vibrates.",
-			"Trappers use A, X and Y.",
-			"In Hunt, each trapper skill gets one free use.",
-			"In Escape and Practice, each trapper skill has its own charges and cooldown.",
-			"When a trapper charge returns, the trapper cursor flashes and the controller vibrates.",
-			"Some trapper skills need placement limits or multi-point setup.",
-			"SELECT cancels multi-point placement.",
+			"Las recargas avanzan con el tiempo: después de usar una habilidad, espera a que termine.",
+			"Los escapistas usan A en partida. Después de usarla, la habilidad entra en recarga.",
+			"Cuando una habilidad escapista vuelve a estar lista, el personaje parpadea y el control vibra.",
+			"Los cazadores usan A, X e Y.",
+			"En caza, cada habilidad de cazador tiene un uso gratis.",
+			"En escape y práctica, cada habilidad de cazador tiene sus propias cargas y recargas.",
+			"Cuando vuelve una carga, el cursor del cazador parpadea y el control vibra.",
+			"Algunas habilidades de cazador tienen límite de colocación o usan varios puntos.",
+			"Select cancela la colocación de varios puntos.",
 		],
 	},
 ]
@@ -132,8 +132,8 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, screen), Color(0.015, 0.015, 0.018, 1.0))
 	draw_rect(Rect2(Vector2.ZERO, Vector2(screen.x, screen.y * 0.42)), Color(accent, 0.08))
 
-	_draw_centered_text_in_rect(font, "HOW TO PLAY", Rect2(cx - 260.0, 38.0, 520.0, 42.0), 34, Color.WHITE)
-	_draw_centered_text_in_rect(font, "Official matches are alternating escape and trap rounds.",
+	_draw_centered_text_in_rect(font, "CÓMO JUGAR", Rect2(cx - 260.0, 38.0, 520.0, 42.0), 34, Color.WHITE)
+	_draw_centered_text_in_rect(font, "Las partidas oficiales alternan rondas de escape y caza.",
 		Rect2(cx - 420.0, 82.0, 840.0, 24.0), 15, Color(0.68, 0.68, 0.70))
 
 	var panel_rect := Rect2(cx - 470.0, 138.0, 940.0, 500.0)
@@ -143,12 +143,12 @@ func _draw() -> void:
 	_draw_centered_text_in_rect(font, page_title,
 		Rect2(panel_rect.position.x, panel_rect.position.y + 26.0, panel_rect.size.x, 40.0), 30, accent)
 
-	if page_title == "SKILLS":
+	if page_title == "HABILIDADES":
 		_draw_skills_page(font, panel_rect, accent)
 		var indicator := "%d / %d" % [_page_index + 1, PAGES.size()]
 		_draw_centered_text_in_rect(font, indicator, Rect2(cx - 100.0, panel_rect.end.y - 42.0, 200.0, 24.0),
 			16, Color(0.72, 0.72, 0.74))
-		var hint := "Left/Right pages | START next | SELECT back"
+		var hint := "Izq./Der. páginas | Start siguiente | Select volver"
 		_draw_centered_text_in_rect(font, hint, Rect2(cx - 250.0, screen.y - 58.0, 500.0, 24.0),
 			16, Color(0.98, 0.92, 0.25))
 		return
@@ -167,14 +167,14 @@ func _draw() -> void:
 	_draw_centered_text_in_rect(font, indicator, Rect2(cx - 100.0, panel_rect.end.y - 42.0, 200.0, 24.0),
 		16, Color(0.72, 0.72, 0.74))
 
-	var hint := "Left/Right pages | START next | SELECT back"
+	var hint := "Izq./Der. páginas | Start siguiente | Select volver"
 	_draw_centered_text_in_rect(font, hint, Rect2(cx - 250.0, screen.y - 58.0, 500.0, 24.0),
 		16, Color(0.98, 0.92, 0.25))
 
 
 func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
-	var left_title := "ESCAPISTS"
-	var right_title := "TRAPPERS"
+	var left_title := "ESCAPISTAS"
+	var right_title := "CAZADORES"
 	var col_gap := 46.0
 	var content_margin := 34.0
 	var header_y := panel_rect.position.y + 88.0
@@ -192,17 +192,17 @@ func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
 	draw_line(Vector2(right_rect.position.x, divider_y), Vector2(right_rect.end.x, divider_y), Color(accent, 0.34), 1.2)
 
 	var left_lines: Array[String] = [
-		"Cooldowns recharge by time, not by pickups or score.",
-		"Escapists use A in-match. After using it, that animal skill enters cooldown.",
-		"When the skill is ready again, the character flashes and the controller vibrates.",
+		"Las recargas avanzan con el tiempo, no con objetos ni puntaje.",
+		"Los escapistas usan A en partida. Después de usarla, la habilidad entra en recarga.",
+		"Cuando vuelve a estar lista, el personaje parpadea y el control vibra.",
 	]
 	var right_lines: Array[String] = [
-		"Trappers use A, X and Y.",
-		"In Hunt, each trapper skill gets one free use.",
-		"In Escape and Practice, each skill has its own charges and cooldown.",
-		"When a charge returns, the trapper cursor flashes and the controller vibrates.",
-		"Some trapper skills use placement limits or multi-point setup.",
-		"SELECT cancels multi-point placement.",
+		"Los cazadores usan A, X e Y.",
+		"En caza, cada habilidad tiene un uso gratis.",
+		"En escape y práctica, cada habilidad tiene sus propias cargas y recargas.",
+		"Cuando vuelve una carga, el cursor del cazador parpadea y el control vibra.",
+		"Algunas habilidades tienen límite de colocación o usan varios puntos.",
+		"Select cancela la colocación de varios puntos.",
 	]
 
 	_draw_skills_column(font, left_rect, accent, left_lines, 16, 17.0, 10.0)

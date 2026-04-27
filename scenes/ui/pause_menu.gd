@@ -98,7 +98,7 @@ func _draw() -> void:
 	draw_rect(panel_rect, Color(0.08, 0.08, 0.08, 0.95))
 	draw_rect(panel_rect, Color(0.7, 0.7, 0.7, 0.75), false, 2.0)
 
-	var title := "PAUSED"
+	var title := "PAUSA"
 	var title_size := 34
 	var title_w := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size).x
 	draw_string(font, Vector2(cx - title_w / 2.0, panel_pos.y + 58),
@@ -114,9 +114,9 @@ func _draw() -> void:
 		draw_string(font, Vector2(cx - width / 2.0, panel_pos.y + 114 + i * 39),
 			display, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
-	var hint := "UP/DOWN select | A confirm | B resume | SELECT setup"
+	var hint := "Arriba/Abajo elegir | A confirmar | B reanudar | Select equipos"
 	if GameManager.practice_mode:
-		hint = "UP/DOWN select | A confirm | B resume | SELECT practice setup"
+		hint = "Arriba/Abajo elegir | A confirmar | B reanudar | Select práctica"
 	var hint_size := 13
 	var hint_w := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size).x
 	draw_string(font, Vector2(cx - hint_w / 2.0, panel_pos.y + panel_size.y - 24),
@@ -130,11 +130,11 @@ func _draw_ability_guide(font: Font, screen: Vector2) -> void:
 	draw_rect(panel, Color(0.06, 0.06, 0.06, 0.96))
 	draw_rect(panel, Color(0.75, 0.75, 0.75, 0.75), false, 2.0)
 
-	var title := "ABILITY GUIDE"
+	var title := "GUÍA DE HABILIDADES"
 	draw_string(font, panel.position + Vector2(28.0, 42.0),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 38, Color.WHITE)
 	draw_string(font, panel.position + Vector2(28.0, 68.0),
-		"Escapists use A. Trappers use A, X, and Y. SELECT cancels multi-point trap placement.",
+		"Los escapistas usan A. Los cazadores usan A, X e Y. Select cancela trampas de varios puntos.",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.68, 0.68, 0.68))
 
 	var left_x := panel.position.x + 30.0
@@ -143,7 +143,7 @@ func _draw_ability_guide(font: Font, screen: Vector2) -> void:
 	_draw_escapist_guide(font, Vector2(left_x, top_y), panel.size.x * 0.4)
 	_draw_trapper_guide(font, Vector2(right_x, top_y), panel.size.x * 0.46)
 
-	var hint := "A / B close"
+	var hint := "A / B cerrar"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 	draw_string(font, Vector2(panel.position.x + panel.size.x - hint_width - 28.0,
 			panel.position.y + panel.size.y - 20.0),
@@ -160,13 +160,31 @@ func _get_option_label(option: String) -> String:
 	match option:
 		"Cooldowns":
 			var enabled := GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
-			return "Cooldowns: < %s >" % ("On" if enabled else "Off")
+			return "Recargas: < %s >" % ("Sí" if enabled else "No")
 		"Practice Obstacles":
 			var enabled := GameManager.settings_overrides.get(&"practice_obstacles_enabled", false) as bool
-			return "Obstacles: < %s >" % ("On" if enabled else "Off")
+			return "Obstáculos: < %s >" % ("Sí" if enabled else "No")
 		"Practice Bots":
 			var enabled := GameManager.settings_overrides.get(&"practice_bots_enabled", false) as bool
-			return "Bots: < %s >" % ("On" if enabled else "Off")
+			return "Bots: < %s >" % ("Sí" if enabled else "No")
+		"Resume":
+			return "Reanudar"
+		"Settings":
+			return "Ajustes"
+		"How to Play":
+			return "Cómo jugar"
+		"Ability Guide":
+			return "Guía de habilidades"
+		"Restart Round":
+			return "Reiniciar ronda"
+		"Practice Mode":
+			return "Modo práctica"
+		"Return to Setup":
+			return "Volver a equipos"
+		"Change Characters":
+			return "Cambiar personajes"
+		"Restart Practice Setup":
+			return "Reiniciar práctica"
 	return option
 
 
@@ -222,7 +240,7 @@ func _toggle_practice_bots() -> void:
 
 
 func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:
-	draw_string(font, pos, "ESCAPISTS", HORIZONTAL_ALIGNMENT_LEFT, -1, 26,
+	draw_string(font, pos, "ESCAPISTAS", HORIZONTAL_ALIGNMENT_LEFT, -1, 26,
 		Enums.role_color(Enums.Role.ESCAPIST))
 	var y := pos.y + 42.0
 	for animal_data: Dictionary in EscapistAnimals.get_all():
@@ -231,7 +249,7 @@ func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:
 		var header := "%s  [%s] %s" % [
 			animal_data["name"] as String,
 			ability["button"] as String,
-			"%s  CD %ds" % [
+			"%s  REC %ds" % [
 				ability["name"] as String,
 				int(_get_escapist_cooldown(animal_data["id"] as Enums.EscapistAnimal)),
 			],
@@ -246,7 +264,7 @@ func _draw_escapist_guide(font: Font, pos: Vector2, width: float) -> void:
 
 
 func _draw_trapper_guide(font: Font, pos: Vector2, width: float) -> void:
-	draw_string(font, pos, "TRAPPERS", HORIZONTAL_ALIGNMENT_LEFT, -1, 26,
+	draw_string(font, pos, "CAZADORES", HORIZONTAL_ALIGNMENT_LEFT, -1, 26,
 		Enums.role_color(Enums.Role.TRAPPER))
 	var y := pos.y + 42.0
 	for trapper_data: Dictionary in _get_trapper_guide_data():
@@ -258,7 +276,7 @@ func _draw_trapper_guide(font: Font, pos: Vector2, width: float) -> void:
 		for ability: Dictionary in abilities:
 			var line := "[%s] %s - %s" % [
 				ability["button"] as String,
-				"%s  CD %ds" % [
+				"%s  REC %ds" % [
 					ability["name"] as String,
 					int(_get_trapper_cooldown(
 						trapper_data["id"] as Enums.TrapperCharacter,

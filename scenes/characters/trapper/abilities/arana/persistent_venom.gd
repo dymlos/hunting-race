@@ -19,7 +19,7 @@ func _spawn_object(pos: Vector2) -> void:
 
 
 func get_display_name() -> String:
-	return "Venom"
+	return "Veneno"
 
 
 func get_display_color() -> Color:
@@ -82,7 +82,7 @@ class VenomPuddle extends Area2D:
 			if esc.is_dead or esc.has_scored:
 				return
 			GameManager.register_trap_contact(esc.player_index, int(get_meta("owner_player_index", -1)))
-			esc.notify_trap_status("POISONED", Color(0.15, 0.95, 0.2), 0.9)
+			esc.notify_trap_status("ENVENENADO", Color(0.15, 0.95, 0.2), 0.9)
 			# Apply poison
 			esc.poison.apply_poison()
 			_triggered_targets[body] = 3.0  # Don't re-poison for 3s

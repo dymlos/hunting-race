@@ -20,7 +20,7 @@ func _spawn_object(pos: Vector2) -> void:
 
 
 func get_display_name() -> String:
-	return "Ink"
+	return "Tinta"
 
 
 func get_display_color() -> Color:
@@ -72,7 +72,7 @@ class InkZone extends Area2D:
 				return
 			GameManager.register_trap_contact(character.player_index, int(get_meta("owner_player_index", -1)))
 			if character is Escapist:
-				(character as Escapist).notify_trap_status("BLINDED", Color(0.85, 0.7, 1.0), 0.85)
+				(character as Escapist).notify_trap_status("CEGADO", Color(0.85, 0.7, 1.0), 0.85)
 			_bodies_inside[body] = true
 
 	func _on_body_exited(body: Node2D) -> void:

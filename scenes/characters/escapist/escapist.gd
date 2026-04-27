@@ -91,7 +91,7 @@ func _on_poison_expired() -> void:
 
 
 func _on_poison_cured() -> void:
-	_show_floating_text("CURED", Color(0.3, 0.95, 1.0), 0.75, 18)
+	_show_floating_text("CURADO", Color(0.3, 0.95, 1.0), 0.75, 18)
 
 
 func invert_controls(duration: float) -> void:
@@ -173,7 +173,7 @@ func _return_to_spawn_with_death_message() -> void:
 	controls_inverted = false
 	_inversion_timer = 0.0
 	AudioManager.play_effect(&"DeathRespawn")
-	_show_floating_text("You died !!", Color.WHITE, Constants.FLOATING_TEXT_DURATION, 20)
+	_show_floating_text("¡Moriste!", Color.WHITE, Constants.FLOATING_TEXT_DURATION, 20)
 
 
 func _show_floating_text(text: String, text_color: Color, duration: float = Constants.FLOATING_TEXT_DURATION,
@@ -308,9 +308,9 @@ func notify_trap_contact() -> void:
 		_fly_boost_timer = Constants.FLY_BOOST_DURATION
 		_effect_immunity_timer = Constants.FLY_BOOST_DURATION
 		movement.set_speed_modifier(&"fly_boost", Constants.FLY_SPEED_BOOST)
-		_show_floating_text("BOOST", Color(0.3, 0.95, 0.9), 0.85, 20)
+		_show_floating_text("IMPULSO", Color(0.3, 0.95, 0.9), 0.85, 20)
 		return
-	_show_floating_text("TRAP", Color(1.0, 0.75, 0.12), 0.75, 20)
+	_show_floating_text("TRAMPA", Color(1.0, 0.75, 0.12), 0.75, 20)
 
 
 func notify_trap_status(text: String, text_color: Color, duration: float = 0.9) -> void:
@@ -345,16 +345,16 @@ func _skills_cooldowns_enabled() -> bool:
 func get_hud_ability_entry() -> Dictionary:
 	var animal_data := EscapistAnimals.get_by_id(escapist_animal)
 	var ability: Dictionary = animal_data.get("ability", {}) as Dictionary
-	var state := "READY"
+	var state := "LISTA"
 	if _rabbit_charging:
-		state = "CHARGING"
+		state = "CARGANDO"
 	elif _ability_cooldown_remaining > 0.0:
 		state = "%.1fs" % _ability_cooldown_remaining
 	elif not _ability_available and _skills_cooldowns_enabled():
-		state = "LOCKED"
+		state = "BLOQUEADA"
 	return {
 		"button": ability.get("button", "A"),
-		"name": ability.get("name", "Skill"),
+		"name": ability.get("name", "Habilidad"),
 		"state": state,
 		"color": animal_data.get("color", Color.WHITE),
 	}
@@ -404,7 +404,7 @@ func _get_animal_mark_alpha() -> float:
 
 func _notify_ability_denied() -> void:
 	_ability_denied_flash_timer = 0.22
-	_show_floating_text("COOLDOWN", Color(1.0, 0.18, 0.12), 0.75, 20)
+	_show_floating_text("RECARGA", Color(1.0, 0.18, 0.12), 0.75, 20)
 	AudioManager.play_effect(&"CooldownDenied")
 	queue_redraw()
 

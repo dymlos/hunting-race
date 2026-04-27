@@ -13,7 +13,7 @@ var _nav_cooldown: float = 0.0
 var _prev_keyboard_confirm: bool = false
 
 const NAV_COOLDOWN: float = 0.2
-const OPTIONS: Array[String] = ["Official Match", "Practice Mode", "How to Play"]
+const OPTIONS: Array[String] = ["Partida oficial", "Modo práctica", "Cómo jugar"]
 
 
 func _ready() -> void:
@@ -76,13 +76,13 @@ func _draw() -> void:
 
 	draw_rect(Rect2(Vector2.ZERO, screen), Color.BLACK)
 
-	var title := "PLAY OPTIONS"
+	var title := "ELEGIR MODO"
 	var title_size := 34
 	var title_width := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size).x
 	draw_string(font, Vector2(cx - title_width / 2.0, cy - 150.0),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color.WHITE)
 
-	var sub := "Pick a match, train freely, or review the rules."
+	var sub := "Juega una partida, entrena libremente o revisa las reglas."
 	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - sub_width / 2.0, cy - 112.0),
 		sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.65, 0.65, 0.65))
@@ -117,19 +117,19 @@ func _draw() -> void:
 				text_y),
 			text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size, border_color)
 
-		var detail := "Teams, score, rounds"
+		var detail := "Equipos, puntaje, rondas"
 		if i == 1:
-			detail = "Free room, no scoring"
+			detail = "Sala libre, sin puntaje"
 		elif i == 2:
-			detail = "Rules, scoring, skills"
+			detail = "Reglas, puntaje, habilidades"
 		var detail_width := font.get_string_size(detail, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 		draw_string(font, Vector2(rect.position.x + rect.size.x / 2.0 - detail_width / 2.0,
 				rect.position.y + 66.0),
 			detail, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.62, 0.62, 0.62))
 		if is_help:
-			_draw_centered_text_in_rect(font, "HELP", Rect2(rect.position.x, rect.position.y + 12.0, rect.size.x, 14.0), 11, Color(0.9, 0.8, 0.45))
+			_draw_centered_text_in_rect(font, "AYUDA", Rect2(rect.position.x, rect.position.y + 12.0, rect.size.x, 14.0), 11, Color(0.9, 0.8, 0.45))
 
-	var hint := "LEFT/RIGHT select | START confirm | SELECT back"
+	var hint := "Izq./Der. elegir | Start confirmar | Select volver"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, cy + 110.0),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)

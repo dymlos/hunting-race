@@ -239,7 +239,7 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2(cx, 0.0), Vector2(cx, screen.y)), Color(0.14, 0.05, 0.05, 0.12))
 
 	var title_color := Color(1.0, 1.0, 1.0)
-	_draw_centered_text_in_rect(font, "TEAM SETUP", Rect2(cx - 170.0, 12.0, 340.0, 58.0), TITLE_FONT_SIZE, title_color)
+	_draw_centered_text_in_rect(font, "ARMAR EQUIPOS", Rect2(cx - 170.0, 12.0, 340.0, 58.0), TITLE_FONT_SIZE, title_color)
 
 	var team_limit := _get_team_size_limit()
 	if team_limit < 1:
@@ -256,9 +256,9 @@ func _draw() -> void:
 		"%s:" % Enums.team_name(Enums.Team.TEAM_2),
 		(counts.get(Enums.Team.TEAM_2, 0) as int) + (bot_counts.get(Enums.Team.TEAM_2, 0) as int),
 	]
-	var bot_state := "Off"
+	var bot_state := "No"
 	if auto_fill_bots:
-		bot_state = "On (+%d)" % total_bots
+		bot_state = "Sí (+%d)" % total_bots
 	var summary_rect := Rect2(cx - 330.0, 90.0, 660.0, 78.0)
 	_draw_panel(summary_rect, Color(0.05, 0.05, 0.06, 0.94), Color(0.32, 0.32, 0.34, 0.92), 2.0)
 	draw_rect(Rect2(summary_rect.position, Vector2(summary_rect.size.x, 5.0)), Color(0.12, 0.12, 0.14, 1.0))
@@ -267,9 +267,9 @@ func _draw() -> void:
 	var team_size_text := "%d" % team_limit
 	var bots_text := bot_state
 	_draw_summary_block(font, Rect2(summary_rect.position.x, summary_rect.position.y, summary_col_w, summary_rect.size.y),
-		"Players", players_text, Color(0.96, 0.96, 0.96), Color(0.9, 0.9, 0.9))
+		"Jugadores", players_text, Color(0.96, 0.96, 0.96), Color(0.9, 0.9, 0.9))
 	_draw_summary_block(font, Rect2(summary_rect.position.x + summary_col_w, summary_rect.position.y, summary_col_w, summary_rect.size.y),
-		"Team Size", team_size_text, Color(0.82, 0.95, 0.82), Color(0.82, 0.95, 0.82))
+		"Tamaño", team_size_text, Color(0.82, 0.95, 0.82), Color(0.82, 0.95, 0.82))
 	_draw_summary_block(font, Rect2(summary_rect.position.x + summary_col_w * 2.0, summary_rect.position.y, summary_col_w, summary_rect.size.y),
 		"Bots", bots_text, Color(0.98, 0.86, 0.32), Color(0.98, 0.86, 0.32))
 	draw_line(Vector2(summary_rect.position.x + summary_col_w, summary_rect.position.y + 11.0),
@@ -282,9 +282,9 @@ func _draw() -> void:
 	var match_rect := Rect2(cx - 240.0, 178.0, 480.0, 52.0)
 	_draw_panel(match_rect, Color(0.03, 0.04, 0.03, 0.88), Color(0.20, 0.34, 0.20, 0.82), 1.5)
 	draw_rect(Rect2(match_rect.position, Vector2(match_rect.size.x, 4.0)), Color(0.35, 0.58, 0.35, 1.0))
-	_draw_centered_text_in_rect(font, "CURRENT MATCH", Rect2(match_rect.position.x, match_rect.position.y + 9.0, match_rect.size.x, 16.0), MATCH_LABEL_FONT_SIZE, Color(0.72, 0.8, 0.72))
+	_draw_centered_text_in_rect(font, "PARTIDA ACTUAL", Rect2(match_rect.position.x, match_rect.position.y + 9.0, match_rect.size.x, 16.0), MATCH_LABEL_FONT_SIZE, Color(0.72, 0.8, 0.72))
 	_draw_centered_text_in_rect(font, format_text, Rect2(match_rect.position.x, match_rect.position.y + 25.0, match_rect.size.x, 22.0), MATCH_VALUE_FONT_SIZE, Color(0.68, 0.92, 0.68))
-	_draw_centered_text_in_rect(font, "Each round swaps roles: one team escapes, the other traps.",
+	_draw_centered_text_in_rect(font, "Cada ronda intercambia roles: un equipo escapa y el otro caza.",
 		Rect2(cx - 420.0, 231.0, 840.0, 18.0), 13, Color(0.58, 0.62, 0.66))
 
 	var top_y := 252.0
@@ -332,7 +332,7 @@ func _draw() -> void:
 	if not unjoined_devices.is_empty():
 		_draw_panel(join_box_rect, Color(0.04, 0.04, 0.05, 0.94), Color(0.26, 0.26, 0.28, 0.9), 2.0)
 		draw_rect(Rect2(join_box_rect.position, Vector2(join_box_rect.size.x, 5.0)), Color(0.55, 0.55, 0.58, 1.0))
-		_draw_centered_text_in_rect(font, "AVAILABLE CONTROLLERS", Rect2(join_box_rect.position.x, join_box_rect.position.y + 8.0, join_box_rect.size.x, 20.0), FOOTER_FONT_SIZE, Color(0.78, 0.78, 0.8))
+		_draw_centered_text_in_rect(font, "CONTROLES DISPONIBLES", Rect2(join_box_rect.position.x, join_box_rect.position.y + 8.0, join_box_rect.size.x, 20.0), FOOTER_FONT_SIZE, Color(0.78, 0.78, 0.8))
 		var list_y := join_box_rect.position.y + 36.0
 		var join_col_w := join_box_rect.size.x / float(join_column_count)
 		for i in unjoined_devices.size():
@@ -340,23 +340,23 @@ func _draw() -> void:
 			var col := int(floor(float(i) / float(join_row_count)))
 			var row := i % join_row_count
 			var cell_rect := Rect2(join_box_rect.position.x + float(col) * join_col_w, list_y + float(row) * join_row_h, join_col_w, join_row_h)
-			var text := "Controller %d  -  Press START to join" % device_id
+			var text := "Control %d  -  Presiona Start para unirte" % device_id
 			_draw_centered_text_in_rect(font, text, cell_rect, SLOT_DETAIL_FONT_SIZE, Color(0.62, 0.62, 0.64))
 	else:
-		_draw_centered_text_in_rect(font, "ALL CONTROLLERS ASSIGNED", Rect2(cx - 220.0, screen.y - 160.0, 440.0, 22.0), FOOTER_FONT_SIZE, Color(0.68, 0.8, 0.68))
+		_draw_centered_text_in_rect(font, "TODOS LOS CONTROLES ASIGNADOS", Rect2(cx - 220.0, screen.y - 160.0, 440.0, 22.0), FOOTER_FONT_SIZE, Color(0.68, 0.8, 0.68))
 
 	var footer_rect := Rect2(cx - 350.0, screen.y - 72.0, 700.0, 42.0)
 	_draw_panel(footer_rect, Color(0.03, 0.03, 0.035, 0.94), Color(0.24, 0.24, 0.26, 0.88), 1.5)
 	if _has_valid_teams():
-		var continue_text := "PRESS START TO CONTINUE"
+		var continue_text := "Presiona Start para continuar"
 		if auto_fill_bots:
-			continue_text = "PRESS START TO CONTINUE WITH BOTS"
+			continue_text = "Presiona Start para continuar con bots"
 		if _awaiting_start_confirmation:
-			continue_text = "START: BEGIN MATCH   |   SELECT: CANCEL"
+			continue_text = "Start: iniciar partida   |   Select: cancelar"
 		_draw_centered_text_in_rect(font, continue_text, Rect2(footer_rect.position.x, footer_rect.position.y + 1.0, footer_rect.size.x, 18.0), FOOTER_FONT_SIZE, Color(0.98, 0.92, 0.48))
 	else:
-		_draw_centered_text_in_rect(font, "NEED AT LEAST 1 PLAYER", Rect2(footer_rect.position.x, footer_rect.position.y + 1.0, footer_rect.size.x, 18.0), FOOTER_FONT_SIZE, Color(0.82, 0.52, 0.52))
-	_draw_centered_text_in_rect(font, "SELECT: BACK   |   Y: SETTINGS", Rect2(footer_rect.position.x, footer_rect.position.y + 18.0, footer_rect.size.x, 18.0), FOOTER_SMALL_FONT_SIZE, Color(0.52, 0.52, 0.55))
+		_draw_centered_text_in_rect(font, "HACE FALTA AL MENOS 1 JUGADOR", Rect2(footer_rect.position.x, footer_rect.position.y + 1.0, footer_rect.size.x, 18.0), FOOTER_FONT_SIZE, Color(0.82, 0.52, 0.52))
+	_draw_centered_text_in_rect(font, "Select: volver   |   Y: ajustes", Rect2(footer_rect.position.x, footer_rect.position.y + 18.0, footer_rect.size.x, 18.0), FOOTER_SMALL_FONT_SIZE, Color(0.52, 0.52, 0.55))
 
 	if _awaiting_start_confirmation:
 		var panel_size := Vector2(540.0, 206.0)
@@ -364,7 +364,7 @@ func _draw() -> void:
 		var panel_rect := Rect2(panel_pos, panel_size)
 		_draw_panel(panel_rect, Color(0.06, 0.06, 0.07, 0.98), Color(0.82, 0.82, 0.85, 0.95), 2.0)
 		draw_rect(Rect2(panel_rect.position, Vector2(panel_rect.size.x, 6.0)), Color(0.95, 0.82, 0.22, 1.0))
-		_draw_centered_text_in_rect(font, "START THIS MATCH?", Rect2(panel_pos.x, panel_pos.y + 8.0, panel_size.x, 34.0), 28, Color.WHITE)
+		_draw_centered_text_in_rect(font, "¿INICIAR ESTA PARTIDA?", Rect2(panel_pos.x, panel_pos.y + 8.0, panel_size.x, 34.0), 28, Color.WHITE)
 		_draw_centered_text_in_rect(font, "%s: %d   |   %s: %d" % [
 			Enums.team_name(Enums.Team.TEAM_1),
 			counts.get(Enums.Team.TEAM_1, 0),
@@ -378,11 +378,11 @@ func _draw() -> void:
 			bot_fill = Color(0.08, 0.08, 0.09, 0.96)
 			bot_outline = Color(0.45, 0.45, 0.48, 0.9)
 		_draw_panel(bot_chip_rect, bot_fill, bot_outline, 1.5)
-		var confirm_bot_text := "BOTS: OFF"
+		var confirm_bot_text := "BOTS: NO"
 		if auto_fill_bots:
-			confirm_bot_text = "BOTS: ON (+%d)" % total_bots
+			confirm_bot_text = "BOTS: SÍ (+%d)" % total_bots
 		_draw_centered_text_in_rect(font, confirm_bot_text, Rect2(panel_pos.x, panel_pos.y + 88.0, panel_size.x, 28.0), 14, Color(0.98, 0.9, 0.42))
-		_draw_centered_text_in_rect(font, "START: CONFIRM   |   SELECT: CANCEL", Rect2(panel_pos.x, panel_pos.y + 132.0, panel_size.x, 24.0), 16, Color(0.95, 0.95, 0.72))
+		_draw_centered_text_in_rect(font, "Start: confirmar   |   Select: cancelar", Rect2(panel_pos.x, panel_pos.y + 132.0, panel_size.x, 24.0), 16, Color(0.95, 0.95, 0.72))
 
 
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
@@ -422,14 +422,14 @@ func _draw_team_panel(font: Font, rect: Rect2, team: Enums.Team, devices: Array,
 	_draw_panel(rect, fill, outline, 2.0)
 	draw_rect(Rect2(rect.position, Vector2(rect.size.x, 6.0)), accent)
 	_draw_centered_text_in_rect(font, Enums.team_name(team), Rect2(rect.position.x, rect.position.y + 2.0, rect.size.x, 44.0), TEAM_HEADER_FONT_SIZE, accent)
-	_draw_centered_text_in_rect(font, "%d/%d players" % [devices.size(), team_limit], Rect2(rect.position.x, rect.position.y + 46.0, rect.size.x, 22.0), TEAM_SUBHEADER_FONT_SIZE, Color(0.84, 0.84, 0.86))
+	_draw_centered_text_in_rect(font, "%d/%d jugadores" % [devices.size(), team_limit], Rect2(rect.position.x, rect.position.y + 46.0, rect.size.x, 22.0), TEAM_SUBHEADER_FONT_SIZE, Color(0.84, 0.84, 0.86))
 	draw_line(Vector2(rect.position.x + 20.0, rect.position.y + 76.0), Vector2(rect.end.x - 20.0, rect.position.y + 76.0),
 		Color(accent.r, accent.g, accent.b, 0.35), 1.0)
 
 	var slot_y := rect.position.y + 92.0
 	if devices.is_empty():
-		_draw_centered_text_in_rect(font, "Waiting for players", Rect2(rect.position.x, slot_y + 6.0, rect.size.x, 18.0), SLOT_TITLE_FONT_SIZE, Color(0.58, 0.58, 0.6))
-		_draw_centered_text_in_rect(font, "Press START on a controller to join", Rect2(rect.position.x, slot_y + 28.0, rect.size.x, 18.0), SLOT_DETAIL_FONT_SIZE, Color(0.42, 0.42, 0.45))
+		_draw_centered_text_in_rect(font, "Esperando jugadores", Rect2(rect.position.x, slot_y + 6.0, rect.size.x, 18.0), SLOT_TITLE_FONT_SIZE, Color(0.58, 0.58, 0.6))
+		_draw_centered_text_in_rect(font, "Presiona Start en un control para unirte", Rect2(rect.position.x, slot_y + 28.0, rect.size.x, 18.0), SLOT_DETAIL_FONT_SIZE, Color(0.42, 0.42, 0.45))
 		return
 
 	for i in devices.size():
@@ -441,6 +441,6 @@ func _draw_team_panel(font: Font, rect: Rect2, team: Enums.Team, devices: Array,
 		draw_string(font, Vector2(card_rect.position.x + 18.0, card_rect.position.y + 30.0),
 			player_label, HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_TITLE_FONT_SIZE, accent)
 		draw_string(font, Vector2(card_rect.position.x + 74.0, card_rect.position.y + 30.0),
-			"Controller %d" % device_id, HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_TITLE_FONT_SIZE, Color(0.9, 0.9, 0.92))
+			"Control %d" % device_id, HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_TITLE_FONT_SIZE, Color(0.9, 0.9, 0.92))
 		draw_string(font, Vector2(card_rect.position.x + 74.0, card_rect.position.y + 42.0),
-			"Ready", HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_DETAIL_FONT_SIZE, Color(0.68, 0.72, 0.68))
+			"Listo", HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_DETAIL_FONT_SIZE, Color(0.68, 0.72, 0.68))

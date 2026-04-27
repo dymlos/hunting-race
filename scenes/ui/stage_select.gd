@@ -12,7 +12,7 @@ var _nav_cooldown: float = 0.0
 var input_blocked: bool = false
 
 const NAV_COOLDOWN: float = 0.2
-const LOCKED_STAGE_NAMES: Array[String] = ["Toxic Garden", "Clockwork Burrow"]
+const LOCKED_STAGE_NAMES: Array[String] = ["Jardín tóxico", "Madriguera mecánica"]
 const LOCKED_STAGE_COLORS: Array[Color] = [
 	Color(0.24, 0.78, 0.34),
 	Color(0.84, 0.52, 0.16),
@@ -69,13 +69,13 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, Vector2(screen.x, screen.y * 0.56)), Color(0.05, 0.04, 0.03, 0.12))
 
 	# Title
-	_draw_centered_text_in_rect(font, "SELECT STAGE", Rect2(cx - 220.0, 26.0, 440.0, 42.0), 34, Color.WHITE)
+	_draw_centered_text_in_rect(font, "ELEGIR MAPA", Rect2(cx - 220.0, 26.0, 440.0, 42.0), 34, Color.WHITE)
 
 	if _stages.is_empty():
 		return
 
 	var stage: Dictionary = _stages[_selected_index]
-	var stage_name: String = stage.get("name", "Unknown") as String
+	var stage_name: String = stage.get("name", "Desconocido") as String
 	var stage_desc: String = stage.get("description", "") as String
 
 	var preview_rect := Rect2(cx - 300.0, 96.0, 600.0, 310.0)
@@ -94,15 +94,15 @@ func _draw() -> void:
 
 	# Counter
 	var total_stage_slots := _stages.size() + LOCKED_STAGE_NAMES.size()
-	var counter := "%d AVAILABLE / %d TOTAL" % [_stages.size(), total_stage_slots]
+	var counter := "%d DISPONIBLES / %d TOTALES" % [_stages.size(), total_stage_slots]
 	_draw_centered_text_in_rect(font, counter, Rect2(cx - 180.0, 486.0, 360.0, 18.0), 14, Color(0.48, 0.48, 0.48))
-	_draw_centered_text_in_rect(font, "Score rewards escapes, speed, clean runs and fewer respawns.",
+	_draw_centered_text_in_rect(font, "El puntaje premia escapar, ser rápido, tocar pocas trampas y reaparecer menos.",
 		Rect2(cx - 420.0, 510.0, 840.0, 20.0), 14, Color(0.62, 0.62, 0.64))
 
 	_draw_locked_stage_slots(font, screen)
 
 	# Hints
-	var hint := "START confirm  |  SELECT back"
+	var hint := "Start confirmar  |  Select volver"
 	_draw_centered_text_in_rect(font, hint, Rect2(cx - 180.0, screen.y - 54.0, 360.0, 20.0), 16, Color(0.98, 0.92, 0.25))
 
 
@@ -126,7 +126,7 @@ func _draw_locked_stage_slots(font: Font, screen: Vector2) -> void:
 		draw_rect(Rect2(rect.position, Vector2(rect.size.x, 5.0)), accent)
 		_draw_centered_text_in_rect(font, locked_name, Rect2(rect.position.x, rect.position.y + 14.0, rect.size.x, 22.0), 16, Color(0.92, 0.92, 0.92))
 
-		var soon := "COMING SOON"
+		var soon := "PRÓXIMAMENTE"
 		_draw_centered_text_in_rect(font, soon, Rect2(rect.position.x, rect.position.y + 42.0, rect.size.x, 18.0), 12, accent.lightened(0.12))
 
 

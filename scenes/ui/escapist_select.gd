@@ -31,7 +31,7 @@ const DEMO_EFFECT_DURATION: float = 0.75
 const GRID_COLUMNS: int = 2
 const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
-const CARD_TOP_PAD: float = 16.0
+const CARD_TOP_PAD: float = 14.0
 const ABILITY_Y: float = 222.0
 
 
@@ -350,7 +350,7 @@ func _update_skill_test_layout() -> void:
 		var row := int(floor(float(card_index) / float(columns)))
 		var card_x := cards_x + float(col) * (card_w + CARD_GAP)
 		var card_y := cards_y + float(row) * (card_h + row_gap)
-		var art_h := clampf(card_h * 0.52, 135.0, 215.0)
+		var art_h := clampf(card_h * 0.54, 145.0, 225.0)
 		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		view.call("set_view_rect", art_rect)
 
@@ -439,7 +439,7 @@ func _update_escapist_demo_entities(delta: float) -> void:
 		_demo_entities["counter_timer"] = 0.0
 		_demo_entities["boost_timer"] = 0.55
 		_demo_pos.x = clampf(_demo_pos.x + 0.20, 0.10, 0.90)
-		_set_escapist_demo_status("COUNTER BOOST", 0.9)
+		_set_escapist_demo_status("IMPULSO ACTIVADO", 0.9)
 
 
 func _apply_escapist_demo_ability(animal_id: Enums.EscapistAnimal) -> void:
@@ -449,23 +449,23 @@ func _apply_escapist_demo_ability(animal_id: Enums.EscapistAnimal) -> void:
 		Enums.EscapistAnimal.RABBIT:
 			_demo_pos.x = clampf(_demo_pos.x + 0.30, 0.10, 0.90)
 			_demo_pos.y = clampf(_demo_pos.y - 0.04, 0.18, 0.86)
-			_set_escapist_demo_status("LONG LEAP", 0.9)
+			_set_escapist_demo_status("SALTO LARGO", 0.9)
 		Enums.EscapistAnimal.RAT:
 			var ally := _demo_entities["ally"] as Vector2
 			_demo_entities["ally"] = ally.move_toward(_demo_pos, 0.34)
-			_set_escapist_demo_status("ALLY RESCUED", 1.0)
+			_set_escapist_demo_status("ALIADO RESCATADO", 1.0)
 		Enums.EscapistAnimal.SQUIRREL:
 			_demo_entities["trap_alive"] = false
-			_set_escapist_demo_status("TRAP BROKEN", 1.0)
+			_set_escapist_demo_status("TRAMPA ROTA", 1.0)
 		Enums.EscapistAnimal.FLY:
 			_demo_entities["counter_timer"] = 1.25
 			if _fly_counter_can_trigger():
 				_demo_entities["counter_timer"] = 0.0
 				_demo_entities["boost_timer"] = 0.55
 				_demo_pos.x = clampf(_demo_pos.x + 0.20, 0.10, 0.90)
-				_set_escapist_demo_status("COUNTER BOOST", 0.9)
+				_set_escapist_demo_status("IMPULSO ACTIVADO", 0.9)
 			else:
-				_set_escapist_demo_status("COUNTER ARMED", 1.0)
+				_set_escapist_demo_status("CONTRAATAQUE LISTO", 1.0)
 
 
 func _fly_counter_can_trigger() -> bool:
@@ -522,6 +522,28 @@ func _draw_wrapped_text(font: Font, text: String, position: Vector2,
 	return lines.size() * line_height
 
 
+func _player_display_name(player_index: int) -> String:
+	return "USUARIO %d" % (player_index + 1) if player_index < 100 else "BOT"
+
+
+func _format_player_names(player_indices: Array[int]) -> String:
+	var names: Array[String] = []
+	for pi: int in player_indices:
+		names.append(_player_display_name(pi))
+	return ", ".join(names)
+
+
+func _draw_selection_badge(font: Font, rect: Rect2, text: String, color: Color,
+		is_confirmed: bool) -> void:
+	var fill_alpha := 0.34 if is_confirmed else 0.18
+	var border_alpha := 0.95 if is_confirmed else 0.62
+	draw_rect(rect, Color(0.0, 0.0, 0.0, 0.68))
+	draw_rect(rect, Color(color, fill_alpha))
+	draw_rect(rect, Color(color, border_alpha), false, 1.5)
+	_draw_centered_text_in_rect(font, text, rect, 14 if is_confirmed else 12,
+		Color.WHITE if is_confirmed else Color(0.86, 0.86, 0.86))
+
+
 func _draw() -> void:
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
@@ -530,14 +552,14 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, screen), Color(0.015, 0.015, 0.018, 1.0))
 	draw_rect(Rect2(Vector2.ZERO, Vector2(screen.x, 410.0)), Color(0.04, 0.05, 0.04, 0.18))
 
-	var title := "CHOOSE YOUR ESCAPIST"
+	var title := "ELIGE TU ESCAPISTA"
 	_draw_centered_text_in_rect(font, title, Rect2(cx - 260.0, 34.0, 520.0, 38.0), 30, Color.WHITE)
 
 	var team_name := Enums.team_name(_escapist_team)
 	var team_col := Enums.team_color(_escapist_team)
-	var sub := "%s picks escapists" % team_name
+	var sub := "%s elige escapistas" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
-	_draw_centered_text_in_rect(font, "Escapists use A in-match. START confirms menus and SELECT cancels or goes back.",
+	_draw_centered_text_in_rect(font, "Los escapistas usan A en partida. Start confirma menús y Select cancela o vuelve.",
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	var card_count := _animals.size()
@@ -573,57 +595,57 @@ func _draw() -> void:
 				else:
 					hovering_pis.append(pi)
 
-		var bg_color := Color(0.11, 0.11, 0.12)
+		var bg_color := Color(0.095, 0.095, 0.105)
 		if confirmed_pi >= 0:
-			bg_color = Color(animal_color, 0.18)
+			bg_color = Color(animal_color, 0.23)
 		var border_color := animal_color if confirmed_pi >= 0 else Color(0.3, 0.3, 0.3)
 		if confirmed_pi < 0 and not hovering_pis.is_empty():
 			border_color = Color(animal_color, 0.82)
-		_draw_panel(card_rect, bg_color, border_color, 2.0)
-		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 5.0)), Color(animal_color, 0.95))
+		_draw_panel(card_rect, bg_color, border_color, 4.0 if confirmed_pi >= 0 else 2.0)
+		if confirmed_pi >= 0:
+			draw_rect(card_rect.grow(-6.0), Color(animal_color, 0.18), false, 1.5)
+		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 7.0 if confirmed_pi >= 0 else 5.0)),
+			Color(animal_color, 1.0 if confirmed_pi >= 0 else 0.92))
 
-		var art_h := clampf(card_h * 0.52, 135.0, 215.0)
+		var art_h := clampf(card_h * 0.54, 145.0, 225.0)
 		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		draw_rect(art_rect, Color(animal_color, 0.10))
 		draw_rect(art_rect, Color(animal_color, 0.25), false, 1.0)
 		var demo_running := _is_card_testing(i)
 		if demo_running:
-			_draw_centered_text_in_rect(font, "REAL SKILL TEST",
+			_draw_centered_text_in_rect(font, "PRUEBA REAL",
 				art_rect, 12, Color(animal_color, 0.9))
 		else:
 			_draw_escapist_silhouette(animal_id, art_rect.position + art_rect.size * 0.5 + Vector2(0.0, 4.0),
-				3.1, Color(animal_color, 1.0))
+				3.65, Color(animal_color, 1.0))
 
-		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, card_y + CARD_TOP_PAD, card_w, 28.0), 24, animal_color)
+		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, card_y + CARD_TOP_PAD, card_w, 26.0), 22, animal_color)
 
-		_draw_centered_text_in_rect(font, animal_sub, Rect2(card_x, card_y + 44.0, card_w, 18.0), 13, Color(0.64, 0.64, 0.66))
+		_draw_centered_text_in_rect(font, animal_sub, Rect2(card_x, card_y + 42.0, card_w, 18.0), 12, Color(0.62, 0.62, 0.64))
 
 		var ability_button: String = ability["button"] as String
 		var ability_title: String = ability["name"] as String
 		var ability_name := "[%s] %s" % [ability_button, ability_title]
 		var text_x := card_x + CARD_MARGIN
 		var text_w := card_w - CARD_MARGIN * 2.0
-		var ability_y := art_rect.end.y + 34.0
+		var ability_y := art_rect.end.y + 24.0
+		draw_line(Vector2(text_x, ability_y - 13.0), Vector2(text_x + text_w, ability_y - 13.0),
+			Color(animal_color, 0.24), 1.0)
 		draw_string(font, Vector2(text_x, ability_y),
-			ability_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.88, 0.88, 0.88))
-		_draw_wrapped_text(font, ability["desc"] as String, Vector2(text_x, ability_y + 26.0),
-			text_w, 13, Color(0.64, 0.64, 0.64), 17.0, 4)
+			ability_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.9, 0.9, 0.9))
+		_draw_wrapped_text(font, ability["desc"] as String, Vector2(text_x, ability_y + 22.0),
+			text_w, 12, Color(0.62, 0.62, 0.62), 16.0, 4)
 
 		if confirmed_pi >= 0:
-			var taken_label := "P%d" % (confirmed_pi + 1) if confirmed_pi < 100 else "BOT"
-			var taken_width := font.get_string_size(taken_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-			draw_string(font, Vector2(card_x + card_w / 2.0 - taken_width / 2.0, card_y + card_h - 15),
-				taken_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, animal_color)
+			var taken_label := "%s ELIGIÓ" % _player_display_name(confirmed_pi)
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 42.0, card_w - CARD_MARGIN * 2.0, 28.0),
+				taken_label, animal_color, true)
 		elif not hovering_pis.is_empty():
-			var hover_text := ""
-			for h_i in hovering_pis.size():
-				if h_i > 0:
-					hover_text += " "
-				var pi: int = hovering_pis[h_i]
-				hover_text += "P%d" % (pi + 1) if pi < 100 else "BOT"
-			var hover_width := font.get_string_size(hover_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			draw_string(font, Vector2(card_x + card_w / 2.0 - hover_width / 2.0, card_y + card_h - 15),
-				hover_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.8, 0.8, 0.8))
+			var hover_text := "%s ELIGIENDO" % _format_player_names(hovering_pis)
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
+				hover_text, animal_color, false)
 
 	var trapper_pis: Array[int] = []
 	for pi: int in _player_indices:
@@ -632,9 +654,9 @@ func _draw() -> void:
 	if not trapper_pis.is_empty():
 		var trapper_labels: Array[String] = []
 		for pi: int in trapper_pis:
-			trapper_labels.append("P%d" % (pi + 1) if pi < 100 else "BOT")
+			trapper_labels.append(_player_display_name(pi))
 		var trapper_team := Enums.Team.TEAM_2 if _escapist_team == Enums.Team.TEAM_1 else Enums.Team.TEAM_1
-		var trapper_text := "Trappers: %s" % ", ".join(trapper_labels)
+		var trapper_text := "Cazadores: %s" % ", ".join(trapper_labels)
 		var trapper_width := font.get_string_size(trapper_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		var grid_bottom := cards_y + float(rows) * card_h + float(rows - 1) * row_gap
 		var wait_y := minf(grid_bottom + 24.0, screen.y - 84.0)
@@ -650,19 +672,19 @@ func _draw() -> void:
 		var animal_data2: Dictionary = _animals[idx]
 		var confirmed: bool = _player_confirmed.get(pi, false)
 		var status_name: String = animal_data2["name"] as String
-		var status_mark := "OK" if confirmed else "..."
-		var label := "P%d: %s %s" % [pi + 1, status_name, status_mark]
+		var status_mark := "ELEGIDO" if confirmed else "ELIGIENDO"
+		var label := "%s: %s %s" % [_player_display_name(pi), status_name, status_mark]
 		var label_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		draw_string(font, Vector2(cx - label_width / 2.0, status_y),
 			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
 			Color.YELLOW if confirmed else Color(0.6, 0.6, 0.6))
 		status_y += 20.0
 
-	var hint := "A demo | Left stick move | START confirm | SELECT cancel"
+	var hint := "A probar | Palanca izq. mover | Start confirmar | Select cancelar"
 	if _allow_back:
-		hint = "A demo | Left stick move | START confirm | SELECT back or cancel"
+		hint = "A probar | Palanca izq. mover | Start confirmar | Select volver o cancelar"
 	if _selection_complete():
-		hint = "START continue | SELECT back or change" if _allow_back else "START continue | SELECT to change"
+		hint = "Start continuar | Select volver o cambiar" if _allow_back else "Start continuar | Select cambiar"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)
@@ -695,13 +717,13 @@ func _draw_escapist_demo(font: Font, rect: Rect2,
 	var ally := rect.position + Vector2(ally_norm.x * rect.size.x, ally_norm.y * rect.size.y)
 	if animal_id == Enums.EscapistAnimal.RAT:
 		draw_circle(ally, 8.0, Color(0.25, 0.85, 1.0, 0.82))
-		draw_string(font, ally + Vector2(-10.0, -12.0), "ALLY", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(0.65, 0.95, 1.0))
+		draw_string(font, ally + Vector2(-10.0, -12.0), "ALIADO", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(0.65, 0.95, 1.0))
 
 	var opponent_norm := _demo_entities.get("opponent", Vector2(0.80, 0.58)) as Vector2
 	var opponent := rect.position + Vector2(opponent_norm.x * rect.size.x, opponent_norm.y * rect.size.y)
 	if animal_id == Enums.EscapistAnimal.FLY:
 		draw_circle(opponent, 8.5, Color(1.0, 0.18, 0.16, 0.86))
-		draw_string(font, opponent + Vector2(-12.0, -12.0), "HIT", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.55, 0.45))
+		draw_string(font, opponent + Vector2(-12.0, -12.0), "GOLPE", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.55, 0.45))
 
 	var player := rect.position + Vector2(_demo_pos.x * rect.size.x, _demo_pos.y * rect.size.y)
 	for effect: Dictionary in _demo_effects:
@@ -714,7 +736,7 @@ func _draw_escapist_demo(font: Font, rect: Rect2,
 		_draw_centered_text_in_rect(font, status,
 			Rect2(rect.position.x, rect.position.y + 8.0, rect.size.x, 18.0), 11, Color.YELLOW)
 	draw_string(font, rect.position + Vector2(9.0, rect.size.y - 9.0),
-		"SELECT exit | A skill", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
+		"Select salir | A habilidad", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(color, 0.9))
 
 
 func _draw_escapist_demo_effect(rect: Rect2, player: Vector2, ally: Vector2, trap: Vector2,

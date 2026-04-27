@@ -20,7 +20,7 @@ func _spawn_object(pos: Vector2) -> void:
 
 
 func get_display_name() -> String:
-	return "Quicksand"
+	return "Arenas"
 
 
 func get_display_color() -> Color:
@@ -182,7 +182,7 @@ class QuicksandZone extends Area2D:
 			return
 		GameManager.register_trap_contact(character.player_index, int(get_meta("owner_player_index", -1)))
 		if character is Escapist:
-			(character as Escapist).notify_trap_status("SINKING", Color(1.0, 0.8, 0.25), 0.8)
+			(character as Escapist).notify_trap_status("HUNDIÉNDOSE", Color(1.0, 0.8, 0.25), 0.8)
 		AudioManager.play_effect(&"QuicksandTrap")
 		_bodies_inside[character] = {
 			"angle": (character.global_position - global_position).angle(),
