@@ -28,6 +28,7 @@ var _skill_test_cards: Dictionary = {}       # {pi: card_index}
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
 const DEMO_EFFECT_DURATION: float = 0.75
+const GRID_COLUMNS: int = 2
 const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
 const CARD_TOP_PAD: float = 16.0
@@ -155,6 +156,49 @@ func _handle_back_for_player(pi: int) -> bool:
 	return false
 
 
+func _move_cursor_on_grid(current_index: int, dx: int, dy: int) -> int:
+	var item_count := _animals.size()
+	if item_count <= 1:
+		return current_index
+	var columns := mini(GRID_COLUMNS, item_count)
+	var rows := int(ceili(float(item_count) / float(columns)))
+	var col := current_index % columns
+	var row := int(floor(float(current_index) / float(columns)))
+	var target := current_index
+	if dx != 0:
+		col = (col + dx + columns) % columns
+		target = row * columns + col
+	elif dy != 0:
+		for _attempt in rows:
+			row = (row + dy + rows) % rows
+			target = row * columns + col
+			if target < item_count:
+				break
+	if target >= item_count:
+		return current_index
+	return target
+
+
+func _handle_grid_navigation(pi: int, device_id: int) -> void:
+	if _nav_cooldowns.get(pi, 0.0) > 0.0:
+		return
+	var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
+	var y := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)
+	if absf(x) < 0.5 and absf(y) < 0.5:
+		return
+	var dx := 0
+	var dy := 0
+	if absf(x) >= absf(y):
+		dx = 1 if x > 0.0 else -1
+	else:
+		dy = 1 if y > 0.0 else -1
+	var current_index: int = _player_cursor[pi] as int
+	var next_index := _move_cursor_on_grid(current_index, dx, dy)
+	if next_index != current_index:
+		_player_cursor[pi] = next_index
+	_nav_cooldowns[pi] = NAV_COOLDOWN
+
+
 func _process(delta: float) -> void:
 	if not visible or input_blocked:
 		queue_redraw()
@@ -194,14 +238,7 @@ func _process(delta: float) -> void:
 		if _player_confirmed.get(pi, false):
 			pass
 		else:
-			if _nav_cooldowns.get(pi, 0.0) <= 0.0:
-				var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-				if x > 0.5:
-					_player_cursor[pi] = (_player_cursor[pi] + 1) % _animals.size()
-					_nav_cooldowns[pi] = NAV_COOLDOWN
-				elif x < -0.5:
-					_player_cursor[pi] = (_player_cursor[pi] - 1 + _animals.size()) % _animals.size()
-					_nav_cooldowns[pi] = NAV_COOLDOWN
+			_handle_grid_navigation(pi, device_id)
 
 			if InputManager.is_menu_confirm_just_pressed(device_id):
 				var idx: int = _player_cursor[pi] as int
@@ -293,11 +330,15 @@ func _update_skill_test_layout() -> void:
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
 	var card_count := _animals.size()
-	var available_w := maxf(880.0, screen.x - 220.0)
-	var card_w := clampf((available_w - (card_count - 1) * CARD_GAP) / card_count, 220.0, 300.0)
-	var total_w := card_count * card_w + (card_count - 1) * CARD_GAP
+	var columns := 2
+	var rows := int(ceili(float(card_count) / float(columns)))
+	var row_gap := 22.0
+	var available_w := maxf(760.0, screen.x - 260.0)
+	var card_w := clampf((available_w - float(columns - 1) * CARD_GAP) / float(columns), 360.0, 700.0)
+	var card_h := clampf((screen.y - 248.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
+	var total_w := float(columns) * card_w + float(columns - 1) * CARD_GAP
 	var cards_x := cx - total_w / 2.0
-	var cards_y := 118.0
+	var cards_y := 128.0
 	for pi: int in _skill_test_views:
 		var view := _skill_test_views[pi] as Node
 		if view == null or not is_instance_valid(view):
@@ -305,8 +346,12 @@ func _update_skill_test_layout() -> void:
 		var card_index := _skill_test_cards.get(pi, -1) as int
 		if card_index < 0:
 			continue
-		var card_x := cards_x + card_index * (card_w + CARD_GAP)
-		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
+		var col := card_index % columns
+		var row := int(floor(float(card_index) / float(columns)))
+		var card_x := cards_x + float(col) * (card_w + CARD_GAP)
+		var card_y := cards_y + float(row) * (card_h + row_gap)
+		var art_h := clampf(card_h * 0.52, 135.0, 215.0)
+		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		view.call("set_view_rect", art_rect)
 
 
@@ -496,16 +541,22 @@ func _draw() -> void:
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 
 	var card_count := _animals.size()
-	var available_w := maxf(880.0, screen.x - 220.0)
-	var card_w := clampf((available_w - (card_count - 1) * CARD_GAP) / card_count, 220.0, 300.0)
-	var card_h := 400.0
-	var total_w := card_count * card_w + (card_count - 1) * CARD_GAP
+	var columns := 2
+	var rows := int(ceili(float(card_count) / float(columns)))
+	var row_gap := 22.0
+	var available_w := maxf(760.0, screen.x - 260.0)
+	var card_w := clampf((available_w - float(columns - 1) * CARD_GAP) / float(columns), 360.0, 700.0)
+	var card_h := clampf((screen.y - 248.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
+	var total_w := float(columns) * card_w + float(columns - 1) * CARD_GAP
 	var cards_x := cx - total_w / 2.0
-	var cards_y := 118.0
+	var cards_y := 128.0
 
 	for i in card_count:
-		var card_x := cards_x + i * (card_w + CARD_GAP)
-		var card_rect := Rect2(Vector2(card_x, cards_y), Vector2(card_w, card_h))
+		var col := i % columns
+		var row := int(floor(float(i) / float(columns)))
+		var card_x := cards_x + float(col) * (card_w + CARD_GAP)
+		var card_y := cards_y + float(row) * (card_h + row_gap)
+		var card_rect := Rect2(Vector2(card_x, card_y), Vector2(card_w, card_h))
 		var animal_data: Dictionary = _animals[i]
 		var animal_color: Color = animal_data["color"] as Color
 		var animal_name: String = animal_data["name"] as String
@@ -531,7 +582,8 @@ func _draw() -> void:
 		_draw_panel(card_rect, bg_color, border_color, 2.0)
 		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 5.0)), Color(animal_color, 0.95))
 
-		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
+		var art_h := clampf(card_h * 0.52, 135.0, 215.0)
+		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		draw_rect(art_rect, Color(animal_color, 0.10))
 		draw_rect(art_rect, Color(animal_color, 0.25), false, 1.0)
 		var demo_running := _is_card_testing(i)
@@ -542,24 +594,25 @@ func _draw() -> void:
 			_draw_escapist_silhouette(animal_id, art_rect.position + art_rect.size * 0.5 + Vector2(0.0, 4.0),
 				3.1, Color(animal_color, 1.0))
 
-		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, cards_y + CARD_TOP_PAD, card_w, 28.0), 24, animal_color)
+		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, card_y + CARD_TOP_PAD, card_w, 28.0), 24, animal_color)
 
-		_draw_centered_text_in_rect(font, animal_sub, Rect2(card_x, cards_y + 44.0, card_w, 18.0), 13, Color(0.64, 0.64, 0.66))
+		_draw_centered_text_in_rect(font, animal_sub, Rect2(card_x, card_y + 44.0, card_w, 18.0), 13, Color(0.64, 0.64, 0.66))
 
 		var ability_button: String = ability["button"] as String
 		var ability_title: String = ability["name"] as String
 		var ability_name := "[%s] %s" % [ability_button, ability_title]
 		var text_x := card_x + CARD_MARGIN
 		var text_w := card_w - CARD_MARGIN * 2.0
-		draw_string(font, Vector2(text_x, cards_y + ABILITY_Y),
+		var ability_y := art_rect.end.y + 34.0
+		draw_string(font, Vector2(text_x, ability_y),
 			ability_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.88, 0.88, 0.88))
-		_draw_wrapped_text(font, ability["desc"] as String, Vector2(text_x, cards_y + ABILITY_Y + 26.0),
+		_draw_wrapped_text(font, ability["desc"] as String, Vector2(text_x, ability_y + 26.0),
 			text_w, 13, Color(0.64, 0.64, 0.64), 17.0, 4)
 
 		if confirmed_pi >= 0:
 			var taken_label := "P%d" % (confirmed_pi + 1) if confirmed_pi < 100 else "BOT"
 			var taken_width := font.get_string_size(taken_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-			draw_string(font, Vector2(card_x + card_w / 2.0 - taken_width / 2.0, cards_y + card_h - 15),
+			draw_string(font, Vector2(card_x + card_w / 2.0 - taken_width / 2.0, card_y + card_h - 15),
 				taken_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, animal_color)
 		elif not hovering_pis.is_empty():
 			var hover_text := ""
@@ -569,7 +622,7 @@ func _draw() -> void:
 				var pi: int = hovering_pis[h_i]
 				hover_text += "P%d" % (pi + 1) if pi < 100 else "BOT"
 			var hover_width := font.get_string_size(hover_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			draw_string(font, Vector2(card_x + card_w / 2.0 - hover_width / 2.0, cards_y + card_h - 15),
+			draw_string(font, Vector2(card_x + card_w / 2.0 - hover_width / 2.0, card_y + card_h - 15),
 				hover_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.8, 0.8, 0.8))
 
 	var trapper_pis: Array[int] = []
@@ -583,7 +636,9 @@ func _draw() -> void:
 		var trapper_team := Enums.Team.TEAM_2 if _escapist_team == Enums.Team.TEAM_1 else Enums.Team.TEAM_1
 		var trapper_text := "Trappers: %s" % ", ".join(trapper_labels)
 		var trapper_width := font.get_string_size(trapper_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-		var wait_rect := Rect2(cx - 230.0, cards_y + card_h + 24.0, 460.0, 30.0)
+		var grid_bottom := cards_y + float(rows) * card_h + float(rows - 1) * row_gap
+		var wait_y := minf(grid_bottom + 24.0, screen.y - 84.0)
+		var wait_rect := Rect2(cx - 230.0, wait_y, 460.0, 30.0)
 		_draw_panel(wait_rect, Color(0.04, 0.04, 0.045, 0.9), Color(Enums.team_color(trapper_team), 0.45), 1.5)
 		_draw_centered_text_in_rect(font, trapper_text, wait_rect, 14, Enums.team_color(trapper_team))
 
