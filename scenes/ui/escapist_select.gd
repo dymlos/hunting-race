@@ -1,6 +1,8 @@
 class_name EscapistSelect
 extends Control
 
+const SkillTestViewScene := preload("res://scenes/ui/skill_test_view.gd")
+
 signal escapists_ready(selections: Dictionary)
 signal back_requested
 
@@ -20,6 +22,8 @@ var _demo_card_index: int = -1
 var _demo_pos: Vector2 = Vector2(0.35, 0.62)
 var _demo_effects: Array[Dictionary] = []
 var _demo_entities: Dictionary = {}
+var _skill_test_views: Dictionary = {}       # {pi: SkillTestView}
+var _skill_test_cards: Dictionary = {}       # {pi: card_index}
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
@@ -48,6 +52,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_demo_pos = Vector2(0.35, 0.62)
 	_demo_effects.clear()
 	_demo_entities.clear()
+	_clear_skill_tests()
 
 	var cursor_idx := 0
 	for pi: int in _player_indices:
@@ -144,6 +149,7 @@ func _handle_back_for_player(pi: int) -> bool:
 		_player_confirmed[pi] = false
 		return true
 	if _allow_back and not _any_human_confirmed():
+		_clear_skill_tests()
 		back_requested.emit()
 		return true
 	return false
@@ -155,10 +161,7 @@ func _process(delta: float) -> void:
 		return
 
 	_update_preview_timers(delta)
-	if _demo_active:
-		_process_demo(delta)
-		queue_redraw()
-		return
+	_update_skill_test_layout()
 
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
@@ -170,6 +173,13 @@ func _process(delta: float) -> void:
 
 		var device_id := InputManager.get_device_id(pi)
 		if device_id < 0:
+			continue
+
+		if _skill_test_views.has(pi):
+			if InputManager.is_menu_back_just_pressed(device_id):
+				_exit_skill_test(pi)
+				queue_redraw()
+				return
 			continue
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
@@ -204,6 +214,7 @@ func _process(delta: float) -> void:
 	if _selection_complete() and not confirmed_this_frame:
 		for device_id: int in _get_human_device_ids():
 			if InputManager.is_menu_confirm_just_pressed(device_id):
+				_clear_skill_tests()
 				escapists_ready.emit(_build_selections())
 				return
 
@@ -232,24 +243,71 @@ func _trigger_ability_preview(player_index: int) -> void:
 func _enter_demo(player_index: int) -> void:
 	if not _player_cursor.has(player_index):
 		return
-	_demo_active = true
-	_demo_player_index = player_index
-	_demo_card_index = _player_cursor[player_index] as int
-	_demo_pos = Vector2(0.35, 0.62)
-	_demo_effects.clear()
-	_reset_escapist_demo_state(_animals[_demo_card_index]["id"] as Enums.EscapistAnimal)
+	_exit_skill_test(player_index)
+	var card_index: int = _player_cursor[player_index] as int
+	var animal_data: Dictionary = _animals[card_index]
+	var view := SkillTestViewScene.new()
+	add_child(view)
+	view.call("setup_escapist", player_index, animal_data["id"] as Enums.EscapistAnimal)
+	_skill_test_views[player_index] = view
+	_skill_test_cards[player_index] = card_index
+	_update_skill_test_layout()
 	InputManager.vibrate_player(player_index, 0.06, 0.14, 0.08)
 	queue_redraw()
 
 
 func _exit_demo() -> void:
-	_demo_active = false
-	_demo_player_index = -1
-	_demo_card_index = -1
-	_demo_effects.clear()
-	_demo_entities.clear()
+	if _demo_player_index >= 0:
+		_exit_skill_test(_demo_player_index)
+
+
+func _exit_skill_test(player_index: int) -> void:
+	var view := _skill_test_views.get(player_index, null) as Node
+	if view != null and is_instance_valid(view):
+		view.queue_free()
+	_skill_test_views.erase(player_index)
+	_skill_test_cards.erase(player_index)
 	InputManager.suppress_edge_detection(2)
 	queue_redraw()
+
+
+func _clear_skill_tests() -> void:
+	for pi: int in _skill_test_views:
+		var view := _skill_test_views[pi] as Node
+		if view != null and is_instance_valid(view):
+			view.queue_free()
+	_skill_test_views.clear()
+	_skill_test_cards.clear()
+
+
+func _is_card_testing(card_index: int) -> bool:
+	for pi: int in _skill_test_cards:
+		if (_skill_test_cards[pi] as int) == card_index:
+			return true
+	return false
+
+
+func _update_skill_test_layout() -> void:
+	if _skill_test_views.is_empty() or _animals.is_empty():
+		return
+	var screen := get_viewport_rect().size
+	var cx := screen.x / 2.0
+	var card_count := _animals.size()
+	var available_w := maxf(880.0, screen.x - 220.0)
+	var card_w := clampf((available_w - (card_count - 1) * CARD_GAP) / card_count, 220.0, 300.0)
+	var total_w := card_count * card_w + (card_count - 1) * CARD_GAP
+	var cards_x := cx - total_w / 2.0
+	var cards_y := 118.0
+	for pi: int in _skill_test_views:
+		var view := _skill_test_views[pi] as Node
+		if view == null or not is_instance_valid(view):
+			continue
+		var card_index := _skill_test_cards.get(pi, -1) as int
+		if card_index < 0:
+			continue
+		var card_x := cards_x + card_index * (card_w + CARD_GAP)
+		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
+		view.call("set_view_rect", art_rect)
 
 
 func _process_demo(delta: float) -> void:
@@ -476,9 +534,10 @@ func _draw() -> void:
 		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
 		draw_rect(art_rect, Color(animal_color, 0.10))
 		draw_rect(art_rect, Color(animal_color, 0.25), false, 1.0)
-		var demo_running := _demo_active and _demo_card_index == i
+		var demo_running := _is_card_testing(i)
 		if demo_running:
-			_draw_escapist_demo(font, art_rect, animal_id, animal_color)
+			_draw_centered_text_in_rect(font, "REAL SKILL TEST",
+				art_rect, 12, Color(animal_color, 0.9))
 		else:
 			_draw_escapist_silhouette(animal_id, art_rect.position + art_rect.size * 0.5 + Vector2(0.0, 4.0),
 				3.1, Color(animal_color, 1.0))

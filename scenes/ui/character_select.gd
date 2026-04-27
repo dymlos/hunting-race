@@ -1,6 +1,8 @@
 class_name CharacterSelect
 extends Control
 
+const SkillTestViewScene := preload("res://scenes/ui/skill_test_view.gd")
+
 ## Character selection screen. Each trapping-team player picks a unique trapper character.
 ## Escapist-team players wait. No duplicates allowed per team.
 
@@ -26,6 +28,8 @@ var _demo_card_index: int = -1
 var _demo_pos: Vector2 = Vector2(0.5, 0.55)
 var _demo_effects: Array[Dictionary] = []
 var _demo_entities: Dictionary = {}
+var _skill_test_views: Dictionary = {}       # {pi: SkillTestView}
+var _skill_test_cards: Dictionary = {}       # {pi: card_index}
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
@@ -56,6 +60,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_demo_pos = Vector2(0.5, 0.55)
 	_demo_effects.clear()
 	_demo_entities.clear()
+	_clear_skill_tests()
 
 	# Initialize cursors for trapper-team players
 	var cursor_idx := 0
@@ -175,6 +180,7 @@ func _handle_back_for_player(pi: int) -> bool:
 		_player_confirmed[pi] = false
 		return true
 	if _allow_back and not _any_human_confirmed():
+		_clear_skill_tests()
 		back_requested.emit()
 		return true
 	return false
@@ -186,10 +192,7 @@ func _process(delta: float) -> void:
 		return
 
 	_update_preview_timers(delta)
-	if _demo_active:
-		_process_demo(delta)
-		queue_redraw()
-		return
+	_update_skill_test_layout()
 
 	# Tick nav cooldowns
 	for pi: int in _nav_cooldowns:
@@ -202,6 +205,13 @@ func _process(delta: float) -> void:
 
 		var device_id := InputManager.get_device_id(pi)
 		if device_id < 0:
+			continue
+
+		if _skill_test_views.has(pi):
+			if InputManager.is_menu_back_just_pressed(device_id):
+				_exit_skill_test(pi)
+				queue_redraw()
+				return
 			continue
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
@@ -237,6 +247,7 @@ func _process(delta: float) -> void:
 	if _selection_complete() and not confirmed_this_frame:
 		for device_id: int in _get_human_device_ids():
 			if InputManager.is_menu_confirm_just_pressed(device_id):
+				_clear_skill_tests()
 				characters_ready.emit(_build_selections())
 				return
 
@@ -270,24 +281,71 @@ func _trigger_ability_preview(player_index: int, button: String) -> void:
 func _enter_demo(player_index: int) -> void:
 	if not _player_cursor.has(player_index):
 		return
-	_demo_active = true
-	_demo_player_index = player_index
-	_demo_card_index = _player_cursor[player_index] as int
-	_demo_pos = Vector2(0.5, 0.58)
-	_demo_effects.clear()
-	_reset_trapper_demo_state(_characters[_demo_card_index]["id"] as Enums.TrapperCharacter)
+	_exit_skill_test(player_index)
+	var card_index: int = _player_cursor[player_index] as int
+	var char_data: Dictionary = _characters[card_index]
+	var view := SkillTestViewScene.new()
+	add_child(view)
+	view.call("setup_trapper", player_index, char_data["id"] as Enums.TrapperCharacter)
+	_skill_test_views[player_index] = view
+	_skill_test_cards[player_index] = card_index
+	_update_skill_test_layout()
 	InputManager.vibrate_player(player_index, 0.06, 0.14, 0.08)
 	queue_redraw()
 
 
 func _exit_demo() -> void:
-	_demo_active = false
-	_demo_player_index = -1
-	_demo_card_index = -1
-	_demo_effects.clear()
-	_demo_entities.clear()
+	if _demo_player_index >= 0:
+		_exit_skill_test(_demo_player_index)
+
+
+func _exit_skill_test(player_index: int) -> void:
+	var view := _skill_test_views.get(player_index, null) as Node
+	if view != null and is_instance_valid(view):
+		view.queue_free()
+	_skill_test_views.erase(player_index)
+	_skill_test_cards.erase(player_index)
 	InputManager.suppress_edge_detection(2)
 	queue_redraw()
+
+
+func _clear_skill_tests() -> void:
+	for pi: int in _skill_test_views:
+		var view := _skill_test_views[pi] as Node
+		if view != null and is_instance_valid(view):
+			view.queue_free()
+	_skill_test_views.clear()
+	_skill_test_cards.clear()
+
+
+func _is_card_testing(card_index: int) -> bool:
+	for pi: int in _skill_test_cards:
+		if (_skill_test_cards[pi] as int) == card_index:
+			return true
+	return false
+
+
+func _update_skill_test_layout() -> void:
+	if _skill_test_views.is_empty() or _characters.is_empty():
+		return
+	var screen := get_viewport_rect().size
+	var cx := screen.x / 2.0
+	var card_count := _characters.size()
+	var available_w := maxf(880.0, screen.x - 220.0)
+	var card_w := clampf((available_w - (card_count - 1) * CARD_GAP) / card_count, 220.0, 300.0)
+	var total_w := card_count * card_w + (card_count - 1) * CARD_GAP
+	var cards_x := cx - total_w / 2.0
+	var cards_y := 118.0
+	for pi: int in _skill_test_views:
+		var view := _skill_test_views[pi] as Node
+		if view == null or not is_instance_valid(view):
+			continue
+		var card_index := _skill_test_cards.get(pi, -1) as int
+		if card_index < 0:
+			continue
+		var card_x := cards_x + card_index * (card_w + CARD_GAP)
+		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
+		view.call("set_view_rect", art_rect)
 
 
 func _process_demo(delta: float) -> void:
@@ -529,9 +587,10 @@ func _draw() -> void:
 		var art_rect := Rect2(card_x + CARD_MARGIN, cards_y + 62.0, card_w - CARD_MARGIN * 2.0, 122.0)
 		draw_rect(art_rect, Color(char_color, 0.10))
 		draw_rect(art_rect, Color(char_color, 0.25), false, 1.0)
-		var demo_running := _demo_active and _demo_card_index == i
+		var demo_running := _is_card_testing(i)
 		if demo_running:
-			_draw_trapper_demo(font, art_rect, char_id, char_color)
+			_draw_centered_text_in_rect(font, "REAL SKILL TEST",
+				art_rect, 12, Color(char_color, 0.9))
 		else:
 			var silhouette_scale := 3.0
 			var silhouette_offset := Vector2(0.0, -2.0)

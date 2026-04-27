@@ -132,7 +132,7 @@ class PincersNode extends Node2D:
 			wall.add_child(tooth)
 
 	func _process(delta: float) -> void:
-		if GameManager.trap_lifetime_active:
+		if GameManager.is_trap_lifetime_active():
 			_lifetime -= delta
 		if _lifetime <= 0.0:
 			queue_free()
@@ -178,7 +178,7 @@ class PincersNode extends Node2D:
 		queue_redraw()
 
 	func _on_trigger_entered(body: Node2D) -> void:
-		if not GameManager.hunt_active:
+		if not GameManager.is_trap_interaction_active():
 			return
 		if _state != PincerState.OPEN:
 			return
@@ -245,6 +245,8 @@ class PincersNode extends Node2D:
 			if not node is Escapist:
 				continue
 			var esc := node as Escapist
+			if not _shares_skill_test_scope(esc):
+				continue
 			if esc.team == owner_team or esc.is_dead or esc.has_scored:
 				continue
 			var offset := esc.global_position - center
@@ -259,6 +261,8 @@ class PincersNode extends Node2D:
 			if not node is Escapist:
 				continue
 			var esc := node as Escapist
+			if not _shares_skill_test_scope(esc):
+				continue
 			if esc.team == owner_team or esc.is_dead or esc.has_scored:
 				continue
 			if _is_touching_wall_segment(esc.global_position, _wall_a.global_position) \
@@ -282,6 +286,17 @@ class PincersNode extends Node2D:
 			return point.distance_to(a)
 		var t := clampf((point - a).dot(segment) / length_sq, 0.0, 1.0)
 		return point.distance_to(a + segment * t)
+
+	func _shares_skill_test_scope(node: Node) -> bool:
+		var own_scope := ""
+		if has_meta("skill_test_id"):
+			own_scope = str(get_meta("skill_test_id"))
+		var other_scope := ""
+		if node.has_meta("skill_test_id"):
+			other_scope = str(node.get_meta("skill_test_id"))
+		if own_scope.is_empty() and other_scope.is_empty():
+			return true
+		return own_scope == other_scope
 
 	func _draw() -> void:
 		var local_a := _wall_a.position

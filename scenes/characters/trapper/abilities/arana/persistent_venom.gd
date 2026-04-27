@@ -53,7 +53,7 @@ class VenomPuddle extends Area2D:
 		body_entered.connect(_on_body_entered)
 
 	func _process(delta: float) -> void:
-		if GameManager.trap_lifetime_active:
+		if GameManager.is_trap_lifetime_active():
 			_lifetime -= delta
 		if _lifetime <= 0.0:
 			queue_free()
@@ -71,7 +71,7 @@ class VenomPuddle extends Area2D:
 		queue_redraw()
 
 	func _on_body_entered(body: Node2D) -> void:
-		if not GameManager.hunt_active:
+		if not GameManager.is_trap_interaction_active():
 			return
 		if body in _triggered_targets:
 			return

@@ -756,6 +756,8 @@ class RatTailHook extends Node2D:
 			if node == _owner_rat or not (node is Escapist):
 				continue
 			var ally := node as Escapist
+			if not _shares_skill_test_scope(ally):
+				continue
 			if ally.team != _owner_rat.team or ally.is_dead or ally.has_scored:
 				continue
 			var distance_to_segment := _distance_to_segment(ally.global_position, hook_start, hook_end)
@@ -775,6 +777,17 @@ class RatTailHook extends Node2D:
 		_fade_timer = maxf(0.18, _distance / Constants.RAT_RESCUE_PULL_SPEED)
 		_owner_rat._complete_rat_rescue(ally)
 		queue_redraw()
+
+	func _shares_skill_test_scope(node: Node) -> bool:
+		var owner_scope := ""
+		if _owner_rat != null and is_instance_valid(_owner_rat) and _owner_rat.has_meta("skill_test_id"):
+			owner_scope = str(_owner_rat.get_meta("skill_test_id"))
+		var other_scope := ""
+		if node.has_meta("skill_test_id"):
+			other_scope = str(node.get_meta("skill_test_id"))
+		if owner_scope.is_empty() and other_scope.is_empty():
+			return true
+		return owner_scope == other_scope
 
 	func _distance_to_segment(point: Vector2, segment_start: Vector2, segment_end: Vector2) -> float:
 		var segment := segment_end - segment_start

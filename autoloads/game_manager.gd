@@ -43,6 +43,7 @@ var is_unpausing: bool = false
 var _awaiting_character_select: bool = false
 var _round_start_match_scores: Array[int] = [0, 0]
 var _round_start_player_score_history: Dictionary = {}
+var _skill_test_context_count: int = 0
 
 
 func _process(delta: float) -> void:
@@ -258,7 +259,7 @@ func register_escapist_died(player_index: int) -> void:
 
 
 func register_trap_contact(player_index: int, trapper_player_index: int = -1) -> void:
-	if not hunt_active:
+	if not is_trap_interaction_active():
 		return
 	if _round_stats.has(player_index):
 		var stats: Dictionary = _round_stats[player_index]
@@ -267,6 +268,26 @@ func register_trap_contact(player_index: int, trapper_player_index: int = -1) ->
 	var character: Node = player_characters.get(player_index, null) as Node
 	if character and is_instance_valid(character) and character.has_method("notify_trap_contact"):
 		character.call("notify_trap_contact")
+
+
+func begin_skill_test_context() -> void:
+	_skill_test_context_count += 1
+
+
+func end_skill_test_context() -> void:
+	_skill_test_context_count = maxi(_skill_test_context_count - 1, 0)
+
+
+func is_skill_test_context_active() -> bool:
+	return _skill_test_context_count > 0
+
+
+func is_trap_interaction_active() -> bool:
+	return hunt_active or is_skill_test_context_active()
+
+
+func is_trap_lifetime_active() -> bool:
+	return trap_lifetime_active or is_skill_test_context_active()
 
 
 func register_respawn_penalty(player_index: int, reason: StringName) -> void:

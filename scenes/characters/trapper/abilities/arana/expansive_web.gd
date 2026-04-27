@@ -91,7 +91,7 @@ class WebZone extends Area2D:
 		body_exited.connect(_on_body_exited)
 
 	func _process(delta: float) -> void:
-		if GameManager.trap_lifetime_active:
+		if GameManager.is_trap_lifetime_active():
 			_lifetime -= delta
 		if _lifetime <= 0.0:
 			_cleanup_effects()
@@ -108,7 +108,7 @@ class WebZone extends Area2D:
 		queue_redraw()
 
 	func _on_body_entered(body: Node2D) -> void:
-		if not GameManager.hunt_active:
+		if not GameManager.is_trap_interaction_active():
 			return
 		if body is BaseCharacter:
 			var character := body as BaseCharacter

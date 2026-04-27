@@ -58,7 +58,7 @@ class InkZone extends Area2D:
 		z_index = 5
 
 	func _process(delta: float) -> void:
-		if GameManager.trap_lifetime_active:
+		if GameManager.is_trap_lifetime_active():
 			_lifetime -= delta
 		if _lifetime <= 0.0:
 			queue_free()

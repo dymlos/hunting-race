@@ -55,13 +55,13 @@ class QuicksandZone extends Area2D:
 		body_exited.connect(_on_body_exited)
 
 	func _process(delta: float) -> void:
-		if GameManager.trap_lifetime_active:
+		if GameManager.is_trap_lifetime_active():
 			_lifetime -= delta
 		if _lifetime <= 0.0:
 			queue_free()
 			return
 
-		if not GameManager.hunt_active:
+		if not GameManager.is_trap_interaction_active():
 			queue_redraw()
 			return
 
@@ -170,6 +170,8 @@ class QuicksandZone extends Area2D:
 			if not node is BaseCharacter:
 				continue
 			var character := node as BaseCharacter
+			if not _shares_skill_test_scope(character):
+				continue
 			if character.global_position.distance_to(global_position) <= overlap_radius:
 				_track_character(character)
 
@@ -189,6 +191,8 @@ class QuicksandZone extends Area2D:
 		}
 
 	func _can_affect_character(character: BaseCharacter) -> bool:
+		if not _shares_skill_test_scope(character):
+			return false
 		if character.team == owner_team:
 			return false
 		if not character.movement:
@@ -198,6 +202,17 @@ class QuicksandZone extends Area2D:
 			if esc.is_dead or esc.has_scored or esc.is_effect_immune():
 				return false
 		return true
+
+	func _shares_skill_test_scope(node: Node) -> bool:
+		var own_scope := ""
+		if has_meta("skill_test_id"):
+			own_scope = str(get_meta("skill_test_id"))
+		var other_scope := ""
+		if node.has_meta("skill_test_id"):
+			other_scope = str(node.get_meta("skill_test_id"))
+		if own_scope.is_empty() and other_scope.is_empty():
+			return true
+		return own_scope == other_scope
 
 	func _get_character_move_direction(character: BaseCharacter) -> Vector2:
 		var velocity := character.movement.velocity

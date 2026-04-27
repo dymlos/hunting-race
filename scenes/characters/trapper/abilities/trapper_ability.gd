@@ -126,6 +126,8 @@ func _register_object(obj: Node2D) -> void:
 	## Add an object to the active list and to the scene tree.
 	_active_objects.append(obj)
 	obj.set_meta("owner_player_index", trapper.player_index)
+	if trapper.has_meta("skill_test_id"):
+		obj.set_meta("skill_test_id", trapper.get_meta("skill_test_id"))
 	trapper.get_parent().add_child(obj)
 
 
@@ -143,7 +145,8 @@ func _get_available_uses() -> int:
 	if GameManager.current_state == Enums.GameState.HUNT:
 		return _strategy_uses_remaining
 	if GameManager.current_state == Enums.GameState.ESCAPE \
-			or GameManager.current_state == Enums.GameState.PRACTICE:
+			or GameManager.current_state == Enums.GameState.PRACTICE \
+			or _is_skill_test_context():
 		if not _skills_cooldowns_enabled():
 			return max_charges
 		return _charges_remaining
@@ -158,7 +161,8 @@ func _consume_use() -> bool:
 		_strategy_uses_spent += 1
 		return true
 	if GameManager.current_state == Enums.GameState.PRACTICE \
-			or GameManager.current_state == Enums.GameState.ESCAPE:
+			or GameManager.current_state == Enums.GameState.ESCAPE \
+			or _is_skill_test_context():
 		if _skills_cooldowns_enabled():
 			if _charges_remaining <= 0:
 				return false
@@ -172,7 +176,8 @@ func _consume_use() -> bool:
 func _start_cooldown_if_needed() -> void:
 	if _skills_cooldowns_enabled() and (
 			GameManager.current_state == Enums.GameState.ESCAPE \
-			or GameManager.current_state == Enums.GameState.PRACTICE):
+			or GameManager.current_state == Enums.GameState.PRACTICE \
+			or _is_skill_test_context()):
 		if _queued_recharges > 0 and _cooldown_remaining <= 0.0:
 			_cooldown_remaining = cooldown
 	else:
@@ -237,6 +242,10 @@ func _skills_cooldowns_enabled() -> bool:
 	return GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
 
 
+func _is_skill_test_context() -> bool:
+	return trapper != null and is_instance_valid(trapper) and trapper.has_meta("skill_test_id")
+
+
 func is_placement_valid(cursor_pos: Vector2) -> bool:
 	## Whether the cursor is within valid distance of the last placed point.
 	if not _is_placement_safe(cursor_pos):
@@ -285,6 +294,8 @@ func _is_placement_segment_safe(pos: Vector2) -> bool:
 		if not node is Escapist:
 			continue
 		var esc := node as Escapist
+		if not _shares_skill_test_scope(esc):
+			continue
 		if not _is_enemy_escapist_placement_blocker(esc):
 			continue
 		var distance := _distance_point_to_segment(esc.global_position, previous, pos)
@@ -296,7 +307,8 @@ func _is_placement_segment_safe(pos: Vector2) -> bool:
 func _should_protect_moving_escapists() -> bool:
 	return GameManager.current_state == Enums.GameState.HUNT \
 		or GameManager.current_state == Enums.GameState.ESCAPE \
-		or GameManager.current_state == Enums.GameState.PRACTICE
+		or GameManager.current_state == Enums.GameState.PRACTICE \
+		or _is_skill_test_context()
 
 
 func _is_near_moving_enemy_escapist(pos: Vector2) -> bool:
@@ -304,6 +316,8 @@ func _is_near_moving_enemy_escapist(pos: Vector2) -> bool:
 		if not node is Escapist:
 			continue
 		var esc := node as Escapist
+		if not _shares_skill_test_scope(esc):
+			continue
 		if not _is_enemy_escapist_placement_blocker(esc):
 			continue
 		if esc.global_position.distance_to(pos) < Constants.TRAPPER_MOVING_ESCAPIST_PLACE_MIN_DISTANCE:
@@ -324,6 +338,18 @@ func _is_enemy_escapist_placement_blocker(esc: Escapist) -> bool:
 	if esc.team == trapper.team or esc.is_dead or esc.has_scored:
 		return false
 	return true
+
+
+func _shares_skill_test_scope(node: Node) -> bool:
+	var own_scope := ""
+	if trapper != null and is_instance_valid(trapper) and trapper.has_meta("skill_test_id"):
+		own_scope = str(trapper.get_meta("skill_test_id"))
+	var other_scope := ""
+	if node.has_meta("skill_test_id"):
+		other_scope = str(node.get_meta("skill_test_id"))
+	if own_scope.is_empty() and other_scope.is_empty():
+		return true
+	return own_scope == other_scope
 
 
 func _distance_point_to_segment(point: Vector2, a: Vector2, b: Vector2) -> float:
