@@ -16,6 +16,8 @@ const ESCAPIST_ANIMATION_DIRECTIONS: Array[String] = [
 ]
 const ESCAPIST_DEFAULT_ANIMATION_FPS: float = 8.0
 const RABBIT_SPRITE_BASE_OFFSET := Vector2(0.0, -5.0)
+const ABILITY_READY_FLASH_DURATION: float = 0.85
+const ABILITY_READY_IDLE_PULSE_MS: float = 190.0
 
 var is_dead: bool = false
 var has_scored: bool = false
@@ -167,7 +169,7 @@ func _update_animal_sprite() -> void:
 	if not should_show:
 		return
 
-	_animal_sprite.scale = _get_animal_sprite_scale(escapist_animal)
+	_animal_sprite.scale = _get_animal_sprite_scale(escapist_animal) * _get_animal_sprite_ready_scale()
 	_animal_sprite.position = _get_animal_sprite_offset(escapist_animal) + Vector2(0.0, -_get_rabbit_jump_lift())
 	_animal_sprite.modulate = _get_animal_sprite_tint()
 
@@ -281,12 +283,27 @@ func _get_animal_sprite_offset(animal: Enums.EscapistAnimal) -> Vector2:
 
 func _get_animal_sprite_tint() -> Color:
 	var tint := Color.WHITE
+	if _should_show_ability_ready_indicator():
+		var ready_pulse := _get_ability_ready_idle_pulse()
+		tint = tint.lerp(Color(1.0, 0.96, 0.55), 0.10 + 0.14 * ready_pulse)
+	if _ability_ready_flash_timer > 0.0:
+		var flash := _get_ability_ready_flash_ratio()
+		tint = tint.lerp(Color(1.45, 1.36, 0.55), 0.50 * flash)
 	if poison and poison.is_poisoned:
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 200.0)
 		tint = tint.lerp(Color(0.55, 1.0, 0.55), 0.22 + 0.12 * pulse)
 	if controls_inverted:
 		tint = tint.lerp(Color(1.0, 0.45, 1.0), 0.22)
 	return tint
+
+
+func _get_animal_sprite_ready_scale() -> Vector2:
+	var scale_multiplier := 1.0
+	if _should_show_ability_ready_indicator():
+		scale_multiplier += 0.035 * _get_ability_ready_idle_pulse()
+	if _ability_ready_flash_timer > 0.0:
+		scale_multiplier += 0.09 * _get_ability_ready_flash_ratio()
+	return Vector2.ONE * scale_multiplier
 
 
 func kill() -> void:
@@ -345,6 +362,8 @@ func _physics_process(delta: float) -> void:
 		_ability_denied_flash_timer -= delta
 	if _ability_ready_flash_timer > 0.0:
 		_ability_ready_flash_timer = maxf(_ability_ready_flash_timer - delta, 0.0)
+		queue_redraw()
+	if _should_show_ability_ready_indicator():
 		queue_redraw()
 	if _rat_tail_visual_timer > 0.0:
 		_rat_tail_visual_timer = maxf(_rat_tail_visual_timer - delta, 0.0)
@@ -768,9 +787,26 @@ func _notify_ability_denied() -> void:
 
 
 func _notify_ability_recharged() -> void:
-	_ability_ready_flash_timer = 0.55
-	InputManager.vibrate_player(player_index, 0.18, 0.48, 0.16)
+	_ability_ready_flash_timer = ABILITY_READY_FLASH_DURATION
+	InputManager.vibrate_player(player_index, 0.24, 0.62, 0.22)
 	queue_redraw()
+
+
+func _should_show_ability_ready_indicator() -> bool:
+	return _ability_consumption_enabled() \
+		and _ability_available \
+		and not is_dead \
+		and not has_scored \
+		and not _rabbit_charging \
+		and not is_instance_valid(_active_rat_tail)
+
+
+func _get_ability_ready_idle_pulse() -> float:
+	return 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / ABILITY_READY_IDLE_PULSE_MS)
+
+
+func _get_ability_ready_flash_ratio() -> float:
+	return clampf(_ability_ready_flash_timer / ABILITY_READY_FLASH_DURATION, 0.0, 1.0)
 
 
 func _make_animal_mark_color(base_color: Color, alpha_scale: float = 1.0) -> Color:
@@ -888,6 +924,22 @@ func _draw_squirrel_mark(mark_color: Color) -> void:
 		Vector2(6.5, 4.8),
 	]), mark_color, 2.0)
 	draw_line(Vector2(3.0, 9.5), Vector2(9.0, 9.5), mark_color, 2.8)
+
+
+func _draw_ability_ready_sparkles(animal_color: Color) -> void:
+	var pulse := _get_ability_ready_idle_pulse()
+	var time := float(Time.get_ticks_msec()) / 1000.0
+	for i in range(4):
+		var angle := time * 1.45 + float(i) * TAU / 4.0
+		var radius := Constants.CHARACTER_RADIUS + 14.0 + 2.5 * sin(time * 3.0 + float(i))
+		var pos := Vector2.from_angle(angle) * radius
+		var sparkle_alpha := 0.18 + 0.30 * pulse
+		var sparkle_size := maxf(1.0, 1.8 + 1.4 * sin(time * 4.0 + float(i) * 1.7))
+		draw_circle(pos, sparkle_size + 1.5, Color(animal_color, 0.10 * sparkle_alpha))
+		draw_line(pos + Vector2(-sparkle_size, 0.0), pos + Vector2(sparkle_size, 0.0),
+			Color(1.0, 1.0, 0.55, sparkle_alpha), 1.4)
+		draw_line(pos + Vector2(0.0, -sparkle_size), pos + Vector2(0.0, sparkle_size),
+			Color(1.0, 1.0, 0.55, sparkle_alpha), 1.4)
 
 
 func _draw_rat_tail_visual(base_color: Color) -> void:
@@ -1013,6 +1065,8 @@ func _draw() -> void:
 	if not use_animal_sprite:
 		var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
+	elif _should_show_ability_ready_indicator():
+		_draw_ability_ready_sparkles(animal_color)
 	if _ability_cooldown_remaining > 0.0:
 		var cooldown_ratio := clampf(_ability_cooldown_remaining / _get_ability_cooldown_duration(), 0.0, 1.0)
 		var arc_radius := Constants.CHARACTER_RADIUS + 10.5
@@ -1021,7 +1075,7 @@ func _draw() -> void:
 			-PI / 2.0, -PI / 2.0 + TAU * (1.0 - cooldown_ratio), 24,
 			Color(animal_color, 0.88), 2.6)
 	if _ability_ready_flash_timer > 0.0:
-		var ready_ratio := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
+		var ready_ratio := _get_ability_ready_flash_ratio()
 		var bloom := 1.0 - ready_ratio
 		var pulse_radius := Constants.CHARACTER_RADIUS + 11.0 + bloom * 22.0
 		draw_circle(Vector2.ZERO, pulse_radius, Color(animal_color, 0.24 * ready_ratio))
