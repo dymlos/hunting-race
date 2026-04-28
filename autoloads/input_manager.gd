@@ -27,6 +27,16 @@ const ACTION_MAP: Dictionary = {
 	&"interact": JOY_BUTTON_X,
 }
 
+const PLAYSTATION_NAME_MARKERS: Array[String] = [
+	"playstation",
+	"dualshock",
+	"dualsense",
+	"wireless controller",
+	"ps3",
+	"ps4",
+	"ps5",
+]
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
@@ -160,24 +170,27 @@ func suppress_edge_detection(frames: int = 2) -> void:
 	_edge_suppress_frames = frames
 
 
-func is_button_just_pressed_on_device(device_id: int, button: int) -> bool:
-	if _edge_suppress_frames > 0:
-		return false
-	if not _curr_button_state.has(device_id):
-		return false
-	var current: bool = _curr_button_state[device_id].get(button, false)
-	var previous: bool = false
-	if _prev_button_state.has(device_id):
-		previous = _prev_button_state[device_id].get(button, false)
-	return current and not previous
-
-
 func is_menu_confirm_just_pressed(device_id: int) -> bool:
 	return is_button_just_pressed_on_device(device_id, JOY_BUTTON_START)
 
 
 func is_menu_back_just_pressed(device_id: int) -> bool:
 	return is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK)
+
+
+func is_button_just_pressed_on_device(device_id: int, button: int) -> bool:
+	if _edge_suppress_frames > 0:
+		return false
+	if not _curr_button_state.has(device_id):
+		return false
+	return _get_button_pressed_for_aliases(_curr_button_state[device_id], device_id, button) \
+			and not _get_button_pressed_for_aliases(_prev_button_state.get(device_id, {}), device_id, button)
+
+
+func is_button_pressed_on_device(device_id: int, button: int) -> bool:
+	if not _curr_button_state.has(device_id):
+		return false
+	return _get_button_pressed_for_aliases(_curr_button_state[device_id], device_id, button)
 
 
 func is_action_just_pressed(player_index: int, action: StringName) -> bool:
@@ -218,7 +231,7 @@ func _get_button_state(device_id: int, action: StringName) -> bool:
 	var button: int = ACTION_MAP.get(action, -1)
 	if button < 0:
 		return false
-	return state.get(button, false)
+	return _get_button_pressed_for_aliases(state, device_id, button)
 
 
 func _get_prev_button_state(device_id: int, action: StringName) -> bool:
@@ -228,4 +241,47 @@ func _get_prev_button_state(device_id: int, action: StringName) -> bool:
 	var button: int = ACTION_MAP.get(action, -1)
 	if button < 0:
 		return false
-	return state.get(button, false)
+	return _get_button_pressed_for_aliases(state, device_id, button)
+
+
+func _get_button_pressed_for_aliases(state: Dictionary, device_id: int, button: int) -> bool:
+	for alias: int in _get_button_aliases(device_id, button):
+		if state.get(alias, false):
+			return true
+	return false
+
+
+func _get_button_aliases(device_id: int, button: int) -> Array[int]:
+	var aliases: Array[int] = [button]
+	if not _should_use_playstation_fallback(device_id):
+		return aliases
+
+	match button:
+		JOY_BUTTON_A:
+			aliases.append_array([1, 14])
+		JOY_BUTTON_B:
+			aliases.append_array([2, 13])
+		JOY_BUTTON_X:
+			aliases.append_array([0, 15])
+		JOY_BUTTON_Y:
+			aliases.append_array([3, 12])
+		JOY_BUTTON_START:
+			aliases.append_array([9, 3])
+		JOY_BUTTON_BACK:
+			aliases.append_array([8, 0])
+
+	var unique: Array[int] = []
+	for alias: int in aliases:
+		if alias >= 0 and not unique.has(alias):
+			unique.append(alias)
+	return unique
+
+
+func _should_use_playstation_fallback(device_id: int) -> bool:
+	if Input.has_method("is_joy_known") and Input.call("is_joy_known", device_id):
+		return false
+	var joy_name := Input.get_joy_name(device_id).to_lower()
+	for marker: String in PLAYSTATION_NAME_MARKERS:
+		if joy_name.contains(marker):
+			return true
+	return false

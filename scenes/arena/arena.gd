@@ -655,18 +655,22 @@ func _start_sticky_blob_patrol(area: Area2D, def: Dictionary) -> void:
 	var seed := float(blob_index) * 19.71 + pos.x * 0.037 + pos.y * 0.023
 	var angle := fmod(seed, TAU)
 	var distance := (14.0 + fmod(seed * 1.83, 16.0)) * STICKY_BLOB_PATROL_DISTANCE_MULTIPLIER
-	var offset := Vector2.from_angle(angle) * distance
+	var offset := def.get("patrol_offset", Vector2.from_angle(angle) * distance) as Vector2
 	var default_bounds := Rect2(
 		pos - Vector2(STICKY_BLOB_DEFAULT_PATROL_MARGIN, STICKY_BLOB_DEFAULT_PATROL_MARGIN),
 		blob_size + Vector2(STICKY_BLOB_DEFAULT_PATROL_MARGIN * 2.0, STICKY_BLOB_DEFAULT_PATROL_MARGIN * 2.0)
 	)
 	var bounds: Rect2 = def.get("bounds", default_bounds) as Rect2
 	var endpoint_a := _clamp_blob_patrol_point(pos + offset, blob_size, bounds)
-	var endpoint_b := _clamp_blob_patrol_point(pos - offset.rotated(0.35), blob_size, bounds)
+	var endpoint_b := _clamp_blob_patrol_point(
+		pos - offset if def.has("patrol_offset") else pos - offset.rotated(0.35),
+		blob_size,
+		bounds
+	)
 	if endpoint_a.distance_to(endpoint_b) < 4.0:
 		return
 
-	var period := 1.18 + fmod(seed * 0.41, 0.62)
+	var period: float = def.get("period", 1.18 + fmod(seed * 0.41, 0.62))
 	var tween := create_tween().set_loops()
 	tween.tween_property(area, "position", endpoint_a, period * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(area, "position", endpoint_b, period).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)

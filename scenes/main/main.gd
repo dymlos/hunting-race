@@ -1090,7 +1090,7 @@ func _check_pause_input() -> void:
 		if device_id < 0:
 			_prev_start_pressed[pi] = false
 			continue
-		var pressed := Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
+		var pressed := InputManager.is_button_pressed_on_device(device_id, JOY_BUTTON_START)
 		var was_pressed: bool = _prev_start_pressed.get(pi, false)
 		_prev_start_pressed[pi] = pressed
 		if pressed and not was_pressed:
@@ -1107,7 +1107,7 @@ func _check_restart_input() -> void:
 		if device_id < 0:
 			_prev_start_pressed[pi] = false
 			continue
-		var pressed := Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
+		var pressed := InputManager.is_button_pressed_on_device(device_id, JOY_BUTTON_START)
 		var was_pressed: bool = _prev_start_pressed.get(pi, false)
 		_prev_start_pressed[pi] = pressed
 		if pressed and not was_pressed:
@@ -1128,7 +1128,7 @@ func _check_round_end_skip_input() -> void:
 				and InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_X):
 			_start_round_replay(_last_round_trapper_replay)
 			return
-		var pressed := Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
+		var pressed := InputManager.is_button_pressed_on_device(device_id, JOY_BUTTON_START)
 		var was_pressed: bool = _prev_start_pressed.get(pi, false)
 		_prev_start_pressed[pi] = pressed
 		if pressed and not was_pressed:
@@ -1357,7 +1357,7 @@ func _restore_pause_menu_after_subscreen() -> void:
 func _prime_start_button_state() -> void:
 	for pi in _active_player_indices:
 		var device_id := InputManager.get_device_id(pi)
-		_prev_start_pressed[pi] = device_id >= 0 and Input.is_joy_button_pressed(device_id, JOY_BUTTON_START)
+		_prev_start_pressed[pi] = device_id >= 0 and InputManager.is_button_pressed_on_device(device_id, JOY_BUTTON_START)
 
 
 # --- Settings ---

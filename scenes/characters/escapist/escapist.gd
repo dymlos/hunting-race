@@ -238,11 +238,11 @@ func _get_animal_asset_name(animal: Enums.EscapistAnimal) -> String:
 func _get_animal_animation_frame_count(animal: Enums.EscapistAnimal) -> int:
 	match animal:
 		Enums.EscapistAnimal.RABBIT:
-			return 5
+			return 6
 		Enums.EscapistAnimal.RAT:
 			return 4
 		Enums.EscapistAnimal.SQUIRREL:
-			return 8
+			return 4
 		Enums.EscapistAnimal.FLY:
 			return 4
 	return 1
@@ -260,11 +260,11 @@ func _get_animal_animation_fps(animal: Enums.EscapistAnimal) -> float:
 func _get_animal_sprite_scale(animal: Enums.EscapistAnimal) -> Vector2:
 	match animal:
 		Enums.EscapistAnimal.RAT:
-			return Vector2(2.1, 2.1)
+			return Vector2(2.25, 2.25)
 		Enums.EscapistAnimal.SQUIRREL:
-			return Vector2(1.7, 1.7)
+			return Vector2(1.85, 1.85)
 		Enums.EscapistAnimal.FLY:
-			return Vector2(1.65, 1.65)
+			return Vector2(1.25, 1.25)
 	return Vector2(1.70, 1.70)
 
 
