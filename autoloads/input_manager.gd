@@ -28,7 +28,9 @@ const ACTION_MAP: Dictionary = {
 }
 
 const PLAYSTATION_NAME_MARKERS: Array[String] = [
+	"sony",
 	"playstation",
+	"playstation(r)",
 	"dualshock",
 	"dualsense",
 	"wireless controller",
@@ -253,7 +255,9 @@ func _get_button_pressed_for_aliases(state: Dictionary, device_id: int, button: 
 
 func _get_button_aliases(device_id: int, button: int) -> Array[int]:
 	var aliases: Array[int] = [button]
-	if not _should_use_playstation_fallback(device_id):
+	if not _is_playstation_device(device_id):
+		return aliases
+	if not _needs_playstation_directinput_aliases(device_id):
 		return aliases
 
 	match button:
@@ -277,11 +281,18 @@ func _get_button_aliases(device_id: int, button: int) -> Array[int]:
 	return unique
 
 
-func _should_use_playstation_fallback(device_id: int) -> bool:
-	if Input.has_method("is_joy_known") and Input.call("is_joy_known", device_id):
-		return false
+func _is_playstation_device(device_id: int) -> bool:
 	var joy_name := Input.get_joy_name(device_id).to_lower()
 	for marker: String in PLAYSTATION_NAME_MARKERS:
 		if joy_name.contains(marker):
 			return true
+	var guid := Input.get_joy_guid(device_id).to_lower()
+	if guid.contains("054c") or guid.contains("4c05"):
+		return true
 	return false
+
+
+func _needs_playstation_directinput_aliases(device_id: int) -> bool:
+	if Input.has_method("is_joy_known") and Input.call("is_joy_known", device_id):
+		return false
+	return _is_playstation_device(device_id)
