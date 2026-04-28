@@ -10,7 +10,7 @@ const LINES: Array[String] = [
 	"Los escapistas deben llegar a la zona verde antes de que termine el tiempo.",
 	"Los cazadores intentarán detenerlos colocando trampas y controlando el mapa.",
 	"El escenario también tendrá peligros propios: paredes adhesivas, corrientes, hielo y otros obstáculos.",
-	"Las habilidades tienen recarga: vuelven con el tiempo después de usarlas. En la fase de caza, cada habilidad de cazador tiene un uso gratis.",
+	"Las habilidades tienen recarga: vuelven con el tiempo después de usarlas. En la fase de cazería planificada, cada habilidad de cazador tiene un uso gratis.",
 ]
 
 

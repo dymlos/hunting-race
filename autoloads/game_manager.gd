@@ -202,7 +202,7 @@ func restart_current_round() -> void:
 func activate_hunt() -> void:
 	trap_lifetime_active = false
 	_escape_timer_running = false
-	if not settings_overrides.get(&"hunt_countdown_enabled", true):
+	if not is_strategic_hunt_enabled():
 		activate_escape()
 		return
 	_phase_timer = settings_overrides.get(&"hunt_countdown_duration", Constants.HUNT_COUNTDOWN_DURATION) as float
@@ -286,6 +286,18 @@ func is_skill_test_context_active() -> bool:
 	return _skill_test_context_count > 0
 
 
+func is_strategic_hunt_enabled() -> bool:
+	return settings_overrides.get(&"hunt_countdown_enabled", true) as bool
+
+
+func can_trappers_act() -> bool:
+	if current_state == Enums.GameState.PRACTICE or is_skill_test_context_active():
+		return true
+	if is_strategic_hunt_enabled():
+		return current_state == Enums.GameState.HUNT
+	return current_state == Enums.GameState.ESCAPE
+
+
 func is_trap_interaction_active() -> bool:
 	return hunt_active or is_skill_test_context_active()
 
@@ -304,6 +316,16 @@ func register_respawn_penalty(player_index: int, reason: StringName) -> void:
 	var reasons: Array = stats.get("respawn_reasons", []) as Array
 	reasons.append(reason)
 	stats["respawn_reasons"] = reasons
+	_recharge_after_escapist_death(player_index)
+
+
+func _recharge_after_escapist_death(_dead_player_index: int) -> void:
+	for pi: int in player_characters:
+		if get_player_role(pi) != Enums.Role.TRAPPER:
+			continue
+		var character: Node = player_characters.get(pi, null) as Node
+		if is_instance_valid(character) and character.has_method("refill_all_abilities"):
+			character.call("refill_all_abilities", true)
 
 
 func _check_round_over() -> void:
@@ -412,7 +434,7 @@ func _change_state(new_state: Enums.GameState) -> void:
 
 
 func apply_runtime_settings() -> void:
-	var countdown_enabled: bool = settings_overrides.get(&"hunt_countdown_enabled", true)
+	var countdown_enabled := is_strategic_hunt_enabled()
 	var is_escape_context := (
 		current_state == Enums.GameState.ESCAPE
 		or (current_state == Enums.GameState.PAUSED and _pre_pause_state == Enums.GameState.ESCAPE)

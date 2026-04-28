@@ -82,7 +82,7 @@ func _draw() -> void:
 	var phase := ""
 	match GameManager.current_state:
 		Enums.GameState.OBSERVATION: phase = ""
-		Enums.GameState.HUNT: phase = "CAZA ESTRATÉGICA"
+		Enums.GameState.HUNT: phase = "CAZERÍA PLANIFICADA"
 		Enums.GameState.ESCAPE: phase = "ESCAPA"
 		Enums.GameState.ROUND_END: phase = "FIN DE RONDA"
 		Enums.GameState.MATCH_END: phase = "FIN DE PARTIDA"

@@ -4,7 +4,7 @@ extends BaseCharacter
 signal died(escapist: Escapist)
 signal scored(escapist: Escapist)
 
-const RABBIT_ANIMATION_DIRECTIONS: Array[String] = [
+const ESCAPIST_ANIMATION_DIRECTIONS: Array[String] = [
 	"up",
 	"up_right",
 	"right",
@@ -14,9 +14,7 @@ const RABBIT_ANIMATION_DIRECTIONS: Array[String] = [
 	"left",
 	"up_left",
 ]
-const RABBIT_ANIMATION_FRAME_COUNT: int = 5
-const RABBIT_ANIMATION_FPS: float = 8.0
-const RABBIT_SPRITE_SCALE := Vector2(1.70, 1.70)
+const ESCAPIST_DEFAULT_ANIMATION_FPS: float = 8.0
 const RABBIT_SPRITE_BASE_OFFSET := Vector2(0.0, -5.0)
 
 var is_dead: bool = false
@@ -47,12 +45,23 @@ var _floating_text_duration: float = Constants.FLOATING_TEXT_DURATION
 var _floating_text_size: int = 18
 var _floating_text_color: Color = Color.WHITE
 var _active_rat_tail: Node = null
+var _rat_tail_visual_timer: float = 0.0
+var _rat_tail_visual_elapsed: float = 0.0
+var _rat_tail_visual_direction: Vector2 = Vector2.RIGHT
+var _rat_tail_visual_anchor: Vector2 = Vector2.ZERO
+var _rat_tail_cooldown_pending: bool = false
 var _bot_patrol_enabled: bool = false
 var _bot_patrol_a: Vector2 = Vector2.ZERO
 var _bot_patrol_b: Vector2 = Vector2.ZERO
 var _bot_patrol_target: Vector2 = Vector2.ZERO
-var _rabbit_sprite: AnimatedSprite2D = null
-var _rabbit_last_animation: String = "walk_down"
+var _official_bot_route_enabled: bool = false
+var _official_bot_route: Array[Vector2] = []
+var _official_bot_route_index: int = 0
+var _official_bot_ability_timer: float = 1.2
+var _official_bot_stuck_timer: float = 0.0
+var _official_bot_last_position: Vector2 = Vector2.ZERO
+var _animal_sprite: AnimatedSprite2D = null
+var _animal_last_animation: String = "rabbit_walk_down"
 
 
 func _setup_role() -> void:
@@ -72,7 +81,7 @@ func _setup_role() -> void:
 
 func _ready() -> void:
 	super._ready()
-	_setup_rabbit_sprite()
+	_setup_animal_sprite()
 	spawn_position = position
 
 
@@ -86,61 +95,81 @@ func configure_patrol_bot(path_a: Vector2, path_b: Vector2) -> void:
 	aim_direction = (_bot_patrol_target - position).normalized()
 
 
-func _setup_rabbit_sprite() -> void:
-	_rabbit_sprite = AnimatedSprite2D.new()
-	_rabbit_sprite.name = "RabbitSprite"
-	_rabbit_sprite.sprite_frames = _build_rabbit_sprite_frames()
-	_rabbit_sprite.animation = _rabbit_last_animation
-	_rabbit_sprite.centered = true
-	_rabbit_sprite.scale = RABBIT_SPRITE_SCALE
-	_rabbit_sprite.position = RABBIT_SPRITE_BASE_OFFSET
-	_rabbit_sprite.z_index = 1
-	_rabbit_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_rabbit_sprite.visible = _uses_rabbit_sprite()
-	add_child(_rabbit_sprite)
+func configure_official_route_bot(route: Array[Vector2]) -> void:
+	_official_bot_route = route.duplicate()
+	_official_bot_route_enabled = not _official_bot_route.is_empty()
+	_official_bot_route_index = 0
+	_official_bot_ability_timer = randf_range(1.0, 2.0)
+	_official_bot_stuck_timer = 0.0
+	_official_bot_last_position = position
+	if _official_bot_route_enabled:
+		aim_direction = (_official_bot_route[0] - position).normalized()
 
 
-func _build_rabbit_sprite_frames() -> SpriteFrames:
+func _setup_animal_sprite() -> void:
+	_animal_sprite = AnimatedSprite2D.new()
+	_animal_sprite.name = "AnimalSprite"
+	_animal_sprite.sprite_frames = _build_animal_sprite_frames()
+	_animal_sprite.animation = _animal_last_animation
+	_animal_sprite.centered = true
+	_animal_sprite.scale = _get_animal_sprite_scale(escapist_animal)
+	_animal_sprite.position = _get_animal_sprite_offset(escapist_animal)
+	_animal_sprite.z_index = 1
+	_animal_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_animal_sprite.visible = _uses_animal_sprite()
+	add_child(_animal_sprite)
+
+
+func _build_animal_sprite_frames() -> SpriteFrames:
 	var sprite_frames := SpriteFrames.new()
 	if sprite_frames.has_animation("default"):
 		sprite_frames.remove_animation("default")
-	for direction in RABBIT_ANIMATION_DIRECTIONS:
-		var animation_name := "walk_%s" % direction
-		sprite_frames.add_animation(animation_name)
-		sprite_frames.set_animation_loop(animation_name, true)
-		sprite_frames.set_animation_speed(animation_name, RABBIT_ANIMATION_FPS)
-		for frame_index in range(1, RABBIT_ANIMATION_FRAME_COUNT + 1):
-			var path := "res://assets/characters/rabbit/frames/rabbit_walk_%s_%d.png" % [
-				direction,
-				frame_index,
-			]
-			var image := Image.new()
-			var texture: Texture2D = null
-			if image.load(path) == OK:
-				texture = ImageTexture.create_from_image(image)
-			if texture:
-				sprite_frames.add_frame(animation_name, texture)
+	for animal in [
+		Enums.EscapistAnimal.RABBIT,
+		Enums.EscapistAnimal.RAT,
+		Enums.EscapistAnimal.SQUIRREL,
+		Enums.EscapistAnimal.FLY,
+	]:
+		var asset_name := _get_animal_asset_name(animal)
+		for direction in ESCAPIST_ANIMATION_DIRECTIONS:
+			var animation_name := "%s_walk_%s" % [asset_name, direction]
+			sprite_frames.add_animation(animation_name)
+			sprite_frames.set_animation_loop(animation_name, true)
+			sprite_frames.set_animation_speed(animation_name, _get_animal_animation_fps(animal))
+			for frame_index in range(1, _get_animal_animation_frame_count(animal) + 1):
+				var path := "res://assets/characters/%s/frames/%s_walk_%s_%d.png" % [
+					asset_name,
+					asset_name,
+					direction,
+					frame_index,
+				]
+				var image := Image.new()
+				var texture: Texture2D = null
+				if image.load(path) == OK:
+					texture = ImageTexture.create_from_image(image)
+				if texture:
+					sprite_frames.add_frame(animation_name, texture)
 	return sprite_frames
 
 
-func _uses_rabbit_sprite() -> bool:
-	return escapist_animal == Enums.EscapistAnimal.RABBIT \
-		and _rabbit_sprite != null \
-		and _rabbit_sprite.sprite_frames != null \
-		and _rabbit_sprite.sprite_frames.has_animation(_rabbit_last_animation) \
-		and _rabbit_sprite.sprite_frames.get_frame_count(_rabbit_last_animation) > 0
+func _uses_animal_sprite() -> bool:
+	return _animal_sprite != null \
+		and _animal_sprite.sprite_frames != null \
+		and _animal_sprite.sprite_frames.has_animation(_animal_last_animation) \
+		and _animal_sprite.sprite_frames.get_frame_count(_animal_last_animation) > 0
 
 
-func _update_rabbit_sprite() -> void:
-	if _rabbit_sprite == null:
+func _update_animal_sprite() -> void:
+	if _animal_sprite == null:
 		return
-	var should_show := escapist_animal == Enums.EscapistAnimal.RABBIT and not is_dead and not has_scored
-	_rabbit_sprite.visible = should_show
+	var should_show := not is_dead and not has_scored
+	_animal_sprite.visible = should_show and _uses_animal_sprite()
 	if not should_show:
 		return
 
-	_rabbit_sprite.position = RABBIT_SPRITE_BASE_OFFSET + Vector2(0.0, -_get_rabbit_jump_lift())
-	_rabbit_sprite.modulate = _get_rabbit_sprite_tint()
+	_animal_sprite.scale = _get_animal_sprite_scale(escapist_animal)
+	_animal_sprite.position = _get_animal_sprite_offset(escapist_animal) + Vector2(0.0, -_get_rabbit_jump_lift())
+	_animal_sprite.modulate = _get_animal_sprite_tint()
 
 	var move_vector := Vector2.ZERO
 	if movement:
@@ -154,42 +183,103 @@ func _update_rabbit_sprite() -> void:
 	var direction := move_vector.normalized() if moving else aim_direction
 	if direction.length() <= 0.1:
 		direction = Vector2.DOWN
-	var animation_name := _get_rabbit_animation_name(direction)
-	if _rabbit_sprite.animation != animation_name:
-		_rabbit_sprite.play(animation_name)
-		_rabbit_last_animation = animation_name
+	var animation_name := _get_animal_animation_name(escapist_animal, direction)
+	_animal_last_animation = animation_name
+	if not _uses_animal_sprite():
+		_animal_sprite.visible = false
+		return
+	if _animal_sprite.animation != animation_name:
+		_animal_sprite.play(animation_name)
 	if moving:
-		if not _rabbit_sprite.is_playing():
-			_rabbit_sprite.play(animation_name)
+		if not _animal_sprite.is_playing():
+			_animal_sprite.play(animation_name)
 	else:
-		_rabbit_sprite.stop()
-		_rabbit_sprite.frame = 0
+		_animal_sprite.stop()
+		_animal_sprite.frame = 0
 
 
-func _get_rabbit_animation_name(direction: Vector2) -> String:
+func _get_animal_animation_name(animal: Enums.EscapistAnimal, direction: Vector2) -> String:
 	var angle := direction.angle()
 	var octant := int(round(8.0 * angle / TAU)) & 7
+	var suffix := "down"
 	match octant:
 		0:
-			return "walk_right"
+			suffix = "right"
 		1:
-			return "walk_down_right"
+			suffix = "down_right"
 		2:
-			return "walk_down"
+			suffix = "down"
 		3:
-			return "walk_down_left"
+			suffix = "down_left"
 		4:
-			return "walk_left"
+			suffix = "left"
 		5:
-			return "walk_up_left"
+			suffix = "up_left"
 		6:
-			return "walk_up"
+			suffix = "up"
 		7:
-			return "walk_up_right"
-	return _rabbit_last_animation
+			suffix = "up_right"
+	return "%s_walk_%s" % [_get_animal_asset_name(animal), suffix]
 
 
-func _get_rabbit_sprite_tint() -> Color:
+func _get_animal_asset_name(animal: Enums.EscapistAnimal) -> String:
+	match animal:
+		Enums.EscapistAnimal.RABBIT:
+			return "rabbit"
+		Enums.EscapistAnimal.RAT:
+			return "rat"
+		Enums.EscapistAnimal.SQUIRREL:
+			return "squirrel"
+		Enums.EscapistAnimal.FLY:
+			return "fly"
+	return "rabbit"
+
+
+func _get_animal_animation_frame_count(animal: Enums.EscapistAnimal) -> int:
+	match animal:
+		Enums.EscapistAnimal.RABBIT:
+			return 5
+		Enums.EscapistAnimal.RAT:
+			return 4
+		Enums.EscapistAnimal.SQUIRREL:
+			return 8
+		Enums.EscapistAnimal.FLY:
+			return 4
+	return 1
+
+
+func _get_animal_animation_fps(animal: Enums.EscapistAnimal) -> float:
+	match animal:
+		Enums.EscapistAnimal.SQUIRREL:
+			return 9.0
+		Enums.EscapistAnimal.FLY:
+			return 10.0
+	return ESCAPIST_DEFAULT_ANIMATION_FPS
+
+
+func _get_animal_sprite_scale(animal: Enums.EscapistAnimal) -> Vector2:
+	match animal:
+		Enums.EscapistAnimal.RAT:
+			return Vector2(2.1, 2.1)
+		Enums.EscapistAnimal.SQUIRREL:
+			return Vector2(1.7, 1.7)
+		Enums.EscapistAnimal.FLY:
+			return Vector2(1.65, 1.65)
+	return Vector2(1.70, 1.70)
+
+
+func _get_animal_sprite_offset(animal: Enums.EscapistAnimal) -> Vector2:
+	match animal:
+		Enums.EscapistAnimal.RAT:
+			return Vector2(0.0, -4.0)
+		Enums.EscapistAnimal.SQUIRREL:
+			return Vector2(0.0, -5.0)
+		Enums.EscapistAnimal.FLY:
+			return Vector2(0.0, -6.0)
+	return RABBIT_SPRITE_BASE_OFFSET
+
+
+func _get_animal_sprite_tint() -> Color:
 	var tint := Color.WHITE
 	if poison and poison.is_poisoned:
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 200.0)
@@ -207,13 +297,14 @@ func kill() -> void:
 	GameManager.register_respawn_penalty(player_index, &"death")
 	if GameManager.current_state == Enums.GameState.PRACTICE:
 		_return_to_spawn_with_death_message()
-		_reset_ability()
+		recharge_ability_after_death()
 		return
 	if _has_safety_respawn:
 		_return_to_spawn_with_death_message()
-		_reset_ability()
+		recharge_ability_after_death()
 		return
 	AudioManager.play_effect(&"DeathRespawn")
+	recharge_ability_after_death()
 	is_dead = true
 	input_locked = true
 	movement.freeze()
@@ -255,15 +346,89 @@ func _physics_process(delta: float) -> void:
 	if _ability_ready_flash_timer > 0.0:
 		_ability_ready_flash_timer = maxf(_ability_ready_flash_timer - delta, 0.0)
 		queue_redraw()
+	if _rat_tail_visual_timer > 0.0:
+		_rat_tail_visual_timer = maxf(_rat_tail_visual_timer - delta, 0.0)
+		_rat_tail_visual_elapsed += delta
+		if _rat_tail_visual_timer <= 0.0 and _rat_tail_cooldown_pending:
+			_rat_tail_cooldown_pending = false
+			if _skills_cooldowns_enabled() and escapist_animal == Enums.EscapistAnimal.RAT:
+				_start_ability_cooldown()
+		queue_redraw()
 	if _ability_cooldown_remaining > 0.0:
 		_ability_cooldown_remaining = maxf(_ability_cooldown_remaining - delta, 0.0)
 		if _ability_cooldown_remaining <= 0.0:
 			_ability_available = true
 			_notify_ability_recharged()
 	_update_floating_text(delta)
+	_process_official_route_bot(delta)
 	_process_patrol_bot()
 	super._physics_process(delta)
-	_update_rabbit_sprite()
+	_update_animal_sprite()
+
+
+func _process_official_route_bot(delta: float) -> void:
+	if not _official_bot_route_enabled or input_locked or is_dead or has_scored:
+		return
+	if _official_bot_route.is_empty():
+		movement.apply_movement(Vector2.ZERO)
+		return
+
+	var target := _official_bot_route[_official_bot_route_index]
+	var to_target := target - position
+	if to_target.length() <= 28.0 and _official_bot_route_index < _official_bot_route.size() - 1:
+		_official_bot_route_index += 1
+		target = _official_bot_route[_official_bot_route_index]
+		to_target = target - position
+
+	if to_target.length_squared() <= 0.01:
+		movement.apply_movement(Vector2.RIGHT)
+		aim_direction = Vector2.RIGHT
+	else:
+		var move_vec := to_target.normalized()
+		if controls_inverted:
+			move_vec *= -1.0
+		aim_direction = move_vec
+		movement.apply_movement(move_vec)
+
+	if position.distance_to(_official_bot_last_position) < 2.0 and movement.velocity.length() > 20.0:
+		_official_bot_stuck_timer += delta
+	else:
+		_official_bot_stuck_timer = 0.0
+	_official_bot_last_position = position
+	if _official_bot_stuck_timer >= 1.2 and _official_bot_route_index < _official_bot_route.size() - 1:
+		_official_bot_route_index += 1
+		_official_bot_stuck_timer = 0.0
+
+	_process_official_bot_ability(delta)
+
+
+func _process_official_bot_ability(delta: float) -> void:
+	if GameManager.current_state != Enums.GameState.ESCAPE:
+		return
+	if _skills_cooldowns_enabled() and not _ability_available:
+		return
+	if movement == null or movement.is_dashing:
+		return
+	_official_bot_ability_timer -= delta
+	if _official_bot_ability_timer > 0.0:
+		return
+
+	match escapist_animal:
+		Enums.EscapistAnimal.RABBIT:
+			AudioManager.play_skill(&"RabbitLeap")
+			movement.start_dash(aim_direction, Constants.RABBIT_LEAP_MIN_DIST * 1.25,
+				Callable(), Constants.RABBIT_LEAP_DURATION, true)
+			if _skills_cooldowns_enabled():
+				_start_ability_cooldown()
+			_official_bot_ability_timer = randf_range(3.5, 5.5)
+		Enums.EscapistAnimal.SQUIRREL:
+			_use_squirrel_acorn()
+			_official_bot_ability_timer = randf_range(4.0, 6.0)
+		Enums.EscapistAnimal.FLY:
+			_use_fly_counter()
+			_official_bot_ability_timer = randf_range(4.0, 6.5)
+		_:
+			_official_bot_ability_timer = randf_range(3.0, 5.0)
 
 
 func _process_patrol_bot() -> void:
@@ -289,7 +454,7 @@ func respawn() -> void:
 	_return_to_spawn_with_death_message()
 	if poison.is_poisoned:
 		poison.cure()
-	_reset_ability()
+	recharge_ability_after_death()
 
 
 func activate_safety_respawn(respawn_position: Vector2) -> void:
@@ -307,7 +472,7 @@ func _on_crushed() -> void:
 		return
 	GameManager.register_respawn_penalty(player_index, &"crush")
 	_return_to_spawn_with_death_message()
-	_reset_ability()
+	recharge_ability_after_death()
 
 
 func _return_to_spawn_with_death_message() -> void:
@@ -399,20 +564,27 @@ func _handle_rabbit_ability(delta: float) -> void:
 func _use_rat_rescue() -> void:
 	if is_instance_valid(_active_rat_tail):
 		(_active_rat_tail as RatTailHook).retract()
+		_rat_tail_visual_timer = maxf(_rat_tail_visual_timer, 0.28)
 		return
+	var direction := _get_ability_direction()
+	_start_rat_tail_visual(direction)
 	var tail := RatTailHook.new()
-	tail.setup(self, _get_ability_direction())
-	get_parent().add_child(tail)
+	add_child(tail)
+	tail.setup(self, direction)
 	_active_rat_tail = tail
 	tail.finished.connect(_on_rat_tail_finished)
 	AudioManager.play_skill(&"RatWhipOut")
 	if _skills_cooldowns_enabled():
-		_start_ability_cooldown()
+		_ability_available = false
 
 
 func _on_rat_tail_finished(tail: Node) -> void:
 	if _active_rat_tail == tail:
 		_active_rat_tail = null
+		if _rat_tail_visual_timer > 0.0:
+			_rat_tail_cooldown_pending = true
+		elif _skills_cooldowns_enabled() and escapist_animal == Enums.EscapistAnimal.RAT:
+			_start_ability_cooldown()
 
 
 func _complete_rat_rescue(ally: Escapist) -> void:
@@ -429,6 +601,18 @@ func _complete_rat_rescue(ally: Escapist) -> void:
 	ally.movement.clear_speed_modifiers()
 	var duration := pull_distance / Constants.RAT_RESCUE_PULL_SPEED
 	ally.movement.start_dash_ghost_pull(direction, pull_distance, Callable(), duration)
+
+
+func _start_rat_tail_visual(direction: Vector2) -> void:
+	_rat_tail_visual_direction = direction.normalized()
+	if _rat_tail_visual_direction.length_squared() < 0.01:
+		_rat_tail_visual_direction = Vector2.RIGHT
+	_rat_tail_visual_anchor = global_position + _rat_tail_visual_direction * Constants.RAT_RESCUE_RANGE
+	_rat_tail_visual_elapsed = 0.0
+	_rat_tail_visual_timer = Constants.RAT_RESCUE_RANGE / Constants.RAT_RESCUE_HOOK_SPEED \
+		+ Constants.RAT_RESCUE_HOLD_DURATION \
+		+ 0.32
+	queue_redraw()
 
 
 func _use_squirrel_acorn() -> void:
@@ -476,11 +660,20 @@ func _reset_ability() -> void:
 	_effect_immunity_timer = 0.0
 	_ability_denied_flash_timer = 0.0
 	_ability_ready_flash_timer = 0.0
+	_rat_tail_visual_timer = 0.0
+	_rat_tail_visual_elapsed = 0.0
+	_rat_tail_cooldown_pending = false
 	if is_instance_valid(_active_rat_tail):
 		_active_rat_tail.queue_free()
 	_active_rat_tail = null
 	if movement:
 		movement.remove_speed_modifier(&"fly_boost")
+
+
+func recharge_ability_after_death() -> void:
+	_reset_ability()
+	if not is_dead and not has_scored:
+		_notify_ability_recharged()
 
 
 func _skills_cooldowns_enabled() -> bool:
@@ -677,6 +870,36 @@ func _draw_squirrel_mark(mark_color: Color) -> void:
 	draw_line(Vector2(3.0, 9.5), Vector2(9.0, 9.5), mark_color, 2.8)
 
 
+func _draw_rat_tail_visual(base_color: Color) -> void:
+	if _rat_tail_visual_timer <= 0.0:
+		return
+	var extend_duration := maxf(Constants.RAT_RESCUE_RANGE / Constants.RAT_RESCUE_HOOK_SPEED, 0.01)
+	var extend_ratio := clampf(_rat_tail_visual_elapsed / extend_duration, 0.0, 1.0)
+	var fade_ratio := clampf(_rat_tail_visual_timer / 0.26, 0.0, 1.0)
+	var alpha := 0.92 * fade_ratio
+	var start := _rat_tail_visual_direction * 15.0
+	var anchor := to_local(_rat_tail_visual_anchor)
+	var end := start.lerp(anchor, extend_ratio)
+	var segment := end - start
+	if segment.length_squared() <= 1.0:
+		return
+	var direction := segment.normalized()
+	var normal := direction.rotated(PI * 0.5)
+	var points := PackedVector2Array()
+	var phase := Time.get_ticks_msec() / 55.0
+	for i in range(11):
+		var t := float(i) / 10.0
+		var wave := sin(phase + t * TAU * 2.0) * 4.4 * sin(t * PI)
+		points.append(start.lerp(end, t) + normal * wave)
+	draw_polyline(points, Color(0.0, 0.0, 0.0, alpha * 0.70), 13.0)
+	draw_polyline(points, Color(base_color, alpha), 8.0)
+	draw_polyline(points, Color(1.0, 0.88, 0.52, alpha * 0.72), 3.0)
+	draw_circle(start, 8.0, Color(base_color, alpha * 0.75))
+	draw_circle(end, 11.0, Color(0.0, 0.0, 0.0, alpha * 0.45))
+	draw_circle(end, 7.5, Color(base_color, alpha))
+	draw_arc(end, 13.0, 0.0, TAU, 18, Color(1.0, 0.88, 0.52, alpha * 0.82), 2.2)
+
+
 func _draw_fly_mark(base_color: Color) -> void:
 	var wing_color := _make_animal_mark_color(base_color, 0.62)
 	var body_color := _make_animal_mark_color(base_color)
@@ -721,7 +944,7 @@ func _draw() -> void:
 	var team_color := Enums.team_color(team)
 	var draw_color := animal_color
 	var jump_lift := _get_rabbit_jump_lift()
-	var use_rabbit_sprite := _uses_rabbit_sprite()
+	var use_animal_sprite := _uses_animal_sprite()
 
 	# Poison tint
 	if poison and poison.is_poisoned:
@@ -740,11 +963,11 @@ func _draw() -> void:
 			0.0, TAU, 28, Color(animal_color, lerpf(0.32, 0.08, lift_ratio)), 1.6)
 		draw_set_transform(Vector2(0.0, -jump_lift), 0.0, Vector2.ONE)
 
-	if not use_rabbit_sprite:
+	if not use_animal_sprite:
 		draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS + 6.5, Color(team_color, 0.14))
 
 	# Animal mark with outer team ring
-	if not use_rabbit_sprite:
+	if not use_animal_sprite:
 		_draw_animal_mark(draw_color)
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 5.5, 0, TAU, 24,
 			Color(team_color, 0.78), 2.2)
@@ -767,7 +990,7 @@ func _draw() -> void:
 			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size,
 			Color(_floating_text_color, text_alpha))
 
-	if not use_rabbit_sprite:
+	if not use_animal_sprite:
 		var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
 	if _ability_cooldown_remaining > 0.0:
@@ -777,12 +1000,17 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, arc_radius,
 			-PI / 2.0, -PI / 2.0 + TAU * (1.0 - cooldown_ratio), 24,
 			Color(animal_color, 0.88), 2.6)
-	if _ability_ready_flash_timer > 0.0 and not use_rabbit_sprite:
+	if _ability_ready_flash_timer > 0.0:
 		var ready_ratio := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
-		var pulse_radius := Constants.CHARACTER_RADIUS + 9.0 + (1.0 - ready_ratio) * 8.0
-		draw_circle(Vector2.ZERO, pulse_radius, Color(animal_color, 0.18 * ready_ratio))
-		draw_arc(Vector2.ZERO, pulse_radius, 0.0, TAU, 28,
-			Color(animal_color, 0.9 * ready_ratio), 2.6)
+		var bloom := 1.0 - ready_ratio
+		var pulse_radius := Constants.CHARACTER_RADIUS + 11.0 + bloom * 22.0
+		draw_circle(Vector2.ZERO, pulse_radius, Color(animal_color, 0.24 * ready_ratio))
+		draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS + 9.0,
+			Color(1.0, 1.0, 0.55, 0.20 * ready_ratio))
+		draw_arc(Vector2.ZERO, pulse_radius, 0.0, TAU, 36,
+			Color(1.0, 1.0, 0.45, 0.95 * ready_ratio), 3.8)
+		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 13.0, 0.0, TAU, 28,
+			Color(animal_color, 0.85 * ready_ratio), 2.4)
 	if _rabbit_charging:
 		var ratio := _rabbit_charge_time / Constants.RABBIT_LEAP_MAX_CHARGE
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 10.0,
@@ -791,6 +1019,11 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 10.0,
 			-PI / 2.0, -PI / 2.0 + TAU * (_fly_counter_timer / Constants.FLY_COUNTER_DURATION),
 			18, Color(0.3, 0.9, 0.85), 2.0)
+	if escapist_animal == Enums.EscapistAnimal.RAT and _rat_tail_visual_timer > 0.0:
+		_draw_rat_tail_visual(animal_color)
+		var tail_pulse := 0.65 + 0.35 * sin(Time.get_ticks_msec() / 70.0)
+		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 7.0, 0.0, TAU, 22,
+			Color(animal_color, 0.75 * tail_pulse), 2.4)
 	if _effect_immunity_timer > 0.0:
 		draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS + 4.0, Color(0.3, 0.9, 0.85, 0.18))
 	if _ability_denied_flash_timer > 0.0:
@@ -831,9 +1064,12 @@ class RatTailHook extends Node2D:
 		_direction = direction.normalized()
 		if _direction.length_squared() < 0.01:
 			_direction = Vector2.RIGHT
-		global_position = _owner_rat.global_position
+		position = Vector2.ZERO
 		_hook_end_position = _owner_rat.global_position
-		z_index = 8
+		z_index = 80
+		z_as_relative = true
+		visible = true
+		queue_redraw()
 
 	func _process(delta: float) -> void:
 		if not is_instance_valid(_owner_rat) or _owner_rat.is_dead or _owner_rat.has_scored:
@@ -954,10 +1190,10 @@ class RatTailHook extends Node2D:
 	func _draw() -> void:
 		if not is_instance_valid(_owner_rat):
 			return
-		var start := _owner_rat.global_position - global_position
-		var end := _hook_end_position - global_position
+		var start := Vector2.ZERO
+		var end := to_local(_hook_end_position)
 		if is_instance_valid(_target):
-			end = _target.global_position - global_position
+			end = to_local(_target.global_position)
 		var alpha := 0.72
 		if _is_returning and not is_instance_valid(_target):
 			alpha = clampf(_fade_timer / 0.18, 0.0, 1.0) * 0.72
@@ -965,9 +1201,26 @@ class RatTailHook extends Node2D:
 			alpha = 0.62 + 0.1 * sin(Time.get_ticks_msec() / 110.0)
 		var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() / 80.0)
 		var line_color := Color(_color, alpha * pulse)
-		draw_line(start, end, Color(0.0, 0.0, 0.0, alpha * 0.45), 7.0)
-		draw_line(start, end, line_color, 4.0)
-		draw_circle(end, 8.0, Color(_color, alpha))
+		var segment := end - start
+		if segment.length_squared() <= 1.0:
+			draw_circle(start, 7.0, Color(_color, alpha * 0.75))
+			return
+		var direction := segment.normalized()
+		var normal := direction.rotated(PI * 0.5)
+		var visible_start := start + direction * 12.0
+		var points := PackedVector2Array()
+		var phase := Time.get_ticks_msec() / 70.0
+		for i in range(9):
+			var t := float(i) / 8.0
+			var wave := sin(phase + t * TAU * 1.7) * 3.0 * sin(t * PI)
+			points.append(visible_start.lerp(end, t) + normal * wave)
+		draw_polyline(points, Color(0.0, 0.0, 0.0, alpha * 0.55), 9.0)
+		draw_polyline(points, line_color, 5.2)
+		draw_polyline(points, Color(1.0, 0.86, 0.55, alpha * 0.58), 2.0)
+		draw_circle(visible_start, 6.0, Color(_color, alpha * 0.65))
+		draw_circle(end, 9.0, Color(0.0, 0.0, 0.0, alpha * 0.38))
+		draw_circle(end, 6.5, Color(_color, alpha))
+		draw_arc(end, 10.0, 0.0, TAU, 16, Color(1.0, 0.86, 0.55, alpha * 0.7), 1.6)
 
 
 class AcornProjectile extends Node2D:

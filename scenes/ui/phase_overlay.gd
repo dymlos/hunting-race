@@ -66,7 +66,7 @@ func show_round_intro(round_number: int, leg_label: String, escapist_team: Enums
 
 
 func show_hunt_countdown(time_left: float) -> void:
-	_text = "CAZA ESTRATÉGICA"
+	_text = "CAZERÍA PLANIFICADA"
 	_sub_text = "%d" % ceili(time_left)
 	_detail_lines.clear()
 	_score_entries.clear()
@@ -79,7 +79,7 @@ func show_hunt_countdown(time_left: float) -> void:
 
 
 func show_hunt() -> void:
-	_text = "¡CAZA ESTRATÉGICA!"
+	_text = "¡CAZERÍA PLANIFICADA!"
 	_sub_text = ""
 	_detail_lines.clear()
 	_score_entries.clear()

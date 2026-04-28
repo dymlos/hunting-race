@@ -59,6 +59,13 @@ func get_map_center() -> Vector2:
 	return get_map_size() / 2.0
 
 
+func get_goal_center() -> Vector2:
+	var goal_rect: Rect2 = _map_data.get("goal", Rect2()) as Rect2
+	if goal_rect.size.x <= 0.0 or goal_rect.size.y <= 0.0:
+		return get_map_center()
+	return goal_rect.get_center()
+
+
 func get_spawn(index: int) -> Vector2:
 	var spawns: Array = _map_data.get("spawns", [])
 	if index < spawns.size():

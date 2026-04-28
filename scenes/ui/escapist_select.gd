@@ -24,6 +24,7 @@ var _demo_effects: Array[Dictionary] = []
 var _demo_entities: Dictionary = {}
 var _skill_test_views: Dictionary = {}       # {pi: SkillTestView}
 var _skill_test_cards: Dictionary = {}       # {pi: card_index}
+var _escapist_sprite_cache: Dictionary = {}
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
@@ -33,6 +34,10 @@ const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
 const CARD_TOP_PAD: float = 14.0
 const ABILITY_Y: float = 222.0
+
+
+func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
@@ -616,8 +621,7 @@ func _draw() -> void:
 			_draw_centered_text_in_rect(font, "PRUEBA REAL",
 				art_rect, 12, Color(animal_color, 0.9))
 		else:
-			_draw_escapist_silhouette(animal_id, art_rect.position + art_rect.size * 0.5 + Vector2(0.0, 4.0),
-				3.65, Color(animal_color, 1.0))
+			_draw_escapist_sprite_preview(animal_id, art_rect, animal_color)
 
 		_draw_centered_text_in_rect(font, animal_name, Rect2(card_x, card_y + CARD_TOP_PAD, card_w, 26.0), 22, animal_color)
 
@@ -820,6 +824,78 @@ func _draw_filled_ellipse(center: Vector2, radii: Vector2, fill_color: Color, po
 		var angle := TAU * float(i) / float(point_count)
 		points.append(center + Vector2(cos(angle) * radii.x, sin(angle) * radii.y))
 	draw_colored_polygon(points, fill_color)
+
+
+func _draw_escapist_sprite_preview(animal: Enums.EscapistAnimal, rect: Rect2, color: Color) -> void:
+	var texture := _get_escapist_preview_texture(animal)
+	if texture == null:
+		_draw_escapist_silhouette(animal, rect.position + rect.size * 0.5 + Vector2(0.0, 4.0),
+			3.65, Color(color, 1.0))
+		return
+	var size := texture.get_size()
+	var pos := rect.position + (rect.size - size) * 0.5 + _get_escapist_preview_offset(animal)
+	draw_texture_rect(texture, Rect2(pos, size), false)
+
+
+func _get_escapist_preview_texture(animal: Enums.EscapistAnimal) -> Texture2D:
+	var key := int(animal)
+	if _escapist_sprite_cache.has(key):
+		return _escapist_sprite_cache[key] as Texture2D
+	var asset_name := _get_escapist_asset_name(animal)
+	var path := "res://assets/characters/%s/frames/%s_walk_right_1.png" % [asset_name, asset_name]
+	var image := Image.new()
+	if image.load(path) != OK:
+		_escapist_sprite_cache[key] = null
+		return null
+	var used_rect := image.get_used_rect()
+	if used_rect.size.x <= 0 or used_rect.size.y <= 0:
+		_escapist_sprite_cache[key] = null
+		return null
+	var cropped := image.get_region(used_rect)
+	var target_size := _get_escapist_preview_target_size(animal)
+	var resize_scale := minf(
+		target_size.x / float(cropped.get_width()),
+		target_size.y / float(cropped.get_height())
+	)
+	var target_w := maxi(1, int(round(float(cropped.get_width()) * resize_scale)))
+	var target_h := maxi(1, int(round(float(cropped.get_height()) * resize_scale)))
+	cropped.resize(target_w, target_h, Image.INTERPOLATE_LANCZOS)
+	var texture := ImageTexture.create_from_image(cropped)
+	_escapist_sprite_cache[key] = texture
+	return texture
+
+
+func _get_escapist_asset_name(animal: Enums.EscapistAnimal) -> String:
+	match animal:
+		Enums.EscapistAnimal.RABBIT:
+			return "rabbit"
+		Enums.EscapistAnimal.RAT:
+			return "rat"
+		Enums.EscapistAnimal.SQUIRREL:
+			return "squirrel"
+		Enums.EscapistAnimal.FLY:
+			return "fly"
+	return "rabbit"
+
+
+func _get_escapist_preview_target_size(animal: Enums.EscapistAnimal) -> Vector2:
+	match animal:
+		Enums.EscapistAnimal.RAT:
+			return Vector2(130.0, 58.0)
+		Enums.EscapistAnimal.SQUIRREL:
+			return Vector2(150.0, 88.0)
+		Enums.EscapistAnimal.FLY:
+			return Vector2(142.0, 88.0)
+	return Vector2(120.0, 86.0)
+
+
+func _get_escapist_preview_offset(animal: Enums.EscapistAnimal) -> Vector2:
+	match animal:
+		Enums.EscapistAnimal.RAT:
+			return Vector2(0.0, 7.0)
+		Enums.EscapistAnimal.FLY:
+			return Vector2(0.0, 4.0)
+	return Vector2.ZERO
 
 
 func _draw_escapist_silhouette(animal: Enums.EscapistAnimal, center: Vector2, scale: float, color: Color) -> void:

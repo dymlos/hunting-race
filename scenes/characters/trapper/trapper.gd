@@ -183,6 +183,12 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 
+	if not GameManager.can_trappers_act():
+		_cancel_active_placements()
+		_update_animal_mark_alpha(delta)
+		queue_redraw()
+		return
+
 	if player_index >= 100:
 		if bot_ai_enabled:
 			_process_bot(delta)
@@ -316,6 +322,7 @@ func _process_path_trap_bot(delta: float) -> void:
 		return
 	var ability := _abilities[_bot_next_ability_index]
 	if not ability.can_activate():
+		_advance_bot_to_next_ready_ability()
 		return
 	if _bot_needs_placement_points(_bot_next_ability_index):
 		_bot_placement_points = _get_bot_placement_points(_bot_next_ability_index)
@@ -337,6 +344,16 @@ func _finish_bot_ability_placement() -> void:
 	_bot_next_ability_index += 1
 	if _bot_next_ability_index >= _abilities.size():
 		_bot_cycle_delay = 2.0
+
+
+func _advance_bot_to_next_ready_ability() -> void:
+	for step in range(1, _abilities.size() + 1):
+		var next_index := (_bot_next_ability_index + step) % _abilities.size()
+		if _abilities[next_index].can_activate():
+			_bot_next_ability_index = next_index
+			return
+	_bot_next_ability_index = _abilities.size()
+	_bot_cycle_delay = 0.6
 
 
 func _bot_needs_placement_points(ability_index: int) -> bool:
@@ -513,6 +530,19 @@ func _on_ability_escape_charge_used(_ability: TrapperAbility, ability_index: int
 	pass
 
 
+func refill_all_abilities(show_feedback: bool = true) -> void:
+	for ability: TrapperAbility in _abilities:
+		ability.refill_charges()
+	if show_feedback:
+		notify_ability_recharged(Enums.trapper_character_color(trapper_character))
+
+
+func _cancel_active_placements() -> void:
+	for ability: TrapperAbility in _abilities:
+		if ability.is_placing:
+			ability.cancel_placement()
+
+
 func _update_set_reload(delta: float) -> void:
 	_set_reload_timer = 0.0
 	_spent_ability_indices.clear()
@@ -530,6 +560,8 @@ func get_hud_ability_entries() -> Array[Dictionary]:
 			state = "COLOCANDO"
 		elif GameManager.current_state == Enums.GameState.HUNT:
 			state = "LISTA" if ability.get_strategy_uses_remaining() > 0 else "PUESTA"
+		elif GameManager.current_state == Enums.GameState.ESCAPE and not GameManager.can_trappers_act():
+			state = "CERRADA"
 		elif ability.get_cooldown_remaining() > 0.0:
 			state = "%.1fs" % ability.get_cooldown_remaining()
 		elif ability.get_charges_remaining() <= 0:

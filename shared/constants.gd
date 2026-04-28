@@ -24,7 +24,7 @@ const TRAPPER_MOVING_ESCAPIST_SPEED_THRESHOLD: float = 20.0
 
 # --- Phase durations ---
 const OBSERVATION_DURATION: float = 5.0
-const HUNT_COUNTDOWN_DURATION: float = 10.0
+const HUNT_COUNTDOWN_DURATION: float = 20.0
 const ROUND_END_DURATION: float = 3.0
 
 # --- Match ---

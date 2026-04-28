@@ -26,7 +26,7 @@ const PAGES := [
 		"accent": Color(0.30, 0.82, 1.0),
 		"lines": [
 			"Vista previa: la ronda empieza con una mirada breve al mapa y a los roles.",
-			"Caza estratégica: los cazadores pueden preparar y colocar trampas durante la cuenta regresiva.",
+			"Cazería planificada: los cazadores pueden preparar y colocar trampas durante la cuenta regresiva.",
 			"Escape: los escapistas corren hacia la meta mientras las trampas siguen activas.",
 			"El modo práctica evita la presión del puntaje y sirve para probar movimiento, habilidades y trampas.",
 		],
@@ -50,7 +50,7 @@ const PAGES := [
 			"Los escapistas usan A en partida. Después de usarla, la habilidad entra en recarga.",
 			"Cuando una habilidad escapista vuelve a estar lista, el personaje parpadea y el control vibra.",
 			"Los cazadores usan A, X e Y.",
-			"En caza, cada habilidad de cazador tiene un uso gratis.",
+			"En cazería planificada, cada habilidad de cazador tiene un uso gratis.",
 			"En escape y práctica, cada habilidad de cazador tiene sus propias cargas y recargas.",
 			"Cuando vuelve una carga, el cursor del cazador parpadea y el control vibra.",
 			"Algunas habilidades de cazador tienen límite de colocación o usan varios puntos.",
@@ -198,7 +198,7 @@ func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
 	]
 	var right_lines: Array[String] = [
 		"Los cazadores usan A, X e Y.",
-		"En caza, cada habilidad tiene un uso gratis.",
+		"En cazería planificada, cada habilidad tiene un uso gratis.",
 		"En escape y práctica, cada habilidad tiene sus propias cargas y recargas.",
 		"Cuando vuelve una carga, el cursor del cazador parpadea y el control vibra.",
 		"Algunas habilidades tienen límite de colocación o usan varios puntos.",

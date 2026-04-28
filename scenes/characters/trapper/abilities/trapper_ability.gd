@@ -31,6 +31,8 @@ func setup(p_trapper: Trapper) -> void:
 
 
 func can_activate() -> bool:
+	if not GameManager.can_trappers_act():
+		return false
 	if _skills_cooldowns_enabled():
 		if _cooldown_remaining > 0.0:
 			return false
@@ -143,10 +145,14 @@ func reset_round_uses() -> void:
 
 func _get_available_uses() -> int:
 	if GameManager.current_state == Enums.GameState.HUNT:
+		if not GameManager.is_strategic_hunt_enabled():
+			return 0
 		return _strategy_uses_remaining
 	if GameManager.current_state == Enums.GameState.ESCAPE \
 			or GameManager.current_state == Enums.GameState.PRACTICE \
 			or _is_skill_test_context():
+		if GameManager.current_state == Enums.GameState.ESCAPE and not GameManager.can_trappers_act():
+			return 0
 		if not _skills_cooldowns_enabled():
 			return max_charges
 		return _charges_remaining
@@ -155,6 +161,8 @@ func _get_available_uses() -> int:
 
 func _consume_use() -> bool:
 	if GameManager.current_state == Enums.GameState.HUNT:
+		if not GameManager.is_strategic_hunt_enabled():
+			return false
 		if _strategy_uses_remaining <= 0:
 			return false
 		_strategy_uses_remaining -= 1
@@ -163,6 +171,8 @@ func _consume_use() -> bool:
 	if GameManager.current_state == Enums.GameState.PRACTICE \
 			or GameManager.current_state == Enums.GameState.ESCAPE \
 			or _is_skill_test_context():
+		if GameManager.current_state == Enums.GameState.ESCAPE and not GameManager.can_trappers_act():
+			return false
 		if _skills_cooldowns_enabled():
 			if _charges_remaining <= 0:
 				return false

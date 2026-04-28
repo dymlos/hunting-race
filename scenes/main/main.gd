@@ -548,6 +548,8 @@ func _spawn_characters() -> void:
 			esc.player_color = Enums.escapist_animal_color(esc.escapist_animal)
 			esc.position = arena.get_spawn(escapist_idx)
 			esc.aim_direction = Vector2.RIGHT
+			if pi >= 100:
+				esc.configure_official_route_bot(_build_official_escapist_bot_route(esc.position))
 			escapist_idx += 1
 			esc.died.connect(_on_escapist_character_died)
 			character_container.add_child(esc)
@@ -562,9 +564,75 @@ func _spawn_characters() -> void:
 			trapper.trapper_character = GameManager.get_player_character(pi)
 			trapper.position = arena.get_map_center()
 			trapper.setup(arena.get_map_size())
+			if pi >= 100:
+				_configure_official_trapper_bot(trapper)
 			character_container.add_child(trapper)
 			characters.append(trapper)
 			GameManager.register_player_character(pi, trapper)
+
+
+func _build_official_escapist_bot_route(spawn_position: Vector2) -> Array[Vector2]:
+	if arena == null:
+		return []
+	var route: Array[Vector2] = []
+	if spawn_position.y < 520.0:
+		route.append_array([
+			Vector2(260.0, 320.0),
+			Vector2(820.0, 300.0),
+			Vector2(1040.0, 500.0),
+			Vector2(1300.0, 560.0),
+		])
+	elif spawn_position.y < 720.0:
+		route.append_array([
+			Vector2(260.0, 610.0),
+			Vector2(840.0, 620.0),
+			Vector2(1100.0, 610.0),
+			Vector2(1300.0, 560.0),
+		])
+	else:
+		route.append_array([
+			Vector2(260.0, 920.0),
+			Vector2(820.0, 925.0),
+			Vector2(1085.0, 780.0),
+			Vector2(1300.0, 650.0),
+		])
+	route.append_array([
+		Vector2(1500.0, 600.0),
+		Vector2(1720.0, 600.0),
+		Vector2(1860.0, 600.0),
+		Vector2(1985.0, 640.0),
+		Vector2(2120.0, 640.0),
+		Vector2(2245.0, 640.0),
+		arena.get_goal_center(),
+	])
+	return route
+
+
+func _configure_official_trapper_bot(trapper: Trapper) -> void:
+	if arena == null:
+		return
+	var map_size := arena.get_map_size()
+	var path_a := arena.get_map_center()
+	var path_b := path_a + Vector2(220.0, 0.0)
+	match trapper.trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			path_a = Vector2(map_size.x * 0.18, map_size.y * 0.27)
+			path_b = Vector2(map_size.x * 0.38, map_size.y * 0.31)
+			trapper.configure_spider_bot(path_a, path_b)
+		Enums.TrapperCharacter.HONGO:
+			path_a = Vector2(map_size.x * 0.43, map_size.y * 0.42)
+			path_b = Vector2(map_size.x * 0.67, map_size.y * 0.58)
+			trapper.configure_mushroom_bot(path_a, path_b)
+		Enums.TrapperCharacter.ESCORPION:
+			path_a = Vector2(map_size.x * 0.18, map_size.y * 0.76)
+			path_b = Vector2(map_size.x * 0.50, map_size.y * 0.58)
+			trapper.configure_scorpion_bot(path_a, path_b)
+		Enums.TrapperCharacter.PULPO:
+			path_a = Vector2(map_size.x * 0.73, map_size.y * 0.48)
+			path_b = Vector2(map_size.x * 0.93, map_size.y * 0.58)
+			trapper.configure_octopus_bot(path_a, path_b)
+		_:
+			trapper.configure_octopus_bot(path_a, path_b)
 
 
 func _on_escapist_character_died(_escapist: Escapist) -> void:
@@ -612,7 +680,10 @@ func _on_escape_overlay_finished() -> void:
 	if GameManager.current_state != Enums.GameState.ESCAPE:
 		return
 	_round_replay_escape_start_time = _round_replay_elapsed
-	_unfreeze_all()
+	if GameManager.is_strategic_hunt_enabled():
+		_unfreeze_escapists_only()
+	else:
+		_unfreeze_all()
 	GameManager.start_escape_timer()
 
 
@@ -988,6 +1059,15 @@ func _freeze_escapists_only() -> void:
 				(c as BaseCharacter).freeze_character()
 			elif c is Trapper:
 				(c as Trapper).unfreeze_character()
+
+
+func _unfreeze_escapists_only() -> void:
+	for c in characters:
+		if is_instance_valid(c):
+			if c is BaseCharacter:
+				(c as BaseCharacter).unfreeze_character()
+			elif c is Trapper:
+				(c as Trapper).freeze_character()
 
 
 # --- Pause ---

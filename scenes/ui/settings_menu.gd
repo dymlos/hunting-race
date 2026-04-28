@@ -40,7 +40,7 @@ func _ready() -> void:
 			"value": int(Constants.HUNT_DURATION),
 		},
 		{
-			"key": "hunt_countdown_enabled", "label": "Caza estratégica",
+			"key": "hunt_countdown_enabled", "label": "Cazería planificada",
 			"type": "options", "options": ["Sí", "No"],
 			"value": 0,
 		},
@@ -50,8 +50,8 @@ func _ready() -> void:
 			"value": int(Constants.OBSERVATION_DURATION),
 		},
 		{
-			"key": "hunt_countdown_duration", "label": "Tiempo de caza",
-			"type": "int", "min": 1, "max": 10, "step": 1,
+			"key": "hunt_countdown_duration", "label": "Tiempo de cazería",
+			"type": "int", "min": 1, "max": 60, "step": 1,
 			"value": int(Constants.HUNT_COUNTDOWN_DURATION),
 		},
 		{
