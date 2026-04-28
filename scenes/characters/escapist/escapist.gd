@@ -4,10 +4,26 @@ extends BaseCharacter
 signal died(escapist: Escapist)
 signal scored(escapist: Escapist)
 
+const RABBIT_ANIMATION_DIRECTIONS: Array[String] = [
+	"up",
+	"up_right",
+	"right",
+	"down_right",
+	"down",
+	"down_left",
+	"left",
+	"up_left",
+]
+const RABBIT_ANIMATION_FRAME_COUNT: int = 5
+const RABBIT_ANIMATION_FPS: float = 8.0
+const RABBIT_SPRITE_SCALE := Vector2(1.70, 1.70)
+const RABBIT_SPRITE_BASE_OFFSET := Vector2(0.0, -5.0)
+
 var is_dead: bool = false
 var has_scored: bool = false
 var spawn_position: Vector2 = Vector2.ZERO
 var escapist_animal: Enums.EscapistAnimal = Enums.EscapistAnimal.RABBIT
+var _has_safety_respawn: bool = false
 
 # Poison system
 var poison: PoisonComponent
@@ -35,6 +51,8 @@ var _bot_patrol_enabled: bool = false
 var _bot_patrol_a: Vector2 = Vector2.ZERO
 var _bot_patrol_b: Vector2 = Vector2.ZERO
 var _bot_patrol_target: Vector2 = Vector2.ZERO
+var _rabbit_sprite: AnimatedSprite2D = null
+var _rabbit_last_animation: String = "walk_down"
 
 
 func _setup_role() -> void:
@@ -54,6 +72,7 @@ func _setup_role() -> void:
 
 func _ready() -> void:
 	super._ready()
+	_setup_rabbit_sprite()
 	spawn_position = position
 
 
@@ -67,6 +86,119 @@ func configure_patrol_bot(path_a: Vector2, path_b: Vector2) -> void:
 	aim_direction = (_bot_patrol_target - position).normalized()
 
 
+func _setup_rabbit_sprite() -> void:
+	_rabbit_sprite = AnimatedSprite2D.new()
+	_rabbit_sprite.name = "RabbitSprite"
+	_rabbit_sprite.sprite_frames = _build_rabbit_sprite_frames()
+	_rabbit_sprite.animation = _rabbit_last_animation
+	_rabbit_sprite.centered = true
+	_rabbit_sprite.scale = RABBIT_SPRITE_SCALE
+	_rabbit_sprite.position = RABBIT_SPRITE_BASE_OFFSET
+	_rabbit_sprite.z_index = 1
+	_rabbit_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_rabbit_sprite.visible = _uses_rabbit_sprite()
+	add_child(_rabbit_sprite)
+
+
+func _build_rabbit_sprite_frames() -> SpriteFrames:
+	var sprite_frames := SpriteFrames.new()
+	if sprite_frames.has_animation("default"):
+		sprite_frames.remove_animation("default")
+	for direction in RABBIT_ANIMATION_DIRECTIONS:
+		var animation_name := "walk_%s" % direction
+		sprite_frames.add_animation(animation_name)
+		sprite_frames.set_animation_loop(animation_name, true)
+		sprite_frames.set_animation_speed(animation_name, RABBIT_ANIMATION_FPS)
+		for frame_index in range(1, RABBIT_ANIMATION_FRAME_COUNT + 1):
+			var path := "res://assets/characters/rabbit/frames/rabbit_walk_%s_%d.png" % [
+				direction,
+				frame_index,
+			]
+			var image := Image.new()
+			var texture: Texture2D = null
+			if image.load(path) == OK:
+				texture = ImageTexture.create_from_image(image)
+			if texture:
+				sprite_frames.add_frame(animation_name, texture)
+	return sprite_frames
+
+
+func _uses_rabbit_sprite() -> bool:
+	return escapist_animal == Enums.EscapistAnimal.RABBIT \
+		and _rabbit_sprite != null \
+		and _rabbit_sprite.sprite_frames != null \
+		and _rabbit_sprite.sprite_frames.has_animation(_rabbit_last_animation) \
+		and _rabbit_sprite.sprite_frames.get_frame_count(_rabbit_last_animation) > 0
+
+
+func _update_rabbit_sprite() -> void:
+	if _rabbit_sprite == null:
+		return
+	var should_show := escapist_animal == Enums.EscapistAnimal.RABBIT and not is_dead and not has_scored
+	_rabbit_sprite.visible = should_show
+	if not should_show:
+		return
+
+	_rabbit_sprite.position = RABBIT_SPRITE_BASE_OFFSET + Vector2(0.0, -_get_rabbit_jump_lift())
+	_rabbit_sprite.modulate = _get_rabbit_sprite_tint()
+
+	var move_vector := Vector2.ZERO
+	if movement:
+		move_vector = movement.velocity
+	if velocity.length() > move_vector.length():
+		move_vector = velocity
+	if movement and movement.is_dashing and aim_direction.length() > 0.1:
+		move_vector = aim_direction * movement.move_speed
+
+	var moving := move_vector.length() > 8.0
+	var direction := move_vector.normalized() if moving else aim_direction
+	if direction.length() <= 0.1:
+		direction = Vector2.DOWN
+	var animation_name := _get_rabbit_animation_name(direction)
+	if _rabbit_sprite.animation != animation_name:
+		_rabbit_sprite.play(animation_name)
+		_rabbit_last_animation = animation_name
+	if moving:
+		if not _rabbit_sprite.is_playing():
+			_rabbit_sprite.play(animation_name)
+	else:
+		_rabbit_sprite.stop()
+		_rabbit_sprite.frame = 0
+
+
+func _get_rabbit_animation_name(direction: Vector2) -> String:
+	var angle := direction.angle()
+	var octant := int(round(8.0 * angle / TAU)) & 7
+	match octant:
+		0:
+			return "walk_right"
+		1:
+			return "walk_down_right"
+		2:
+			return "walk_down"
+		3:
+			return "walk_down_left"
+		4:
+			return "walk_left"
+		5:
+			return "walk_up_left"
+		6:
+			return "walk_up"
+		7:
+			return "walk_up_right"
+	return _rabbit_last_animation
+
+
+func _get_rabbit_sprite_tint() -> Color:
+	var tint := Color.WHITE
+	if poison and poison.is_poisoned:
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 200.0)
+		tint = tint.lerp(Color(0.55, 1.0, 0.55), 0.22 + 0.12 * pulse)
+	if controls_inverted:
+		tint = tint.lerp(Color(1.0, 0.45, 1.0), 0.22)
+	return tint
+
+
 func kill() -> void:
 	if is_dead or has_scored:
 		return
@@ -74,6 +206,10 @@ func kill() -> void:
 		return
 	GameManager.register_respawn_penalty(player_index, &"death")
 	if GameManager.current_state == Enums.GameState.PRACTICE:
+		_return_to_spawn_with_death_message()
+		_reset_ability()
+		return
+	if _has_safety_respawn:
 		_return_to_spawn_with_death_message()
 		_reset_ability()
 		return
@@ -127,6 +263,7 @@ func _physics_process(delta: float) -> void:
 	_update_floating_text(delta)
 	_process_patrol_bot()
 	super._physics_process(delta)
+	_update_rabbit_sprite()
 
 
 func _process_patrol_bot() -> void:
@@ -153,6 +290,14 @@ func respawn() -> void:
 	if poison.is_poisoned:
 		poison.cure()
 	_reset_ability()
+
+
+func activate_safety_respawn(respawn_position: Vector2) -> void:
+	var was_active := _has_safety_respawn
+	_has_safety_respawn = true
+	spawn_position = respawn_position
+	if not was_active:
+		_show_floating_text("Punto seguro", Color(0.25, 0.85, 1.0), 0.9, 18)
 
 
 func _on_crushed() -> void:
@@ -576,6 +721,7 @@ func _draw() -> void:
 	var team_color := Enums.team_color(team)
 	var draw_color := animal_color
 	var jump_lift := _get_rabbit_jump_lift()
+	var use_rabbit_sprite := _uses_rabbit_sprite()
 
 	# Poison tint
 	if poison and poison.is_poisoned:
@@ -594,12 +740,14 @@ func _draw() -> void:
 			0.0, TAU, 28, Color(animal_color, lerpf(0.32, 0.08, lift_ratio)), 1.6)
 		draw_set_transform(Vector2(0.0, -jump_lift), 0.0, Vector2.ONE)
 
-	draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS + 6.5, Color(team_color, 0.14))
+	if not use_rabbit_sprite:
+		draw_circle(Vector2.ZERO, Constants.CHARACTER_RADIUS + 6.5, Color(team_color, 0.14))
 
 	# Animal mark with outer team ring
-	_draw_animal_mark(draw_color)
-	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 5.5, 0, TAU, 24,
-		Color(team_color, 0.78), 2.2)
+	if not use_rabbit_sprite:
+		_draw_animal_mark(draw_color)
+		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 5.5, 0, TAU, 24,
+			Color(team_color, 0.78), 2.2)
 
 	# Label
 	var label := "P%d" % (player_index + 1)
@@ -619,8 +767,9 @@ func _draw() -> void:
 			_floating_text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size,
 			Color(_floating_text_color, text_alpha))
 
-	var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
-	draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
+	if not use_rabbit_sprite:
+		var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
+		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
 	if _ability_cooldown_remaining > 0.0:
 		var cooldown_ratio := clampf(_ability_cooldown_remaining / _get_ability_cooldown_duration(), 0.0, 1.0)
 		var arc_radius := Constants.CHARACTER_RADIUS + 10.5
@@ -628,7 +777,7 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, arc_radius,
 			-PI / 2.0, -PI / 2.0 + TAU * (1.0 - cooldown_ratio), 24,
 			Color(animal_color, 0.88), 2.6)
-	if _ability_ready_flash_timer > 0.0:
+	if _ability_ready_flash_timer > 0.0 and not use_rabbit_sprite:
 		var ready_ratio := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
 		var pulse_radius := Constants.CHARACTER_RADIUS + 9.0 + (1.0 - ready_ratio) * 8.0
 		draw_circle(Vector2.ZERO, pulse_radius, Color(animal_color, 0.18 * ready_ratio))

@@ -6,9 +6,11 @@ extends Node2D
 var _map_data: Dictionary = {}
 var _wall_bodies: Array[StaticBody2D] = []
 var _goal_zones: Array[Area2D] = []
+var _safety_checkpoint_zones: Array[Area2D] = []
 var _hazard_nodes: Array[Node] = []
 var _moving_wall_data: Array[Dictionary] = []  # For _draw() to render moving walls
 var _frost_vent_data: Array[Dictionary] = []
+var _moving_slippery_zone_data: Array[Dictionary] = []
 var _sticky_blob_data: Array[Dictionary] = []
 var _moving_sticky_wall_data: Array[Dictionary] = []
 var _hazard_tweens: Array[Tween] = []
@@ -16,7 +18,11 @@ var _base_hazards: Array[Dictionary] = []
 var _active_hazards: Array[Dictionary] = []
 
 const FROST_VENT_VISUAL_ON_DURATION: float = 2.55
-const FROST_VENT_VISUAL_OFF_DURATION: float = 0.55
+const FROST_VENT_VISUAL_OFF_DURATION: float = FROST_VENT_VISUAL_ON_DURATION
+const STICKY_BLOB_DEFAULT_PATROL_MARGIN: float = 44.0
+const STICKY_BLOB_PATROL_DISTANCE_MULTIPLIER: float = 1.45
+const CRUSH_MOVING_WALL_CONTACT_MARGIN: float = 7.0
+const CRUSH_BLOCKING_WALL_DISTANCE: float = 8.0
 
 signal goal_entered(escapist: Escapist)
 
@@ -28,6 +34,7 @@ func load_map(map_data: Dictionary) -> void:
 	_active_hazards = _duplicate_hazards(_base_hazards)
 	_build_walls()
 	_build_goals()
+	_build_safety_checkpoints()
 	_build_hazards()
 	queue_redraw()
 
@@ -66,6 +73,9 @@ func _clear() -> void:
 	for zone in _goal_zones:
 		zone.queue_free()
 	_goal_zones.clear()
+	for zone in _safety_checkpoint_zones:
+		zone.queue_free()
+	_safety_checkpoint_zones.clear()
 	_clear_hazards()
 	_base_hazards.clear()
 	_active_hazards.clear()
@@ -85,6 +95,7 @@ func _clear_hazards() -> void:
 	_hazard_nodes.clear()
 	_moving_wall_data.clear()
 	_frost_vent_data.clear()
+	_moving_slippery_zone_data.clear()
 	_sticky_blob_data.clear()
 	_moving_sticky_wall_data.clear()
 
@@ -203,6 +214,50 @@ func _on_goal_body_entered(body: Node2D) -> void:
 		if not esc.has_scored and not esc.is_dead:
 			esc.score()
 			goal_entered.emit(esc)
+
+
+func _build_safety_checkpoints() -> void:
+	var checkpoint: Dictionary = _map_data.get("safety_checkpoint", {}) as Dictionary
+	if checkpoint.is_empty():
+		return
+	var zone_rect: Rect2 = checkpoint.get("zone", Rect2()) as Rect2
+	var respawn_zone: Rect2 = checkpoint.get("respawn_zone", Rect2()) as Rect2
+	if zone_rect.size.x <= 0.0 or zone_rect.size.y <= 0.0 or respawn_zone.size.x <= 0.0 or respawn_zone.size.y <= 0.0:
+		return
+
+	var area := Area2D.new()
+	area.collision_layer = 0
+	area.collision_mask = Constants.LAYER_CHARACTERS
+	area.monitoring = true
+	area.monitorable = false
+	area.set_meta("respawn_zone", respawn_zone)
+
+	var shape := RectangleShape2D.new()
+	shape.size = zone_rect.size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = zone_rect.size / 2.0
+
+	area.position = zone_rect.position
+	area.add_child(col)
+	add_child(area)
+	_safety_checkpoint_zones.append(area)
+	area.body_entered.connect(_on_safety_checkpoint_entered.bind(area))
+
+
+func _on_safety_checkpoint_entered(body: Node2D, checkpoint_area: Area2D) -> void:
+	if not GameManager.hunt_active or not body is Escapist:
+		return
+	var esc := body as Escapist
+	if esc.is_dead or esc.has_scored:
+		return
+	var respawn_zone: Rect2 = checkpoint_area.get_meta("respawn_zone", Rect2()) as Rect2
+	var respawn_pos := Vector2(
+		respawn_zone.position.x + respawn_zone.size.x * 0.5,
+		clampf(esc.global_position.y, respawn_zone.position.y, respawn_zone.end.y)
+	)
+	esc.activate_safety_respawn(respawn_pos)
 
 
 # --- Hazards ---
@@ -421,6 +476,8 @@ func _build_one_way_gate(def: Dictionary) -> void:
 func _build_slippery_zone(def: Dictionary) -> void:
 	var pos: Vector2 = def["pos"]
 	var zone_size: Vector2 = def["size"]
+	var end_pos: Vector2 = def.get("end_pos", pos) as Vector2
+	var period: float = def.get("period", 3.0)
 
 	var area := Area2D.new()
 	area.collision_layer = 0
@@ -444,6 +501,16 @@ func _build_slippery_zone(def: Dictionary) -> void:
 	area.set_meta("is_slippery", true)
 	area.body_entered.connect(_on_slippery_entered)
 	area.body_exited.connect(_on_slippery_exited)
+
+	if def.has("end_pos"):
+		_moving_slippery_zone_data.append({
+			"area": area,
+			"size": zone_size,
+		})
+		var tween := create_tween().set_loops()
+		tween.tween_property(area, "position", end_pos, period / 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tween.tween_property(area, "position", pos, period / 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_hazard_tweens.append(tween)
 
 
 func _on_slippery_entered(body: Node2D) -> void:
@@ -527,6 +594,7 @@ func _build_moving_sticky_wall(def: Dictionary) -> void:
 	_moving_sticky_wall_data.append({
 		"body": body,
 		"size": wall_size,
+		"last_position": body.global_position,
 	})
 
 	var tween := create_tween().set_loops()
@@ -579,15 +647,19 @@ func _start_sticky_blob_patrol(area: Area2D, def: Dictionary) -> void:
 	var blob_index := _sticky_blob_data.size() - 1
 	var seed := float(blob_index) * 19.71 + pos.x * 0.037 + pos.y * 0.023
 	var angle := fmod(seed, TAU)
-	var distance := 12.0 + fmod(seed * 1.83, 13.0)
+	var distance := (14.0 + fmod(seed * 1.83, 16.0)) * STICKY_BLOB_PATROL_DISTANCE_MULTIPLIER
 	var offset := Vector2.from_angle(angle) * distance
-	var bounds: Rect2 = def.get("bounds", Rect2(pos - Vector2(28.0, 28.0), blob_size + Vector2(56.0, 56.0))) as Rect2
+	var default_bounds := Rect2(
+		pos - Vector2(STICKY_BLOB_DEFAULT_PATROL_MARGIN, STICKY_BLOB_DEFAULT_PATROL_MARGIN),
+		blob_size + Vector2(STICKY_BLOB_DEFAULT_PATROL_MARGIN * 2.0, STICKY_BLOB_DEFAULT_PATROL_MARGIN * 2.0)
+	)
+	var bounds: Rect2 = def.get("bounds", default_bounds) as Rect2
 	var endpoint_a := _clamp_blob_patrol_point(pos + offset, blob_size, bounds)
 	var endpoint_b := _clamp_blob_patrol_point(pos - offset.rotated(0.35), blob_size, bounds)
 	if endpoint_a.distance_to(endpoint_b) < 4.0:
 		return
 
-	var period := 1.55 + fmod(seed * 0.41, 0.95)
+	var period := 1.18 + fmod(seed * 0.41, 0.62)
 	var tween := create_tween().set_loops()
 	tween.tween_property(area, "position", endpoint_a, period * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(area, "position", endpoint_b, period).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -696,7 +768,8 @@ func _get_frost_vent_blast_rect(def: Dictionary) -> Rect2:
 	return Rect2(Vector2(x, pos.y - blast_range), Vector2(blast_width, blast_range))
 
 
-func _apply_frost_vent_force(area: Area2D, direction: Vector2, force: float) -> void:
+func _apply_frost_vent_force(area: Area2D, direction: Vector2, force: float, delta: float,
+		register_contact: bool) -> void:
 	for body in area.get_overlapping_bodies():
 		if not body is BaseCharacter:
 			continue
@@ -705,8 +778,9 @@ func _apply_frost_vent_force(area: Area2D, direction: Vector2, force: float) -> 
 			var esc := character as Escapist
 			if esc.is_dead or esc.has_scored or esc.is_effect_immune():
 				continue
-			GameManager.register_trap_contact(esc.player_index)
-		character.movement.apply_impulse(direction * force)
+			if register_contact:
+				GameManager.register_trap_contact(esc.player_index)
+		character.movement.apply_sustained_push(direction, force, force * 5.0, delta)
 
 
 func _register_map_hazard_contact(body: Node2D) -> void:
@@ -877,6 +951,8 @@ func _draw_hazards() -> void:
 			"slippery_zone":
 				var pos: Vector2 = hazard_def["pos"]
 				var size: Vector2 = hazard_def["size"]
+				if hazard_def.has("end_pos"):
+					continue
 				_draw_slippery_zone_visual(Rect2(pos, size), now)
 
 	for vent_data in _frost_vent_data:
@@ -931,6 +1007,12 @@ func _draw_hazards() -> void:
 		var size: Vector2 = sticky_data["size"]
 		if is_instance_valid(body):
 			_draw_sticky_wall_visual(Rect2(body.position, size), now)
+
+	for zone_data in _moving_slippery_zone_data:
+		var area: Area2D = zone_data["area"] as Area2D
+		var size: Vector2 = zone_data["size"] as Vector2
+		if is_instance_valid(area):
+			_draw_slippery_zone_visual(Rect2(area.position, size), now)
 
 	for blob_data in _sticky_blob_data:
 		var area: Area2D = blob_data["area"] as Area2D
@@ -1318,21 +1400,25 @@ func _process(_delta: float) -> void:
 		if active:
 			area.set_meta("pulse_timer", maxf(0.0, on_duration - elapsed))
 			area.set_meta("pulse_duration", on_duration)
-			if not was_active:
-				var direction: Vector2 = vent_data["direction"] as Vector2
-				var force: float = vent_data.get("force", Constants.FROST_VENT_FORCE) as float
-				_apply_frost_vent_force(area, direction, force)
+			var direction: Vector2 = vent_data["direction"] as Vector2
+			var force: float = vent_data.get("force", Constants.FROST_VENT_FORCE) as float
+			_apply_frost_vent_force(area, direction, force, _delta, not was_active)
 		else:
 			area.set_meta("pulse_timer", 0.0)
 		vent_data["was_active"] = active
-	if not _moving_wall_data.is_empty() or not _frost_vent_data.is_empty() or not _sticky_blob_data.is_empty() or not _moving_sticky_wall_data.is_empty():
+	if not _moving_wall_data.is_empty() or not _frost_vent_data.is_empty() or not _moving_slippery_zone_data.is_empty() or not _sticky_blob_data.is_empty() or not _moving_sticky_wall_data.is_empty():
 		queue_redraw()
 
 
 func _check_moving_wall_crushes() -> void:
-	if _moving_wall_data.is_empty():
+	_check_crushing_obstacles(_moving_wall_data)
+	_check_crushing_obstacles(_moving_sticky_wall_data)
+
+
+func _check_crushing_obstacles(obstacle_data: Array[Dictionary]) -> void:
+	if obstacle_data.is_empty():
 		return
-	for wall_data: Dictionary in _moving_wall_data:
+	for wall_data: Dictionary in obstacle_data:
 		var body := wall_data.get("body", null) as Node2D
 		if body == null or not is_instance_valid(body):
 			continue
@@ -1344,13 +1430,31 @@ func _check_moving_wall_crushes() -> void:
 			continue
 		var move_dir := move_delta / moved_distance
 		var wall_size := wall_data.get("size", Vector2.ZERO) as Vector2
-		var wall_rect := Rect2(body.global_position, wall_size).grow(Constants.CHARACTER_RADIUS * 0.45)
+		var wall_rect := Rect2(body.global_position, wall_size)
 		for node: Node in get_tree().get_nodes_in_group("characters"):
 			if not (node is Escapist):
 				continue
 			var esc := node as Escapist
-			if wall_rect.has_point(esc.global_position) and _has_wall_blocking_push(esc, move_dir, body):
+			if _is_character_pressed_by_moving_wall(esc, wall_rect, move_dir) \
+					and _has_wall_blocking_push(esc, move_dir, body):
 				_crush_escapist(esc)
+
+
+func _is_character_pressed_by_moving_wall(esc: Escapist, wall_rect: Rect2, push_dir: Vector2) -> bool:
+	if esc.is_dead or esc.has_scored or push_dir.length_squared() <= 0.01:
+		return false
+	var center := esc.global_position
+	var nearest := Vector2(
+		clampf(center.x, wall_rect.position.x, wall_rect.end.x),
+		clampf(center.y, wall_rect.position.y, wall_rect.end.y)
+	)
+	var to_character := center - nearest
+	var crush_distance := Constants.CHARACTER_RADIUS + CRUSH_MOVING_WALL_CONTACT_MARGIN
+	if to_character.length_squared() > crush_distance * crush_distance:
+		return false
+	if to_character.length_squared() <= 0.01:
+		return true
+	return to_character.normalized().dot(push_dir.normalized()) > 0.28
 
 
 func _has_wall_blocking_push(esc: Escapist, push_dir: Vector2, moving_body: Node2D) -> bool:
@@ -1358,7 +1462,7 @@ func _has_wall_blocking_push(esc: Escapist, push_dir: Vector2, moving_body: Node
 		return false
 	var space_state := get_world_2d().direct_space_state
 	var from := esc.global_position
-	var to := from + push_dir.normalized() * (Constants.CHARACTER_RADIUS + 20.0)
+	var to := from + push_dir.normalized() * (Constants.CHARACTER_RADIUS + CRUSH_BLOCKING_WALL_DISTANCE)
 	var query := PhysicsRayQueryParameters2D.create(from, to)
 	query.collision_mask = Constants.LAYER_WALLS
 	query.collide_with_areas = false
@@ -1366,7 +1470,10 @@ func _has_wall_blocking_push(esc: Escapist, push_dir: Vector2, moving_body: Node
 	if moving_body is CollisionObject2D:
 		query.exclude = [(moving_body as CollisionObject2D).get_rid()]
 	var hit := space_state.intersect_ray(query)
-	return not hit.is_empty()
+	if hit.is_empty():
+		return false
+	var collider: Object = hit.get("collider", null) as Object
+	return not (collider is AnimatableBody2D)
 
 
 func _crush_escapist(esc: Escapist) -> void:

@@ -190,6 +190,24 @@ func apply_impulse(impulse: Vector2) -> void:
 	_external_velocity += impulse
 
 
+func apply_sustained_push(direction: Vector2, target_speed: float, acceleration: float, delta: float) -> void:
+	if not can_move:
+		return
+	if body is Escapist and (body as Escapist).is_effect_immune():
+		return
+	var push_dir := direction.normalized()
+	if push_dir.length_squared() <= 0.01:
+		return
+
+	var current_push := _external_velocity.dot(push_dir)
+	var needed_push := maxf(target_speed - current_push, 0.0)
+	_external_velocity += push_dir * minf(needed_push, acceleration * delta)
+
+	var opposing_speed := velocity.dot(-push_dir)
+	if opposing_speed > 0.0:
+		velocity += push_dir * minf(opposing_speed, acceleration * delta)
+
+
 func apply_vortex_pull(direction: Vector2, target_speed: float, acceleration: float,
 		inertia_dampen: float, delta: float) -> void:
 	if not can_move:
