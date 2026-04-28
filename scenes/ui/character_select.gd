@@ -16,6 +16,7 @@ var _trapping_team: Enums.Team = Enums.Team.NONE
 # Per-player selection state (trapper players only)
 var _player_cursor: Dictionary = {}          # {pi: int} — index into _characters array
 var _player_confirmed: Dictionary = {}       # {pi: bool}
+var _viewer_cursor: Dictionary = {}          # {pi: int} for humans previewing while waiting
 var _nav_cooldowns: Dictionary = {}          # {pi: float}
 
 var _characters: Array[Dictionary] = []      # TrapperCharacters.get_all()
@@ -30,10 +31,13 @@ var _demo_effects: Array[Dictionary] = []
 var _demo_entities: Dictionary = {}
 var _skill_test_views: Dictionary = {}       # {pi: SkillTestView}
 var _skill_test_cards: Dictionary = {}       # {pi: card_index}
+var _trapper_portrait_cache: Dictionary = {}
+var _blocked_start_message_timer: float = 0.0
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
 const DEMO_EFFECT_DURATION: float = 0.75
+const BLOCKED_START_MESSAGE_DURATION: float = 3.0
 const GRID_COLUMNS: int = 2
 const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
@@ -41,6 +45,7 @@ const ABILITY_LINE_HEIGHT: float = 16.0
 const ABILITY_BLOCK_HEIGHT: float = 58.0
 const CARD_TOP_PAD: float = 14.0
 const ABILITY_START_Y: float = 220.0
+const CARDS_Y: float = 154.0
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
@@ -53,6 +58,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 
 	_player_cursor.clear()
 	_player_confirmed.clear()
+	_viewer_cursor.clear()
 	_nav_cooldowns.clear()
 	_preview_timers.clear()
 	_demo_active = false
@@ -61,6 +67,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_demo_pos = Vector2(0.5, 0.55)
 	_demo_effects.clear()
 	_demo_entities.clear()
+	_blocked_start_message_timer = 0.0
 	_clear_skill_tests()
 
 	# Initialize cursors for trapper-team players
@@ -71,6 +78,9 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 			_player_confirmed[pi] = false
 			_nav_cooldowns[pi] = 0.0
 			cursor_idx += 1
+		elif _is_human(pi):
+			_viewer_cursor[pi] = cursor_idx % _characters.size()
+			_nav_cooldowns[pi] = 0.0
 
 	show()
 	queue_redraw()
@@ -177,14 +187,35 @@ func _get_human_device_ids() -> Array[int]:
 
 
 func _handle_back_for_player(pi: int) -> bool:
-	if _player_confirmed.get(pi, false):
-		_player_confirmed[pi] = false
-		return true
-	if _allow_back and not _any_human_confirmed():
+	if _allow_back and (not _player_cursor.has(pi) or not _any_human_confirmed()):
 		_clear_skill_tests()
 		back_requested.emit()
 		return true
 	return false
+
+
+func _handle_deselect_for_player(pi: int) -> bool:
+	if _player_confirmed.get(pi, false):
+		_player_confirmed[pi] = false
+		return true
+	return false
+
+
+func _has_screen_cursor(pi: int) -> bool:
+	return _player_cursor.has(pi) or _viewer_cursor.has(pi)
+
+
+func _get_screen_cursor(pi: int) -> int:
+	if _player_cursor.has(pi):
+		return _player_cursor[pi] as int
+	return _viewer_cursor.get(pi, 0) as int
+
+
+func _set_screen_cursor(pi: int, value: int) -> void:
+	if _player_cursor.has(pi):
+		_player_cursor[pi] = value
+	elif _viewer_cursor.has(pi):
+		_viewer_cursor[pi] = value
 
 
 func _move_cursor_on_grid(current_index: int, dx: int, dy: int) -> int:
@@ -223,10 +254,10 @@ func _handle_grid_navigation(pi: int, device_id: int) -> void:
 		dx = 1 if x > 0.0 else -1
 	else:
 		dy = 1 if y > 0.0 else -1
-	var current_index: int = _player_cursor[pi] as int
+	var current_index := _get_screen_cursor(pi)
 	var next_index := _move_cursor_on_grid(current_index, dx, dy)
 	if next_index != current_index:
-		_player_cursor[pi] = next_index
+		_set_screen_cursor(pi, next_index)
 	_nav_cooldowns[pi] = NAV_COOLDOWN
 
 
@@ -237,14 +268,17 @@ func _process(delta: float) -> void:
 
 	_update_preview_timers(delta)
 	_update_skill_test_layout()
+	_blocked_start_message_timer = maxf(_blocked_start_message_timer - delta, 0.0)
 
 	# Tick nav cooldowns
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
 
 	var confirmed_this_frame := false
-	for pi: int in _player_cursor:
+	for pi: int in _player_indices:
 		if not _is_human(pi):
+			continue
+		if not _has_screen_cursor(pi):
 			continue
 
 		var device_id := InputManager.get_device_id(pi)
@@ -252,20 +286,30 @@ func _process(delta: float) -> void:
 			continue
 
 		if _skill_test_views.has(pi):
-			if InputManager.is_menu_back_just_pressed(device_id):
+			if InputManager.is_menu_back_just_pressed(device_id) \
+					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 				_exit_skill_test(pi)
 				queue_redraw()
 				return
 			continue
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
 			_enter_demo(pi)
 			return
+
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			if _handle_deselect_for_player(pi):
+				queue_redraw()
+				return
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			if _handle_back_for_player(pi):
 				queue_redraw()
 				return
+
+		if not _player_cursor.has(pi):
+			_handle_grid_navigation(pi, device_id)
+			continue
 
 		if _player_confirmed.get(pi, false):
 			continue
@@ -273,7 +317,7 @@ func _process(delta: float) -> void:
 		# Navigate
 		_handle_grid_navigation(pi, device_id)
 
-		if InputManager.is_menu_confirm_just_pressed(device_id):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 			var idx: int = _player_cursor[pi] as int
 			if not _is_character_taken(idx, pi):
 				_player_confirmed[pi] = true
@@ -281,13 +325,26 @@ func _process(delta: float) -> void:
 				if _all_humans_confirmed():
 					_auto_assign_bots()
 
-	if _selection_complete() and not confirmed_this_frame:
-		for device_id: int in _get_human_device_ids():
-			if InputManager.is_menu_confirm_just_pressed(device_id):
+	if not confirmed_this_frame and _any_human_start_pressed():
+		if _selection_complete() and _all_humans_confirmed():
 				_clear_skill_tests()
 				characters_ready.emit(_build_selections())
 				return
+		_show_start_blocked_message()
+		return
 
+	queue_redraw()
+
+
+func _any_human_start_pressed() -> bool:
+	for device_id: int in _get_human_device_ids():
+		if InputManager.is_menu_confirm_just_pressed(device_id):
+			return true
+	return false
+
+
+func _show_start_blocked_message() -> void:
+	_blocked_start_message_timer = BLOCKED_START_MESSAGE_DURATION
 	queue_redraw()
 
 
@@ -302,9 +359,9 @@ func _update_preview_timers(delta: float) -> void:
 
 
 func _trigger_ability_preview(player_index: int, button: String) -> void:
-	if not _player_cursor.has(player_index):
+	if not _has_screen_cursor(player_index):
 		return
-	var card_index: int = _player_cursor[player_index] as int
+	var card_index := _get_screen_cursor(player_index)
 	var char_data: Dictionary = _characters[card_index]
 	var abilities: Array = char_data["abilities"] as Array
 	for ability: Dictionary in abilities:
@@ -316,10 +373,10 @@ func _trigger_ability_preview(player_index: int, button: String) -> void:
 
 
 func _enter_demo(player_index: int) -> void:
-	if not _player_cursor.has(player_index):
+	if not _has_screen_cursor(player_index):
 		return
 	_exit_skill_test(player_index)
-	var card_index: int = _player_cursor[player_index] as int
+	var card_index := _get_screen_cursor(player_index)
 	var char_data: Dictionary = _characters[card_index]
 	var view := SkillTestViewScene.new()
 	add_child(view)
@@ -373,10 +430,10 @@ func _update_skill_test_layout() -> void:
 	var row_gap := 22.0
 	var available_w := maxf(760.0, screen.x - 260.0)
 	var card_w := clampf((available_w - float(columns - 1) * CARD_GAP) / float(columns), 360.0, 700.0)
-	var card_h := clampf((screen.y - 248.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
+	var card_h := clampf((screen.y - 274.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
 	var total_w := float(columns) * card_w + float(columns - 1) * CARD_GAP
 	var cards_x := cx - total_w / 2.0
-	var cards_y := 128.0
+	var cards_y := CARDS_Y
 	for pi: int in _skill_test_views:
 		var view := _skill_test_views[pi] as Node
 		if view == null or not is_instance_valid(view):
@@ -584,6 +641,38 @@ func _draw_selection_badge(font: Font, rect: Rect2, text: String, color: Color,
 		Color.WHITE if is_confirmed else Color(0.86, 0.86, 0.86))
 
 
+func _draw_testing_prompt(font: Font, rect: Rect2, color: Color) -> void:
+	var pulse := 0.55 + 0.45 * absf(sin(float(Time.get_ticks_msec()) / 1000.0 * TAU * 1.18))
+	var prompt_rect := Rect2(
+		rect.position.x,
+		rect.position.y,
+		rect.size.x,
+		24.0
+	)
+	draw_rect(prompt_rect, Color(0.0, 0.0, 0.0, 0.58 + 0.18 * pulse))
+	draw_rect(prompt_rect, Color(color, 0.18 + 0.36 * pulse))
+	draw_rect(prompt_rect, Color(color, 0.52 + 0.42 * pulse), false, 1.4)
+	_draw_centered_text_in_rect(font, "¡¡Entrá en Modo Testing apretando Y!!",
+		prompt_rect, 13, Color(1.0, 0.98, 0.18, 0.72 + 0.28 * pulse))
+
+
+func _draw_start_blocked_message(font: Font, screen: Vector2, color: Color) -> void:
+	if _blocked_start_message_timer <= 0.0:
+		return
+	var fade := clampf(_blocked_start_message_timer / BLOCKED_START_MESSAGE_DURATION, 0.0, 1.0)
+	var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 1000.0 * TAU * 2.0)
+	var panel := Rect2(Vector2(screen.x * 0.5 - 360.0, screen.y * 0.5 - 48.0), Vector2(720.0, 96.0))
+	draw_rect(panel.grow(10.0), Color(color, 0.12 * fade + 0.10 * pulse * fade))
+	draw_rect(panel, Color(0.0, 0.0, 0.0, 0.86 * fade))
+	draw_rect(panel, Color(color, 0.92 * fade), false, 2.4)
+	_draw_centered_text_in_rect(font, "Falta que todos elijan su personaje",
+		Rect2(panel.position.x + 18.0, panel.position.y + 20.0, panel.size.x - 36.0, 28.0),
+		23, Color(1.0, 0.96, 0.28, fade))
+	_draw_centered_text_in_rect(font, "Usá A para elegir o B para cambiar la selección.",
+		Rect2(panel.position.x + 18.0, panel.position.y + 54.0, panel.size.x - 36.0, 22.0),
+		14, Color(0.9, 0.9, 0.9, 0.86 * fade))
+
+
 func _draw() -> void:
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
@@ -602,8 +691,9 @@ func _draw() -> void:
 	var team_col := Enums.team_color(_trapping_team)
 	var sub := "%s elige cazadores" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
-	_draw_centered_text_in_rect(font, "Los cazadores usan A, X e Y en partida. Start confirma menús y Select cancela o vuelve.",
+	_draw_centered_text_in_rect(font, "Menú: A elige, B deselecciona, Y testing. En partida usan A, X e Y. Start continúa y Select vuelve.",
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
+	_draw_testing_prompt(font, Rect2(cx - 330.0, 118.0, 660.0, 24.0), team_col)
 
 	# Character cards — 4 cards in a row
 	var card_count := _characters.size()
@@ -613,10 +703,10 @@ func _draw() -> void:
 	var row_gap := 22.0
 	var available_w := maxf(760.0, screen.x - 260.0)
 	var card_w := clampf((available_w - float(columns - 1) * card_gap) / float(columns), 360.0, 700.0)
-	var card_h := clampf((screen.y - 248.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
+	var card_h := clampf((screen.y - 274.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
 	var total_w := float(columns) * card_w + float(columns - 1) * card_gap
 	var cards_x := cx - total_w / 2.0
-	var cards_y := 128.0
+	var cards_y := CARDS_Y
 
 	for i in card_count:
 		var col := i % columns
@@ -634,6 +724,7 @@ func _draw() -> void:
 		# Check if anyone is hovering or confirmed on this card
 		var is_taken := false
 		var hovering_pis: Array[int] = []
+		var preview_pis: Array[int] = []
 		var confirmed_pi: int = -1
 		for pi: int in _player_cursor:
 			if (_player_cursor[pi] as int) == i:
@@ -642,6 +733,9 @@ func _draw() -> void:
 					is_taken = true
 				else:
 					hovering_pis.append(pi)
+		for pi: int in _viewer_cursor:
+			if (_viewer_cursor[pi] as int) == i:
+				preview_pis.append(pi)
 
 		# Card background
 		var bg_color := Color(0.095, 0.095, 0.105)
@@ -652,7 +746,7 @@ func _draw() -> void:
 		var border_color := Color(0.3, 0.3, 0.3)
 		if confirmed_pi >= 0:
 			border_color = char_color
-		elif not hovering_pis.is_empty():
+		elif not hovering_pis.is_empty() or not preview_pis.is_empty():
 			border_color = Color(char_color, 0.82)
 		_draw_panel(card_rect, bg_color, border_color, 4.0 if confirmed_pi >= 0 else 2.0)
 		if confirmed_pi >= 0:
@@ -669,13 +763,7 @@ func _draw() -> void:
 			_draw_centered_text_in_rect(font, "PRUEBA REAL",
 				art_rect, 12, Color(char_color, 0.9))
 		else:
-			var silhouette_scale := 3.45
-			var silhouette_offset := Vector2(0.0, -2.0)
-			if char_id == Enums.TrapperCharacter.ESCORPION:
-				silhouette_scale = 2.45
-				silhouette_offset = Vector2(0.0, 6.0)
-			_draw_trapper_silhouette(char_id, art_rect.position + art_rect.size * 0.5 + silhouette_offset,
-				silhouette_scale, Color(char_color, 1.0))
+			_draw_trapper_portrait_preview(char_id, art_rect, char_color)
 
 		# Character name
 		_draw_centered_text_in_rect(font, char_name, Rect2(card_x, card_y + CARD_TOP_PAD, card_w, 26.0), 22, char_color)
@@ -723,6 +811,11 @@ func _draw() -> void:
 			_draw_selection_badge(font,
 				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
 				choosing_text, char_color, false)
+		elif not preview_pis.is_empty() and not is_taken:
+			var preview_text := "%s PROBANDO" % _format_player_names(preview_pis)
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
+				preview_text, char_color, false)
 
 	# Escapist team players
 	var escapist_pis: Array[int] = []
@@ -758,16 +851,26 @@ func _draw() -> void:
 			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
 			Color.YELLOW if confirmed else Color(0.6, 0.6, 0.6))
 		status_y += 20
+	for pi: int in _viewer_cursor:
+		var idx: int = _viewer_cursor[pi] as int
+		var char_data2: Dictionary = _characters[idx]
+		var cname: String = char_data2["name"] as String
+		var label := "%s: %s PROBANDO" % [_player_display_name(pi), cname]
+		var lw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		draw_string(font, Vector2(cx - lw / 2.0, status_y),
+			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.58, 0.75, 1.0))
+		status_y += 20
 
 	# Hints
-	var hint := "A probar | Palanca izq. mover | Start confirmar | Select cancelar"
+	var hint := "A elegir | B deseleccionar | Y testing | Palanca izq. mover | Select cancelar"
 	if _allow_back:
-		hint = "A probar | Palanca izq. mover | Start confirmar | Select volver o cancelar"
+		hint = "A elegir | B deseleccionar | Y testing | Palanca izq. mover | Select volver"
 	if _selection_complete():
-		hint = "Start para comenzar | Select volver o cambiar" if _allow_back else "Start para comenzar | Select cambiar"
+		hint = "Start para comenzar | B cambiar selección | Y testing | Select volver" if _allow_back else "Start para comenzar | B cambiar selección | Y testing"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)
+	_draw_start_blocked_message(font, screen, team_col)
 
 
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
@@ -971,6 +1074,60 @@ func _draw_filled_ellipse(center: Vector2, radii: Vector2, fill_color: Color, po
 		var angle := TAU * float(i) / float(point_count)
 		points.append(center + Vector2(cos(angle) * radii.x, sin(angle) * radii.y))
 	draw_colored_polygon(points, fill_color)
+
+
+func _draw_trapper_portrait_preview(character: Enums.TrapperCharacter, rect: Rect2, color: Color) -> void:
+	var texture := _get_trapper_portrait_texture(character)
+	if texture == null:
+		var silhouette_scale := 3.45
+		var silhouette_offset := Vector2(0.0, -2.0)
+		if character == Enums.TrapperCharacter.ESCORPION:
+			silhouette_scale = 2.45
+			silhouette_offset = Vector2(0.0, 6.0)
+		_draw_trapper_silhouette(character, rect.position + rect.size * 0.5 + silhouette_offset,
+			silhouette_scale, Color(color, 1.0))
+		return
+	var portrait_rect := _fit_texture_in_rect(texture, rect.grow(-8.0))
+	draw_texture_rect(texture, portrait_rect, false)
+	draw_rect(portrait_rect, Color(color, 0.24), false, 1.0)
+
+
+func _get_trapper_portrait_texture(character: Enums.TrapperCharacter) -> Texture2D:
+	var key := int(character)
+	if _trapper_portrait_cache.has(key):
+		return _trapper_portrait_cache[key] as Texture2D
+	var asset_name := _get_trapper_portrait_asset_name(character)
+	var path := "res://assets/ui/selection_portraits/%s.png" % asset_name
+	var image := Image.new()
+	if image.load(path) != OK:
+		_trapper_portrait_cache[key] = null
+		return null
+	var texture := ImageTexture.create_from_image(image)
+	_trapper_portrait_cache[key] = texture
+	return texture
+
+
+func _get_trapper_portrait_asset_name(character: Enums.TrapperCharacter) -> String:
+	match character:
+		Enums.TrapperCharacter.ARANA:
+			return "spider"
+		Enums.TrapperCharacter.HONGO:
+			return "mushroom"
+		Enums.TrapperCharacter.ESCORPION:
+			return "scorpion"
+		Enums.TrapperCharacter.PULPO:
+			return "octopus"
+	return "spider"
+
+
+func _fit_texture_in_rect(texture: Texture2D, rect: Rect2) -> Rect2:
+	var size := texture.get_size()
+	if size.x <= 0.0 or size.y <= 0.0:
+		return rect
+	var scale := minf(rect.size.x / size.x, rect.size.y / size.y)
+	var target_size := size * scale
+	var pos := rect.position + (rect.size - target_size) * 0.5
+	return Rect2(pos, target_size)
 
 
 func _draw_trapper_silhouette(character: Enums.TrapperCharacter, center: Vector2, scale: float, color: Color) -> void:

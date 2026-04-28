@@ -11,6 +11,7 @@ var _team_assignments: Dictionary = {}
 var _escapist_team: Enums.Team = Enums.Team.NONE
 var _player_cursor: Dictionary = {}
 var _player_confirmed: Dictionary = {}
+var _viewer_cursor: Dictionary = {}
 var _nav_cooldowns: Dictionary = {}
 var _animals: Array[Dictionary] = []
 var _allow_back: bool = true
@@ -25,15 +26,18 @@ var _demo_entities: Dictionary = {}
 var _skill_test_views: Dictionary = {}       # {pi: SkillTestView}
 var _skill_test_cards: Dictionary = {}       # {pi: card_index}
 var _escapist_sprite_cache: Dictionary = {}
+var _blocked_start_message_timer: float = 0.0
 
 const NAV_COOLDOWN: float = 0.2
 const PREVIEW_DURATION: float = 0.8
 const DEMO_EFFECT_DURATION: float = 0.75
+const BLOCKED_START_MESSAGE_DURATION: float = 3.0
 const GRID_COLUMNS: int = 2
 const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
 const CARD_TOP_PAD: float = 14.0
 const ABILITY_Y: float = 222.0
+const CARDS_Y: float = 154.0
 
 
 func _ready() -> void:
@@ -50,6 +54,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 
 	_player_cursor.clear()
 	_player_confirmed.clear()
+	_viewer_cursor.clear()
 	_nav_cooldowns.clear()
 	_preview_timers.clear()
 	_demo_active = false
@@ -58,6 +63,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_demo_pos = Vector2(0.35, 0.62)
 	_demo_effects.clear()
 	_demo_entities.clear()
+	_blocked_start_message_timer = 0.0
 	_clear_skill_tests()
 
 	var cursor_idx := 0
@@ -67,6 +73,9 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 			_player_confirmed[pi] = false
 			_nav_cooldowns[pi] = 0.0
 			cursor_idx += 1
+		elif _is_human(pi):
+			_viewer_cursor[pi] = cursor_idx % _animals.size()
+			_nav_cooldowns[pi] = 0.0
 
 	show()
 	queue_redraw()
@@ -151,14 +160,35 @@ func _get_human_device_ids() -> Array[int]:
 
 
 func _handle_back_for_player(pi: int) -> bool:
-	if _player_confirmed.get(pi, false):
-		_player_confirmed[pi] = false
-		return true
-	if _allow_back and not _any_human_confirmed():
+	if _allow_back and (not _player_cursor.has(pi) or not _any_human_confirmed()):
 		_clear_skill_tests()
 		back_requested.emit()
 		return true
 	return false
+
+
+func _handle_deselect_for_player(pi: int) -> bool:
+	if _player_confirmed.get(pi, false):
+		_player_confirmed[pi] = false
+		return true
+	return false
+
+
+func _has_screen_cursor(pi: int) -> bool:
+	return _player_cursor.has(pi) or _viewer_cursor.has(pi)
+
+
+func _get_screen_cursor(pi: int) -> int:
+	if _player_cursor.has(pi):
+		return _player_cursor[pi] as int
+	return _viewer_cursor.get(pi, 0) as int
+
+
+func _set_screen_cursor(pi: int, value: int) -> void:
+	if _player_cursor.has(pi):
+		_player_cursor[pi] = value
+	elif _viewer_cursor.has(pi):
+		_viewer_cursor[pi] = value
 
 
 func _move_cursor_on_grid(current_index: int, dx: int, dy: int) -> int:
@@ -197,10 +227,10 @@ func _handle_grid_navigation(pi: int, device_id: int) -> void:
 		dx = 1 if x > 0.0 else -1
 	else:
 		dy = 1 if y > 0.0 else -1
-	var current_index: int = _player_cursor[pi] as int
+	var current_index := _get_screen_cursor(pi)
 	var next_index := _move_cursor_on_grid(current_index, dx, dy)
 	if next_index != current_index:
-		_player_cursor[pi] = next_index
+		_set_screen_cursor(pi, next_index)
 	_nav_cooldowns[pi] = NAV_COOLDOWN
 
 
@@ -211,13 +241,16 @@ func _process(delta: float) -> void:
 
 	_update_preview_timers(delta)
 	_update_skill_test_layout()
+	_blocked_start_message_timer = maxf(_blocked_start_message_timer - delta, 0.0)
 
 	for pi: int in _nav_cooldowns:
 		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
 
 	var confirmed_this_frame := false
-	for pi: int in _player_cursor:
+	for pi: int in _player_indices:
 		if not _is_human(pi):
+			continue
+		if not _has_screen_cursor(pi):
 			continue
 
 		var device_id := InputManager.get_device_id(pi)
@@ -225,27 +258,37 @@ func _process(delta: float) -> void:
 			continue
 
 		if _skill_test_views.has(pi):
-			if InputManager.is_menu_back_just_pressed(device_id):
+			if InputManager.is_menu_back_just_pressed(device_id) \
+					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 				_exit_skill_test(pi)
 				queue_redraw()
 				return
 			continue
 
-		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
 			_enter_demo(pi)
 			return
+
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+			if _handle_deselect_for_player(pi):
+				queue_redraw()
+				return
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			if _handle_back_for_player(pi):
 				queue_redraw()
 				return
 
+		if not _player_cursor.has(pi):
+			_handle_grid_navigation(pi, device_id)
+			continue
+
 		if _player_confirmed.get(pi, false):
 			pass
 		else:
 			_handle_grid_navigation(pi, device_id)
 
-			if InputManager.is_menu_confirm_just_pressed(device_id):
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 				var idx: int = _player_cursor[pi] as int
 				if not _is_animal_taken(idx, pi):
 					_player_confirmed[pi] = true
@@ -253,13 +296,26 @@ func _process(delta: float) -> void:
 					if _all_humans_confirmed():
 						_auto_assign_bots()
 
-	if _selection_complete() and not confirmed_this_frame:
-		for device_id: int in _get_human_device_ids():
-			if InputManager.is_menu_confirm_just_pressed(device_id):
+	if not confirmed_this_frame and _any_human_start_pressed():
+		if _selection_complete() and _all_humans_confirmed():
 				_clear_skill_tests()
 				escapists_ready.emit(_build_selections())
 				return
+		_show_start_blocked_message()
+		return
 
+	queue_redraw()
+
+
+func _any_human_start_pressed() -> bool:
+	for device_id: int in _get_human_device_ids():
+		if InputManager.is_menu_confirm_just_pressed(device_id):
+			return true
+	return false
+
+
+func _show_start_blocked_message() -> void:
+	_blocked_start_message_timer = BLOCKED_START_MESSAGE_DURATION
 	queue_redraw()
 
 
@@ -274,19 +330,19 @@ func _update_preview_timers(delta: float) -> void:
 
 
 func _trigger_ability_preview(player_index: int) -> void:
-	if not _player_cursor.has(player_index):
+	if not _has_screen_cursor(player_index):
 		return
-	var card_index: int = _player_cursor[player_index] as int
+	var card_index := _get_screen_cursor(player_index)
 	_preview_timers[card_index] = PREVIEW_DURATION
 	InputManager.vibrate_player(player_index, 0.08, 0.18, 0.08)
 	queue_redraw()
 
 
 func _enter_demo(player_index: int) -> void:
-	if not _player_cursor.has(player_index):
+	if not _has_screen_cursor(player_index):
 		return
 	_exit_skill_test(player_index)
-	var card_index: int = _player_cursor[player_index] as int
+	var card_index := _get_screen_cursor(player_index)
 	var animal_data: Dictionary = _animals[card_index]
 	var view := SkillTestViewScene.new()
 	add_child(view)
@@ -340,10 +396,10 @@ func _update_skill_test_layout() -> void:
 	var row_gap := 22.0
 	var available_w := maxf(760.0, screen.x - 260.0)
 	var card_w := clampf((available_w - float(columns - 1) * CARD_GAP) / float(columns), 360.0, 700.0)
-	var card_h := clampf((screen.y - 248.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
+	var card_h := clampf((screen.y - 274.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
 	var total_w := float(columns) * card_w + float(columns - 1) * CARD_GAP
 	var cards_x := cx - total_w / 2.0
-	var cards_y := 128.0
+	var cards_y := CARDS_Y
 	for pi: int in _skill_test_views:
 		var view := _skill_test_views[pi] as Node
 		if view == null or not is_instance_valid(view):
@@ -549,6 +605,38 @@ func _draw_selection_badge(font: Font, rect: Rect2, text: String, color: Color,
 		Color.WHITE if is_confirmed else Color(0.86, 0.86, 0.86))
 
 
+func _draw_testing_prompt(font: Font, rect: Rect2, color: Color) -> void:
+	var pulse := 0.55 + 0.45 * absf(sin(float(Time.get_ticks_msec()) / 1000.0 * TAU * 1.18))
+	var prompt_rect := Rect2(
+		rect.position.x,
+		rect.position.y,
+		rect.size.x,
+		24.0
+	)
+	draw_rect(prompt_rect, Color(0.0, 0.0, 0.0, 0.58 + 0.18 * pulse))
+	draw_rect(prompt_rect, Color(color, 0.18 + 0.36 * pulse))
+	draw_rect(prompt_rect, Color(color, 0.52 + 0.42 * pulse), false, 1.4)
+	_draw_centered_text_in_rect(font, "¡¡Entrá en Modo Testing apretando Y!!",
+		prompt_rect, 13, Color(1.0, 0.98, 0.18, 0.72 + 0.28 * pulse))
+
+
+func _draw_start_blocked_message(font: Font, screen: Vector2, color: Color) -> void:
+	if _blocked_start_message_timer <= 0.0:
+		return
+	var fade := clampf(_blocked_start_message_timer / BLOCKED_START_MESSAGE_DURATION, 0.0, 1.0)
+	var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 1000.0 * TAU * 2.0)
+	var panel := Rect2(Vector2(screen.x * 0.5 - 360.0, screen.y * 0.5 - 48.0), Vector2(720.0, 96.0))
+	draw_rect(panel.grow(10.0), Color(color, 0.12 * fade + 0.10 * pulse * fade))
+	draw_rect(panel, Color(0.0, 0.0, 0.0, 0.86 * fade))
+	draw_rect(panel, Color(color, 0.92 * fade), false, 2.4)
+	_draw_centered_text_in_rect(font, "Falta que todos elijan su personaje",
+		Rect2(panel.position.x + 18.0, panel.position.y + 20.0, panel.size.x - 36.0, 28.0),
+		23, Color(1.0, 0.96, 0.28, fade))
+	_draw_centered_text_in_rect(font, "Usá A para elegir o B para cambiar la selección.",
+		Rect2(panel.position.x + 18.0, panel.position.y + 54.0, panel.size.x - 36.0, 22.0),
+		14, Color(0.9, 0.9, 0.9, 0.86 * fade))
+
+
 func _draw() -> void:
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
@@ -564,8 +652,9 @@ func _draw() -> void:
 	var team_col := Enums.team_color(_escapist_team)
 	var sub := "%s elige escapistas" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
-	_draw_centered_text_in_rect(font, "Los escapistas usan A en partida. Start confirma menús y Select cancela o vuelve.",
+	_draw_centered_text_in_rect(font, "Menú: A elige, B deselecciona, Y testing. En partida los escapistas usan A. Start continúa y Select vuelve.",
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
+	_draw_testing_prompt(font, Rect2(cx - 330.0, 118.0, 660.0, 24.0), team_col)
 
 	var card_count := _animals.size()
 	var columns := 2
@@ -573,10 +662,10 @@ func _draw() -> void:
 	var row_gap := 22.0
 	var available_w := maxf(760.0, screen.x - 260.0)
 	var card_w := clampf((available_w - float(columns - 1) * CARD_GAP) / float(columns), 360.0, 700.0)
-	var card_h := clampf((screen.y - 248.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
+	var card_h := clampf((screen.y - 274.0 - float(rows - 1) * row_gap) / float(rows), 256.0, 410.0)
 	var total_w := float(columns) * card_w + float(columns - 1) * CARD_GAP
 	var cards_x := cx - total_w / 2.0
-	var cards_y := 128.0
+	var cards_y := CARDS_Y
 
 	for i in card_count:
 		var col := i % columns
@@ -592,6 +681,7 @@ func _draw() -> void:
 		var ability: Dictionary = animal_data["ability"] as Dictionary
 
 		var hovering_pis: Array[int] = []
+		var preview_pis: Array[int] = []
 		var confirmed_pi := -1
 		for pi: int in _player_cursor:
 			if (_player_cursor[pi] as int) == i:
@@ -599,12 +689,15 @@ func _draw() -> void:
 					confirmed_pi = pi
 				else:
 					hovering_pis.append(pi)
+		for pi: int in _viewer_cursor:
+			if (_viewer_cursor[pi] as int) == i:
+				preview_pis.append(pi)
 
 		var bg_color := Color(0.095, 0.095, 0.105)
 		if confirmed_pi >= 0:
 			bg_color = Color(animal_color, 0.23)
 		var border_color := animal_color if confirmed_pi >= 0 else Color(0.3, 0.3, 0.3)
-		if confirmed_pi < 0 and not hovering_pis.is_empty():
+		if confirmed_pi < 0 and (not hovering_pis.is_empty() or not preview_pis.is_empty()):
 			border_color = Color(animal_color, 0.82)
 		_draw_panel(card_rect, bg_color, border_color, 4.0 if confirmed_pi >= 0 else 2.0)
 		if confirmed_pi >= 0:
@@ -650,6 +743,11 @@ func _draw() -> void:
 			_draw_selection_badge(font,
 				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
 				hover_text, animal_color, false)
+		elif not preview_pis.is_empty():
+			var preview_text := "%s PROBANDO" % _format_player_names(preview_pis)
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
+				preview_text, animal_color, false)
 
 	var trapper_pis: Array[int] = []
 	for pi: int in _player_indices:
@@ -683,15 +781,25 @@ func _draw() -> void:
 			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
 			Color.YELLOW if confirmed else Color(0.6, 0.6, 0.6))
 		status_y += 20.0
+	for pi: int in _viewer_cursor:
+		var idx: int = _viewer_cursor[pi] as int
+		var animal_data2: Dictionary = _animals[idx]
+		var status_name: String = animal_data2["name"] as String
+		var label := "%s: %s PROBANDO" % [_player_display_name(pi), status_name]
+		var label_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		draw_string(font, Vector2(cx - label_width / 2.0, status_y),
+			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.58, 0.75, 1.0))
+		status_y += 20.0
 
-	var hint := "A probar | Palanca izq. mover | Start confirmar | Select cancelar"
+	var hint := "A elegir | B deseleccionar | Y testing | Palanca izq. mover | Select cancelar"
 	if _allow_back:
-		hint = "A probar | Palanca izq. mover | Start confirmar | Select volver o cancelar"
+		hint = "A elegir | B deseleccionar | Y testing | Palanca izq. mover | Select volver"
 	if _selection_complete():
-		hint = "Start continuar | Select volver o cambiar" if _allow_back else "Start continuar | Select cambiar"
+		hint = "Start continuar | B cambiar selección | Y testing | Select volver" if _allow_back else "Start continuar | B cambiar selección | Y testing"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - hint_width / 2.0, screen.y - 30),
 		hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.YELLOW)
+	_draw_start_blocked_message(font, screen, team_col)
 
 
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
@@ -832,9 +940,9 @@ func _draw_escapist_sprite_preview(animal: Enums.EscapistAnimal, rect: Rect2, co
 		_draw_escapist_silhouette(animal, rect.position + rect.size * 0.5 + Vector2(0.0, 4.0),
 			3.65, Color(color, 1.0))
 		return
-	var size := texture.get_size()
-	var pos := rect.position + (rect.size - size) * 0.5 + _get_escapist_preview_offset(animal)
-	draw_texture_rect(texture, Rect2(pos, size), false)
+	var portrait_rect := _fit_texture_in_rect(texture, rect.grow(-8.0))
+	draw_texture_rect(texture, portrait_rect, false)
+	draw_rect(portrait_rect, Color(color, 0.24), false, 1.0)
 
 
 func _get_escapist_preview_texture(animal: Enums.EscapistAnimal) -> Texture2D:
@@ -842,27 +950,24 @@ func _get_escapist_preview_texture(animal: Enums.EscapistAnimal) -> Texture2D:
 	if _escapist_sprite_cache.has(key):
 		return _escapist_sprite_cache[key] as Texture2D
 	var asset_name := _get_escapist_asset_name(animal)
-	var path := "res://assets/characters/%s/frames/%s_walk_right_1.png" % [asset_name, asset_name]
+	var path := "res://assets/ui/selection_portraits/%s.png" % asset_name
 	var image := Image.new()
 	if image.load(path) != OK:
 		_escapist_sprite_cache[key] = null
 		return null
-	var used_rect := image.get_used_rect()
-	if used_rect.size.x <= 0 or used_rect.size.y <= 0:
-		_escapist_sprite_cache[key] = null
-		return null
-	var cropped := image.get_region(used_rect)
-	var target_size := _get_escapist_preview_target_size(animal)
-	var resize_scale := minf(
-		target_size.x / float(cropped.get_width()),
-		target_size.y / float(cropped.get_height())
-	)
-	var target_w := maxi(1, int(round(float(cropped.get_width()) * resize_scale)))
-	var target_h := maxi(1, int(round(float(cropped.get_height()) * resize_scale)))
-	cropped.resize(target_w, target_h, Image.INTERPOLATE_LANCZOS)
-	var texture := ImageTexture.create_from_image(cropped)
+	var texture := ImageTexture.create_from_image(image)
 	_escapist_sprite_cache[key] = texture
 	return texture
+
+
+func _fit_texture_in_rect(texture: Texture2D, rect: Rect2) -> Rect2:
+	var size := texture.get_size()
+	if size.x <= 0.0 or size.y <= 0.0:
+		return rect
+	var scale := minf(rect.size.x / size.x, rect.size.y / size.y)
+	var target_size := size * scale
+	var pos := rect.position + (rect.size - target_size) * 0.5
+	return Rect2(pos, target_size)
 
 
 func _get_escapist_asset_name(animal: Enums.EscapistAnimal) -> String:

@@ -127,7 +127,7 @@ func _make_voice(_skill_name: StringName) -> Dictionary:
 		"phase2": 0.0,
 		"freq": 58.0,
 		"freq2": 92.0,
-		"volume": 0.42,
+		"volume": 0.92,
 	}
 
 

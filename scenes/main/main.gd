@@ -126,6 +126,7 @@ func _ready() -> void:
 	ui_layer.add_child(official_briefing)
 	official_briefing.hide()
 	official_briefing.briefing_finished.connect(_on_official_briefing_finished)
+	official_briefing.back_requested.connect(_on_official_briefing_back)
 
 	team_setup = TeamSetupScene.instantiate() as TeamSetup
 	ui_layer.add_child(team_setup)
@@ -436,6 +437,17 @@ func _on_official_briefing_finished() -> void:
 	game_hud.show()
 	GameManager.start_observation()
 	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _on_official_briefing_back() -> void:
+	pop_view()
+	game_hud.hide()
+	phase_overlay.clear()
+	_is_first_round = true
+	menu_music.use_menu_volume()
+	menu_music.start_music()
+	_show_character_select(true)
 	InputManager.suppress_edge_detection(3)
 
 

@@ -11,6 +11,7 @@ const SCORE_ENTRY_TICK_INTERVAL: float = 0.008
 var _text: String = ""
 var _sub_text: String = ""
 var _text_color: Color = Color.WHITE
+var _sub_text_color: Color = Color(0.88, 0.88, 0.88)
 var _show_timer: float = 0.0
 var _escape_anim_time: float = 0.0
 var _anchor_top: bool = false
@@ -36,6 +37,7 @@ var input_blocked: bool = false
 func show_observation(_time_left: float) -> void:
 	_text = ""
 	_sub_text = ""
+	_sub_text_color = Color(0.88, 0.88, 0.88)
 	_detail_lines.clear()
 	_score_entries.clear()
 	_show_match_totals = false
@@ -59,6 +61,7 @@ func show_round_intro(round_number: int, leg_label: String, escapist_team: Enums
 	_show_match_totals = false
 	_reset_score_animation()
 	_text_color = Color(1.0, 0.95, 0.25)
+	_sub_text_color = Color(0.88, 0.88, 0.88)
 	_show_timer = 2.8
 	_anchor_top = false
 	visible = true
@@ -72,7 +75,10 @@ func show_hunt_countdown(time_left: float) -> void:
 	_score_entries.clear()
 	_show_match_totals = false
 	_reset_score_animation()
-	_text_color = Color.YELLOW
+	var urgent := time_left <= 10.0
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 105.0)
+	_text_color = Color(1.0, 0.18 + 0.28 * pulse, 0.12) if urgent else Color.YELLOW
+	_sub_text_color = _text_color if urgent else Color(0.88, 0.88, 0.88)
 	_anchor_top = true
 	visible = true
 	queue_redraw()
@@ -86,6 +92,7 @@ func show_hunt() -> void:
 	_show_match_totals = false
 	_reset_score_animation()
 	_text_color = Color.RED
+	_sub_text_color = Color(0.88, 0.88, 0.88)
 	_show_timer = 2.0
 	_anchor_top = true
 	visible = true
@@ -100,6 +107,7 @@ func show_escape() -> void:
 	_show_match_totals = false
 	_reset_score_animation()
 	_text_color = Color.RED
+	_sub_text_color = Color(0.88, 0.88, 0.88)
 	_show_timer = 2.6
 	_escape_anim_time = 0.0
 	AudioManager.play_skill(&"EscapeHeartbeat")
@@ -125,6 +133,7 @@ func show_round_end(_escapist_team: Enums.Team, scores: Array[int], entries: Arr
 	_has_escape_replay_option = has_escape_replay_option
 	_has_trapper_replay_option = has_trapper_replay_option
 	_text_color = Color.WHITE
+	_sub_text_color = Color(0.88, 0.88, 0.88)
 	_show_timer = 0.0
 	_anchor_top = false
 	visible = true
@@ -139,6 +148,7 @@ func show_match_end(winning_team: Enums.Team, scores: Array[int], entries: Array
 	_show_match_totals = true
 	_start_score_animation(scores, entries)
 	_text_color = Enums.team_color(winning_team)
+	_sub_text_color = Color(0.88, 0.88, 0.88)
 	_show_timer = 0.0
 	_anchor_top = false
 	visible = true
@@ -153,6 +163,7 @@ func set_round_total_points(points: int) -> void:
 func clear() -> void:
 	_text = ""
 	_sub_text = ""
+	_sub_text_color = Color(0.88, 0.88, 0.88)
 	_detail_lines.clear()
 	_score_entries.clear()
 	_show_match_totals = false
@@ -443,7 +454,7 @@ func _draw() -> void:
 	if not display_sub_text.is_empty():
 		var sub_w := font.get_string_size(display_sub_text, HORIZONTAL_ALIGNMENT_LEFT, -1, sub_text_size).x
 		draw_string(font, Vector2(cx - sub_w / 2.0, panel_rect.position.y + 78.0),
-			display_sub_text, HORIZONTAL_ALIGNMENT_CENTER, -1, sub_text_size, Color(0.88, 0.88, 0.88))
+			display_sub_text, HORIZONTAL_ALIGNMENT_CENTER, -1, sub_text_size, _sub_text_color)
 
 	if not _score_entries.is_empty():
 		if _show_match_totals:

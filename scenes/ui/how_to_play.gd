@@ -26,7 +26,7 @@ const PAGES := [
 		"accent": Color(0.30, 0.82, 1.0),
 		"lines": [
 			"Vista previa: la ronda empieza con una mirada breve al mapa y a los roles.",
-			"Cazería planificada: los cazadores pueden preparar y colocar trampas durante la cuenta regresiva.",
+			"Cazería planificada: los cazadores preparan trampas durante la cuenta y luego no actúan en Escape.",
 			"Escape: los escapistas corren hacia la meta mientras las trampas siguen activas.",
 			"El modo práctica evita la presión del puntaje y sirve para probar movimiento, habilidades y trampas.",
 		],
@@ -46,15 +46,14 @@ const PAGES := [
 		"title": "HABILIDADES",
 		"accent": Color(1.0, 0.36, 0.24),
 		"lines": [
-			"Las recargas avanzan con el tiempo: después de usar una habilidad, espera a que termine.",
-			"Los escapistas usan A en partida. Después de usarla, la habilidad entra en recarga.",
-			"Cuando una habilidad escapista vuelve a estar lista, el personaje parpadea y el control vibra.",
+			"Los escapistas usan A. Con cazería planificada, tienen un solo uso por vida.",
+			"Ese uso solo vuelve si ese escapista muere y reaparece.",
+			"Sin cazería planificada o en práctica, las habilidades escapistas recargan por tiempo.",
 			"Los cazadores usan A, X e Y.",
-			"En cazería planificada, cada habilidad de cazador tiene un uso gratis.",
-			"En escape y práctica, cada habilidad de cazador tiene sus propias cargas y recargas.",
+			"En cazería planificada, cada habilidad de cazador tiene un uso gratis y no se repite.",
+			"Sin esa fase y en práctica, cada habilidad de cazador tiene sus propias cargas y recargas.",
 			"Cuando vuelve una carga, el cursor del cazador parpadea y el control vibra.",
-			"Algunas habilidades de cazador tienen límite de colocación o usan varios puntos.",
-			"Select cancela la colocación de varios puntos.",
+			"La rata rescata a un solo aliado: si varios tocan el lazo, engancha al primero.",
 		],
 	},
 ]
@@ -192,21 +191,22 @@ func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
 	draw_line(Vector2(right_rect.position.x, divider_y), Vector2(right_rect.end.x, divider_y), Color(accent, 0.34), 1.2)
 
 	var left_lines: Array[String] = [
-		"Las recargas avanzan con el tiempo, no con objetos ni puntaje.",
-		"Los escapistas usan A en partida. Después de usarla, la habilidad entra en recarga.",
-		"Cuando vuelve a estar lista, el personaje parpadea y el control vibra.",
+		"Usan A en partida.",
+		"Con cazería planificada, cada escapista tiene un solo uso por vida.",
+		"Ese uso solo vuelve si ese escapista muere y reaparece.",
+		"Sin esa fase o en práctica, recargan por tiempo.",
+		"La rata rescata a un solo aliado; si varios tocan el lazo, engancha al primero.",
 	]
 	var right_lines: Array[String] = [
 		"Los cazadores usan A, X e Y.",
-		"En cazería planificada, cada habilidad tiene un uso gratis.",
-		"En escape y práctica, cada habilidad tiene sus propias cargas y recargas.",
-		"Cuando vuelve una carga, el cursor del cazador parpadea y el control vibra.",
-		"Algunas habilidades tienen límite de colocación o usan varios puntos.",
-		"Select cancela la colocación de varios puntos.",
+		"En cazería planificada, cada habilidad tiene un uso gratis y no se repite.",
+		"Al terminar la cuenta regresiva, ya no pueden actuar durante Escape.",
+		"Sin esa fase o en práctica, juegan con recargas normales.",
+		"Cualquier muerte escapista recarga las habilidades de todos los cazadores.",
 	]
 
-	_draw_skills_column(font, left_rect, accent, left_lines, 16, 17.0, 10.0)
-	_draw_skills_column(font, right_rect, accent, right_lines, 15, 17.0, 10.0)
+	_draw_skills_column(font, left_rect, accent, left_lines, 14, 16.0, 8.0)
+	_draw_skills_column(font, right_rect, accent, right_lines, 14, 16.0, 8.0)
 
 
 func _draw_skills_column(font: Font, rect: Rect2, accent: Color, lines: Array[String], font_size: int, line_height: float, gap: float) -> void:
@@ -216,7 +216,7 @@ func _draw_skills_column(font: Font, rect: Rect2, accent: Color, lines: Array[St
 		draw_rect(bullet_rect, Color(accent, 0.24))
 		draw_rect(bullet_rect, accent, false, 1.2)
 		y += _draw_wrapped_text(font, line, Vector2(rect.position.x + 26.0, y),
-			rect.size.x - 28.0, font_size, Color(0.88, 0.88, 0.88), line_height, 2)
+			rect.size.x - 28.0, font_size, Color(0.88, 0.88, 0.88), line_height, 3)
 		y += gap
 
 

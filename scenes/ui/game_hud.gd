@@ -6,11 +6,19 @@ extends Control
 var input_blocked: bool = false
 
 const HUD_HEIGHT: float = 168.0
+const URGENT_TIMER_SECONDS: float = 10.0
+const HEARTBEAT_REPEAT_INTERVAL: float = 2.15
+
+var _heartbeat_warning_active: bool = false
+var _heartbeat_pulse_timer: float = 0.0
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if visible:
+		_update_urgent_timer_heartbeat(delta)
 		queue_redraw()
+	else:
+		_reset_urgent_timer_heartbeat()
 
 
 func _draw() -> void:
@@ -119,7 +127,7 @@ func _draw_command_deck(screen: Vector2, bar_h: float) -> void:
 func _draw_escape_timer(font: Font, screen: Vector2, bar_h: float) -> void:
 	var time_left := GameManager.get_hunt_time()
 	var timer_text := "%d" % ceili(time_left)
-	var urgent := time_left <= 10.0
+	var urgent := time_left <= URGENT_TIMER_SECONDS
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 105.0)
 	var timer_color := Color(1.0, 0.95, 0.22) if not urgent else Color(1.0, 0.18 + 0.28 * pulse, 0.12)
 	var panel_w := 190.0
@@ -134,6 +142,34 @@ func _draw_escape_timer(font: Font, screen: Vector2, bar_h: float) -> void:
 		10, Color(0.76, 0.76, 0.76))
 	_draw_centered_text_in_rect(font, timer_text, Rect2(panel.position.x + 78.0, panel.position.y + 4.0, 96.0, 32.0),
 		30, timer_color)
+
+
+func _update_urgent_timer_heartbeat(delta: float) -> void:
+	var urgent := false
+	if GameManager.current_state == Enums.GameState.ESCAPE and GameManager.is_escape_timer_running():
+		var escape_time := GameManager.get_hunt_time()
+		urgent = escape_time > 0.0 and escape_time <= URGENT_TIMER_SECONDS
+	elif GameManager.current_state == Enums.GameState.HUNT and GameManager.is_strategic_hunt_enabled():
+		var hunt_time := GameManager.get_observation_time()
+		urgent = hunt_time > 0.0 and hunt_time <= URGENT_TIMER_SECONDS
+
+	if not urgent:
+		_reset_urgent_timer_heartbeat()
+		return
+
+	if not _heartbeat_warning_active:
+		_heartbeat_warning_active = true
+		_heartbeat_pulse_timer = 0.0
+
+	_heartbeat_pulse_timer -= delta
+	if _heartbeat_pulse_timer <= 0.0:
+		AudioManager.play_skill(&"EscapeHeartbeat")
+		_heartbeat_pulse_timer = HEARTBEAT_REPEAT_INTERVAL
+
+
+func _reset_urgent_timer_heartbeat() -> void:
+	_heartbeat_warning_active = false
+	_heartbeat_pulse_timer = 0.0
 
 
 func _draw_team_ability_panels(font: Font, screen: Vector2) -> void:

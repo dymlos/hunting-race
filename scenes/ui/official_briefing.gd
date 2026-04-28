@@ -2,15 +2,18 @@ class_name OfficialBriefing
 extends Control
 
 signal briefing_finished
+signal back_requested
 
 var input_blocked: bool = false
 var _prev_keyboard_confirm: bool = false
+var _prev_keyboard_back: bool = false
 
 const LINES: Array[String] = [
 	"Los escapistas deben llegar a la zona verde antes de que termine el tiempo.",
 	"Los cazadores intentarán detenerlos colocando trampas y controlando el mapa.",
 	"El escenario también tendrá peligros propios: paredes adhesivas, corrientes, hielo y otros obstáculos.",
-	"Las habilidades tienen recarga: vuelven con el tiempo después de usarlas. En la fase de cazería planificada, cada habilidad de cazador tiene un uso gratis.",
+	"Con cazería planificada, cada escapista tiene una sola habilidad por vida: solo se recarga si muere y reaparece.",
+	"En esa fase, cada habilidad de cazador tiene un uso gratis y luego no actúan en Escape. Sin esa fase, hay recargas por tiempo.",
 ]
 
 
@@ -20,6 +23,7 @@ func _ready() -> void:
 
 func open() -> void:
 	_prev_keyboard_confirm = Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
+	_prev_keyboard_back = Input.is_key_pressed(KEY_ESCAPE) or Input.is_key_pressed(KEY_BACKSPACE)
 	InputManager.suppress_edge_detection(3)
 	show()
 	queue_redraw()
@@ -33,12 +37,21 @@ func _process(_delta: float) -> void:
 		if InputManager.is_menu_confirm_just_pressed(device_id):
 			briefing_finished.emit()
 			return
+		if InputManager.is_menu_back_just_pressed(device_id):
+			back_requested.emit()
+			return
 
 	var keyboard_confirm := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
 	if keyboard_confirm and not _prev_keyboard_confirm:
 		briefing_finished.emit()
 		return
 	_prev_keyboard_confirm = keyboard_confirm
+
+	var keyboard_back := Input.is_key_pressed(KEY_ESCAPE) or Input.is_key_pressed(KEY_BACKSPACE)
+	if keyboard_back and not _prev_keyboard_back:
+		back_requested.emit()
+		return
+	_prev_keyboard_back = keyboard_back
 
 	queue_redraw()
 
@@ -70,7 +83,7 @@ func _draw() -> void:
 			panel.size.x - 150.0, 18, Color(0.9, 0.9, 0.9), 24.0, 3)
 		y += 22.0
 
-	_draw_centered_text_in_rect(font, "Start para comenzar",
+	_draw_centered_text_in_rect(font, "Start para comenzar  |  Select volver",
 		Rect2(cx - 240.0, screen.y - 78.0, 480.0, 28.0), 18, Color.YELLOW)
 
 

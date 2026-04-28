@@ -351,7 +351,7 @@ func _physics_process(delta: float) -> void:
 		_rat_tail_visual_elapsed += delta
 		if _rat_tail_visual_timer <= 0.0 and _rat_tail_cooldown_pending:
 			_rat_tail_cooldown_pending = false
-			if _skills_cooldowns_enabled() and escapist_animal == Enums.EscapistAnimal.RAT:
+			if _uses_timed_ability_cooldowns() and escapist_animal == Enums.EscapistAnimal.RAT:
 				_start_ability_cooldown()
 		queue_redraw()
 	if _ability_cooldown_remaining > 0.0:
@@ -405,7 +405,7 @@ func _process_official_route_bot(delta: float) -> void:
 func _process_official_bot_ability(delta: float) -> void:
 	if GameManager.current_state != Enums.GameState.ESCAPE:
 		return
-	if _skills_cooldowns_enabled() and not _ability_available:
+	if _ability_usage_is_locked() and not _ability_available:
 		return
 	if movement == null or movement.is_dashing:
 		return
@@ -418,8 +418,7 @@ func _process_official_bot_ability(delta: float) -> void:
 			AudioManager.play_skill(&"RabbitLeap")
 			movement.start_dash(aim_direction, Constants.RABBIT_LEAP_MIN_DIST * 1.25,
 				Callable(), Constants.RABBIT_LEAP_DURATION, true)
-			if _skills_cooldowns_enabled():
-				_start_ability_cooldown()
+			_consume_ability_after_use()
 			_official_bot_ability_timer = randf_range(3.5, 5.5)
 		Enums.EscapistAnimal.SQUIRREL:
 			_use_squirrel_acorn()
@@ -525,7 +524,7 @@ func _handle_ability_input(_delta: float) -> void:
 		(_active_rat_tail as RatTailHook).retract()
 		return
 
-	if _skills_cooldowns_enabled() and not _ability_available:
+	if _ability_usage_is_locked() and not _ability_available:
 		if InputManager.is_action_just_pressed(player_index, &"dash"):
 			_notify_ability_denied()
 		return
@@ -557,8 +556,7 @@ func _handle_rabbit_ability(delta: float) -> void:
 		AudioManager.play_skill(&"RabbitLeap")
 		movement.start_dash(direction, distance, Callable(), Constants.RABBIT_LEAP_DURATION, true)
 		_rabbit_charging = false
-		if _skills_cooldowns_enabled():
-			_start_ability_cooldown()
+		_consume_ability_after_use()
 
 
 func _use_rat_rescue() -> void:
@@ -574,7 +572,7 @@ func _use_rat_rescue() -> void:
 	_active_rat_tail = tail
 	tail.finished.connect(_on_rat_tail_finished)
 	AudioManager.play_skill(&"RatWhipOut")
-	if _skills_cooldowns_enabled():
+	if _ability_consumption_enabled():
 		_ability_available = false
 
 
@@ -583,7 +581,7 @@ func _on_rat_tail_finished(tail: Node) -> void:
 		_active_rat_tail = null
 		if _rat_tail_visual_timer > 0.0:
 			_rat_tail_cooldown_pending = true
-		elif _skills_cooldowns_enabled() and escapist_animal == Enums.EscapistAnimal.RAT:
+		elif _uses_timed_ability_cooldowns() and escapist_animal == Enums.EscapistAnimal.RAT:
 			_start_ability_cooldown()
 
 
@@ -620,14 +618,12 @@ func _use_squirrel_acorn() -> void:
 	acorn.setup(global_position, _get_ability_direction())
 	get_parent().add_child(acorn)
 	AudioManager.play_skill(&"AcornThrow")
-	if _skills_cooldowns_enabled():
-		_start_ability_cooldown()
+	_consume_ability_after_use()
 
 
 func _use_fly_counter() -> void:
 	_fly_counter_timer = Constants.FLY_COUNTER_DURATION
-	if _skills_cooldowns_enabled():
-		_start_ability_cooldown()
+	_consume_ability_after_use()
 	AudioManager.play_skill(&"FlyCounter")
 
 
@@ -680,6 +676,27 @@ func _skills_cooldowns_enabled() -> bool:
 	return GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
 
 
+func _uses_timed_ability_cooldowns() -> bool:
+	return _skills_cooldowns_enabled() and not GameManager.escapists_have_single_ability_use_per_life()
+
+
+func _ability_consumption_enabled() -> bool:
+	return _skills_cooldowns_enabled() or GameManager.escapists_have_single_ability_use_per_life()
+
+
+func _ability_usage_is_locked() -> bool:
+	return _ability_consumption_enabled()
+
+
+func _consume_ability_after_use() -> void:
+	if GameManager.escapists_have_single_ability_use_per_life():
+		_ability_available = false
+		_ability_cooldown_remaining = 0.0
+		return
+	if _skills_cooldowns_enabled():
+		_start_ability_cooldown()
+
+
 func get_hud_ability_entry() -> Dictionary:
 	var animal_data := EscapistAnimals.get_by_id(escapist_animal)
 	var ability: Dictionary = animal_data.get("ability", {}) as Dictionary
@@ -688,7 +705,9 @@ func get_hud_ability_entry() -> Dictionary:
 		state = "CARGANDO"
 	elif _ability_cooldown_remaining > 0.0:
 		state = "%.1fs" % _ability_cooldown_remaining
-	elif not _ability_available and _skills_cooldowns_enabled():
+	elif not _ability_available and GameManager.escapists_have_single_ability_use_per_life():
+		state = "USADA"
+	elif not _ability_available and _ability_usage_is_locked():
 		state = "BLOQUEADA"
 	return {
 		"button": ability.get("button", "A"),
@@ -742,7 +761,8 @@ func _get_animal_mark_alpha() -> float:
 
 func _notify_ability_denied() -> void:
 	_ability_denied_flash_timer = 0.22
-	_show_floating_text("RECARGA", Color(1.0, 0.18, 0.12), 0.75, 20)
+	var text := "USADA" if GameManager.escapists_have_single_ability_use_per_life() else "RECARGA"
+	_show_floating_text(text, Color(1.0, 0.18, 0.12), 0.75, 20)
 	AudioManager.play_effect(&"CooldownDenied")
 	queue_redraw()
 
@@ -1136,7 +1156,10 @@ class RatTailHook extends Node2D:
 		if not tree:
 			return null
 		var best: Escapist = null
-		var best_distance := 999999.0
+		var best_contact_progress := INF
+		var best_distance_to_line := INF
+		var segment := hook_end - hook_start
+		var segment_length_sq := segment.length_squared()
 		for node: Node in tree.get_nodes_in_group("characters"):
 			if node == _owner_rat or not (node is Escapist):
 				continue
@@ -1148,9 +1171,18 @@ class RatTailHook extends Node2D:
 			var distance_to_segment := _distance_to_segment(ally.global_position, hook_start, hook_end)
 			if distance_to_segment > Constants.RAT_RESCUE_WIDTH:
 				continue
-			var distance_from_owner := _owner_rat.global_position.distance_to(ally.global_position)
-			if distance_from_owner < best_distance:
-				best_distance = distance_from_owner
+			var contact_progress := 0.0
+			if segment_length_sq > 0.01:
+				contact_progress = clampf(
+					(ally.global_position - hook_start).dot(segment) / segment_length_sq,
+					0.0,
+					1.0
+				)
+			if contact_progress < best_contact_progress \
+					or (is_equal_approx(contact_progress, best_contact_progress)
+						and distance_to_segment < best_distance_to_line):
+				best_contact_progress = contact_progress
+				best_distance_to_line = distance_to_segment
 				best = ally
 		return best
 

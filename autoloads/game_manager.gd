@@ -298,6 +298,12 @@ func can_trappers_act() -> bool:
 	return current_state == Enums.GameState.ESCAPE
 
 
+func escapists_have_single_ability_use_per_life() -> bool:
+	return not practice_mode \
+		and not is_skill_test_context_active() \
+		and is_strategic_hunt_enabled()
+
+
 func is_trap_interaction_active() -> bool:
 	return hunt_active or is_skill_test_context_active()
 
