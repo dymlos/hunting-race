@@ -1,7 +1,7 @@
 class_name TeamSetup
 extends Control
 
-## Team assignment screen. Players press START to join or continue, stick to pick teams, SELECT to go back.
+## Team assignment screen. Players press A to pick a team, B to leave it, START to continue, SELECT to go back.
 ## Roles (Escapist/Trapper) are assigned per-round by GameManager, not here.
 
 signal teams_ready(team_assignments: Dictionary)
@@ -10,6 +10,7 @@ signal back_requested
 
 var _player_joined: Dictionary = {}    # {device_id: bool}
 var _player_teams: Dictionary = {}     # {device_id: Enums.Team}
+var _team_cursor: Dictionary = {}      # {device_id: Enums.Team}
 var _nav_cooldowns: Dictionary = {}    # {device_id: float}
 var _awaiting_start_confirmation: bool = false
 var input_blocked: bool = false
@@ -32,6 +33,7 @@ const FOOTER_SMALL_FONT_SIZE: int = 12
 func setup() -> void:
 	_player_joined.clear()
 	_player_teams.clear()
+	_team_cursor.clear()
 	_nav_cooldowns.clear()
 	_awaiting_start_confirmation = false
 	show()
@@ -52,6 +54,7 @@ func _process(delta: float) -> void:
 	for device_id: int in stale_devices:
 		_player_joined.erase(device_id)
 		_player_teams.erase(device_id)
+		_team_cursor.erase(device_id)
 		_nav_cooldowns.erase(device_id)
 		_awaiting_start_confirmation = false
 
@@ -60,55 +63,52 @@ func _process(delta: float) -> void:
 		_nav_cooldowns[device_id] = maxf(0.0, _nav_cooldowns[device_id] - delta)
 
 	var pads := connected_pads
-	var joined_this_frame := false
 	for device_id: int in pads:
-		if _player_joined.get(device_id, false):
-			if _awaiting_start_confirmation:
-				if InputManager.is_menu_confirm_just_pressed(device_id):
-					_advance()
-					return
-				elif InputManager.is_menu_back_just_pressed(device_id):
-					_awaiting_start_confirmation = false
-					return
-				continue
-			if InputManager.is_menu_back_just_pressed(device_id):
-				_awaiting_start_confirmation = false
-				back_requested.emit()
-				return
-			elif _nav_cooldowns.get(device_id, 0.0) <= 0.0:
-				var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-				if x < -0.5:
-					_set_player_team_if_available(device_id, Enums.Team.TEAM_1)
-					_nav_cooldowns[device_id] = NAV_COOLDOWN
-				elif x > 0.5:
-					_set_player_team_if_available(device_id, Enums.Team.TEAM_2)
-					_nav_cooldowns[device_id] = NAV_COOLDOWN
-		else:
-			if InputManager.is_menu_confirm_just_pressed(device_id):
-				_player_joined[device_id] = true
-				_player_teams[device_id] = _pick_join_team()
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
-				_awaiting_start_confirmation = false
-				joined_this_frame = true
-			elif InputManager.is_menu_back_just_pressed(device_id):
-				_awaiting_start_confirmation = false
-				back_requested.emit()
-				return
+		if not _team_cursor.has(device_id):
+			_team_cursor[device_id] = _pick_join_team()
 
-	# Y opens settings so SELECT can be reserved for back/cancel.
-	for device_id: int in pads:
+		if InputManager.is_menu_back_just_pressed(device_id):
+			_awaiting_start_confirmation = false
+			back_requested.emit()
+			return
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
 			_awaiting_start_confirmation = false
 			settings_requested.emit()
 			return
+		if InputManager.is_menu_confirm_just_pressed(device_id):
+			if _has_valid_teams():
+				_advance()
+				return
 
-	if _has_valid_teams() and not joined_this_frame:
-		for device_id: int in pads:
-			if _player_joined.get(device_id, false):
-				if InputManager.is_menu_confirm_just_pressed(device_id):
-					_awaiting_start_confirmation = true
-					queue_redraw()
-					return
+		if _nav_cooldowns.get(device_id, 0.0) <= 0.0:
+			var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
+			if x < -0.5:
+				_set_team_cursor(device_id, Enums.Team.TEAM_1)
+				_nav_cooldowns[device_id] = NAV_COOLDOWN
+			elif x > 0.5:
+				_set_team_cursor(device_id, Enums.Team.TEAM_2)
+				_nav_cooldowns[device_id] = NAV_COOLDOWN
+
+		if _player_joined.get(device_id, false):
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				_awaiting_start_confirmation = false
+				_player_joined.erase(device_id)
+				_player_teams.erase(device_id)
+				_nav_cooldowns[device_id] = NAV_COOLDOWN
+				continue
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+				_set_player_team_if_available(device_id, _team_cursor[device_id] as Enums.Team)
+		else:
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+				var target_team: Enums.Team = _team_cursor[device_id] as Enums.Team
+				if not _team_can_accept(target_team):
+					target_team = _pick_join_team()
+				if _team_can_accept(target_team):
+					_team_cursor[device_id] = target_team
+					_player_joined[device_id] = true
+					_player_teams[device_id] = target_team
+					_nav_cooldowns[device_id] = NAV_COOLDOWN
+					_awaiting_start_confirmation = false
 
 	queue_redraw()
 
@@ -178,6 +178,12 @@ func _pick_join_team() -> Enums.Team:
 	if t2 < limit:
 		return Enums.Team.TEAM_2
 	return Enums.Team.TEAM_1
+
+
+func _set_team_cursor(device_id: int, team: Enums.Team) -> void:
+	_team_cursor[device_id] = team
+	if _player_joined.get(device_id, false):
+		_set_player_team_if_available(device_id, team)
 
 
 func _set_player_team_if_available(device_id: int, team: Enums.Team) -> void:
@@ -340,7 +346,7 @@ func _draw() -> void:
 			var col := int(floor(float(i) / float(join_row_count)))
 			var row := i % join_row_count
 			var cell_rect := Rect2(join_box_rect.position.x + float(col) * join_col_w, list_y + float(row) * join_row_h, join_col_w, join_row_h)
-			var text := "Control %d  -  Presiona Start para unirte" % device_id
+			var text := "Control %d  -  Palanca elige lado, A se une" % device_id
 			_draw_centered_text_in_rect(font, text, cell_rect, SLOT_DETAIL_FONT_SIZE, Color(0.62, 0.62, 0.64))
 	else:
 		_draw_centered_text_in_rect(font, "TODOS LOS CONTROLES ASIGNADOS", Rect2(cx - 220.0, screen.y - 160.0, 440.0, 22.0), FOOTER_FONT_SIZE, Color(0.68, 0.8, 0.68))
@@ -348,15 +354,15 @@ func _draw() -> void:
 	var footer_rect := Rect2(cx - 350.0, screen.y - 72.0, 700.0, 42.0)
 	_draw_panel(footer_rect, Color(0.03, 0.03, 0.035, 0.94), Color(0.24, 0.24, 0.26, 0.88), 1.5)
 	if _has_valid_teams():
-		var continue_text := "Presiona Start para continuar"
+		var continue_text := "Start para continuar"
 		if auto_fill_bots:
-			continue_text = "Presiona Start para continuar con bots"
+			continue_text = "Start para continuar con bots"
 		if _awaiting_start_confirmation:
 			continue_text = "Start: iniciar partida   |   Select: cancelar"
 		_draw_centered_text_in_rect(font, continue_text, Rect2(footer_rect.position.x, footer_rect.position.y + 1.0, footer_rect.size.x, 18.0), FOOTER_FONT_SIZE, Color(0.98, 0.92, 0.48))
 	else:
 		_draw_centered_text_in_rect(font, "HACE FALTA AL MENOS 1 JUGADOR", Rect2(footer_rect.position.x, footer_rect.position.y + 1.0, footer_rect.size.x, 18.0), FOOTER_FONT_SIZE, Color(0.82, 0.52, 0.52))
-	_draw_centered_text_in_rect(font, "Select: volver   |   Y: ajustes", Rect2(footer_rect.position.x, footer_rect.position.y + 18.0, footer_rect.size.x, 18.0), FOOTER_SMALL_FONT_SIZE, Color(0.52, 0.52, 0.55))
+	_draw_centered_text_in_rect(font, "A elegir | B deseleccionar | Select volver | Y ajustes", Rect2(footer_rect.position.x, footer_rect.position.y + 18.0, footer_rect.size.x, 18.0), FOOTER_SMALL_FONT_SIZE, Color(0.52, 0.52, 0.55))
 
 	if _awaiting_start_confirmation:
 		var panel_size := Vector2(540.0, 206.0)
@@ -429,7 +435,7 @@ func _draw_team_panel(font: Font, rect: Rect2, team: Enums.Team, devices: Array,
 	var slot_y := rect.position.y + 92.0
 	if devices.is_empty():
 		_draw_centered_text_in_rect(font, "Esperando jugadores", Rect2(rect.position.x, slot_y + 6.0, rect.size.x, 18.0), SLOT_TITLE_FONT_SIZE, Color(0.58, 0.58, 0.6))
-		_draw_centered_text_in_rect(font, "Presiona Start en un control para unirte", Rect2(rect.position.x, slot_y + 28.0, rect.size.x, 18.0), SLOT_DETAIL_FONT_SIZE, Color(0.42, 0.42, 0.45))
+		_draw_centered_text_in_rect(font, "Palanca elige lado, A confirma equipo", Rect2(rect.position.x, slot_y + 28.0, rect.size.x, 18.0), SLOT_DETAIL_FONT_SIZE, Color(0.42, 0.42, 0.45))
 		return
 
 	for i in devices.size():

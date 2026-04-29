@@ -174,6 +174,18 @@ func _handle_deselect_for_player(pi: int) -> bool:
 	return false
 
 
+func _confirm_for_player(pi: int) -> bool:
+	if not _player_cursor.has(pi) or _player_confirmed.get(pi, false):
+		return false
+	var idx: int = _player_cursor[pi] as int
+	if _is_animal_taken(idx, pi):
+		return false
+	_player_confirmed[pi] = true
+	if _all_humans_confirmed():
+		_auto_assign_bots()
+	return true
+
+
 func _has_screen_cursor(pi: int) -> bool:
 	return _player_cursor.has(pi) or _viewer_cursor.has(pi)
 
@@ -239,6 +251,7 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 
+	_prune_skill_tests()
 	_update_preview_timers(delta)
 	_update_skill_test_layout()
 	_blocked_start_message_timer = maxf(_blocked_start_message_timer - delta, 0.0)
@@ -260,6 +273,12 @@ func _process(delta: float) -> void:
 		if _skill_test_views.has(pi):
 			if InputManager.is_menu_back_just_pressed(device_id) \
 					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
+				_exit_skill_test(pi)
+				queue_redraw()
+				return
+			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
+				if _confirm_for_player(pi):
+					confirmed_this_frame = true
 				_exit_skill_test(pi)
 				queue_redraw()
 				return
@@ -289,12 +308,8 @@ func _process(delta: float) -> void:
 			_handle_grid_navigation(pi, device_id)
 
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
-				var idx: int = _player_cursor[pi] as int
-				if not _is_animal_taken(idx, pi):
-					_player_confirmed[pi] = true
+				if _confirm_for_player(pi):
 					confirmed_this_frame = true
-					if _all_humans_confirmed():
-						_auto_assign_bots()
 
 	if not confirmed_this_frame and _any_human_start_pressed():
 		if _selection_complete() and _all_humans_confirmed():
@@ -380,9 +395,27 @@ func _clear_skill_tests() -> void:
 
 func _is_card_testing(card_index: int) -> bool:
 	for pi: int in _skill_test_cards:
-		if (_skill_test_cards[pi] as int) == card_index:
+		if _skill_test_views.has(pi) and (_skill_test_cards[pi] as int) == card_index:
 			return true
 	return false
+
+
+func _is_viewer_testing(pi: int) -> bool:
+	return _skill_test_views.has(pi) and _skill_test_cards.has(pi)
+
+
+func _prune_skill_tests() -> void:
+	var stale: Array[int] = []
+	for pi: int in _skill_test_cards:
+		if not _skill_test_views.has(pi):
+			stale.append(pi)
+			continue
+		var view := _skill_test_views[pi] as Node
+		if view == null or not is_instance_valid(view) or not view.is_inside_tree():
+			stale.append(pi)
+	for pi in stale:
+		_skill_test_views.erase(pi)
+		_skill_test_cards.erase(pi)
 
 
 func _update_skill_test_layout() -> void:
@@ -690,7 +723,7 @@ func _draw() -> void:
 				else:
 					hovering_pis.append(pi)
 		for pi: int in _viewer_cursor:
-			if (_viewer_cursor[pi] as int) == i:
+			if (_viewer_cursor[pi] as int) == i and _is_viewer_testing(pi):
 				preview_pis.append(pi)
 
 		var bg_color := Color(0.095, 0.095, 0.105)
@@ -785,10 +818,12 @@ func _draw() -> void:
 		var idx: int = _viewer_cursor[pi] as int
 		var animal_data2: Dictionary = _animals[idx]
 		var status_name: String = animal_data2["name"] as String
-		var label := "%s: %s PROBANDO" % [_player_display_name(pi), status_name]
+		var status_mark := "PROBANDO" if _is_viewer_testing(pi) else "MIRANDO"
+		var label := "%s: %s %s" % [_player_display_name(pi), status_name, status_mark]
 		var label_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 		draw_string(font, Vector2(cx - label_width / 2.0, status_y),
-			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.58, 0.75, 1.0))
+			label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
+			Color(0.58, 0.75, 1.0) if _is_viewer_testing(pi) else Color(0.48, 0.52, 0.58))
 		status_y += 20.0
 
 	var hint := "A elegir | B deseleccionar | Y testing | Palanca izq. mover | Select cancelar"

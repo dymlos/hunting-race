@@ -38,6 +38,13 @@ const PLAYSTATION_NAME_MARKERS: Array[String] = [
 	"ps4",
 	"ps5",
 ]
+const LOGITECH_NAME_MARKERS: Array[String] = [
+	"logitech",
+	"f310",
+	"f510",
+	"f710",
+	"rumblepad",
+]
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -255,24 +262,35 @@ func _get_button_pressed_for_aliases(state: Dictionary, device_id: int, button: 
 
 func _get_button_aliases(device_id: int, button: int) -> Array[int]:
 	var aliases: Array[int] = [button]
-	if not _is_playstation_device(device_id):
-		return aliases
-	if not _needs_playstation_directinput_aliases(device_id):
+	if not _needs_directinput_face_aliases(device_id):
 		return aliases
 
+	var is_playstation := _is_playstation_device(device_id)
 	match button:
 		JOY_BUTTON_A:
-			aliases.append_array([1, 14])
+			aliases.append(1)
+			if is_playstation:
+				aliases.append(14)
 		JOY_BUTTON_B:
-			aliases.append_array([2, 13])
+			aliases.append(2)
+			if is_playstation:
+				aliases.append(13)
 		JOY_BUTTON_X:
-			aliases.append_array([0, 15])
+			aliases.append(0)
+			if is_playstation:
+				aliases.append(15)
 		JOY_BUTTON_Y:
-			aliases.append_array([3, 12])
+			aliases.append(3)
+			if is_playstation:
+				aliases.append(12)
 		JOY_BUTTON_START:
-			aliases.append_array([9, 3])
+			aliases.append(9)
+			if is_playstation:
+				aliases.append(3)
 		JOY_BUTTON_BACK:
-			aliases.append_array([8, 0])
+			aliases.append(8)
+			if is_playstation:
+				aliases.append(0)
 
 	var unique: Array[int] = []
 	for alias: int in aliases:
@@ -292,7 +310,15 @@ func _is_playstation_device(device_id: int) -> bool:
 	return false
 
 
-func _needs_playstation_directinput_aliases(device_id: int) -> bool:
+func _is_logitech_device(device_id: int) -> bool:
+	var joy_name := Input.get_joy_name(device_id).to_lower()
+	for marker: String in LOGITECH_NAME_MARKERS:
+		if joy_name.contains(marker):
+			return true
+	return false
+
+
+func _needs_directinput_face_aliases(device_id: int) -> bool:
 	if Input.has_method("is_joy_known") and Input.call("is_joy_known", device_id):
 		return false
-	return _is_playstation_device(device_id)
+	return _is_playstation_device(device_id) or _is_logitech_device(device_id)
