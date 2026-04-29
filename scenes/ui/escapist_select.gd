@@ -33,6 +33,7 @@ const PREVIEW_DURATION: float = 0.8
 const DEMO_EFFECT_DURATION: float = 0.75
 const BLOCKED_START_MESSAGE_DURATION: float = 3.0
 const GRID_COLUMNS: int = 2
+const SLOT_COUNT: int = 4
 const CARD_GAP: float = 22.0
 const CARD_MARGIN: float = 16.0
 const CARD_TOP_PAD: float = 14.0
@@ -73,9 +74,6 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 			_player_confirmed[pi] = false
 			_nav_cooldowns[pi] = 0.0
 			cursor_idx += 1
-		elif _is_human(pi):
-			_viewer_cursor[pi] = cursor_idx % _animals.size()
-			_nav_cooldowns[pi] = 0.0
 
 	show()
 	queue_redraw()
@@ -159,6 +157,35 @@ func _get_human_device_ids() -> Array[int]:
 	return device_ids
 
 
+func _get_human_selecting_players() -> Array[int]:
+	var players: Array[int] = []
+	for pi: int in _player_cursor:
+		if _is_human(pi):
+			players.append(pi)
+	players.sort()
+	return players
+
+
+func _get_slot_player(slot_index: int) -> int:
+	var players := _get_human_selecting_players()
+	if slot_index < 0 or slot_index >= players.size():
+		return -1
+	return players[slot_index]
+
+
+func _get_slot_index_for_player(player_index: int) -> int:
+	return _get_human_selecting_players().find(player_index)
+
+
+func _get_confirmed_animal_owner(animal_index: int, ignored_player: int = -1) -> int:
+	for pi: int in _player_confirmed:
+		if pi == ignored_player:
+			continue
+		if _player_confirmed.get(pi, false) and (_player_cursor[pi] as int) == animal_index:
+			return pi
+	return -1
+
+
 func _handle_back_for_player(pi: int) -> bool:
 	if _allow_back and (not _player_cursor.has(pi) or not _any_human_confirmed()):
 		_clear_skill_tests()
@@ -203,44 +230,22 @@ func _set_screen_cursor(pi: int, value: int) -> void:
 		_viewer_cursor[pi] = value
 
 
-func _move_cursor_on_grid(current_index: int, dx: int, dy: int) -> int:
+func _move_cursor_on_grid(current_index: int, dx: int, _dy: int) -> int:
 	var item_count := _animals.size()
-	if item_count <= 1:
+	if item_count <= 1 or dx == 0:
 		return current_index
-	var columns := mini(GRID_COLUMNS, item_count)
-	var rows := int(ceili(float(item_count) / float(columns)))
-	var col := current_index % columns
-	var row := int(floor(float(current_index) / float(columns)))
-	var target := current_index
-	if dx != 0:
-		col = (col + dx + columns) % columns
-		target = row * columns + col
-	elif dy != 0:
-		for _attempt in rows:
-			row = (row + dy + rows) % rows
-			target = row * columns + col
-			if target < item_count:
-				break
-	if target >= item_count:
-		return current_index
-	return target
+	return (current_index + dx + item_count) % item_count
 
 
 func _handle_grid_navigation(pi: int, device_id: int) -> void:
 	if _nav_cooldowns.get(pi, 0.0) > 0.0:
 		return
 	var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-	var y := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)
-	if absf(x) < 0.5 and absf(y) < 0.5:
+	if absf(x) < 0.5:
 		return
-	var dx := 0
-	var dy := 0
-	if absf(x) >= absf(y):
-		dx = 1 if x > 0.0 else -1
-	else:
-		dy = 1 if y > 0.0 else -1
+	var dx := 1 if x > 0.0 else -1
 	var current_index := _get_screen_cursor(pi)
-	var next_index := _move_cursor_on_grid(current_index, dx, dy)
+	var next_index := _move_cursor_on_grid(current_index, dx, 0)
 	if next_index != current_index:
 		_set_screen_cursor(pi, next_index)
 	_nav_cooldowns[pi] = NAV_COOLDOWN
@@ -273,12 +278,6 @@ func _process(delta: float) -> void:
 		if _skill_test_views.has(pi):
 			if InputManager.is_menu_back_just_pressed(device_id) \
 					or InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
-				_exit_skill_test(pi)
-				queue_redraw()
-				return
-			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
-				if _confirm_for_player(pi):
-					confirmed_this_frame = true
 				_exit_skill_test(pi)
 				queue_redraw()
 				return
@@ -423,9 +422,8 @@ func _update_skill_test_layout() -> void:
 		return
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
-	var card_count := _animals.size()
 	var columns := 2
-	var rows := int(ceili(float(card_count) / float(columns)))
+	var rows := int(ceili(float(SLOT_COUNT) / float(columns)))
 	var row_gap := 22.0
 	var available_w := maxf(760.0, screen.x - 260.0)
 	var card_w := clampf((available_w - float(columns - 1) * CARD_GAP) / float(columns), 360.0, 700.0)
@@ -437,11 +435,11 @@ func _update_skill_test_layout() -> void:
 		var view := _skill_test_views[pi] as Node
 		if view == null or not is_instance_valid(view):
 			continue
-		var card_index := _skill_test_cards.get(pi, -1) as int
-		if card_index < 0:
+		var slot_index := _get_slot_index_for_player(pi)
+		if slot_index < 0:
 			continue
-		var col := card_index % columns
-		var row := int(floor(float(card_index) / float(columns)))
+		var col := slot_index % columns
+		var row := int(floor(float(slot_index) / float(columns)))
 		var card_x := cards_x + float(col) * (card_w + CARD_GAP)
 		var card_y := cards_y + float(row) * (card_h + row_gap)
 		var art_h := clampf(card_h * 0.54, 145.0, 225.0)
@@ -638,6 +636,39 @@ func _draw_selection_badge(font: Font, rect: Rect2, text: String, color: Color,
 		Color.WHITE if is_confirmed else Color(0.86, 0.86, 0.86))
 
 
+func _draw_character_index(font: Font, origin: Vector2, current_index: int) -> void:
+	var chip_size := Vector2(28.0, 22.0)
+	var gap := 5.0
+	for i in _animals.size():
+		var animal_data: Dictionary = _animals[i]
+		var chip_color: Color = animal_data.get("color", Color.WHITE) as Color
+		var chip_name: String = animal_data.get("name", "") as String
+		var chip_label := chip_name.substr(0, 1)
+		var selected := i == current_index
+		var rect := Rect2(origin + Vector2(float(i) * (chip_size.x + gap), 0.0), chip_size)
+		draw_rect(rect, Color(0.0, 0.0, 0.0, 0.72))
+		draw_rect(rect, Color(chip_color, 0.42 if selected else 0.12))
+		draw_rect(rect, Color(chip_color, 0.95 if selected else 0.34), false, 1.5 if selected else 1.0)
+		_draw_centered_text_in_rect(font, chip_label, rect, 12, Color.WHITE if selected else Color(0.64, 0.64, 0.66))
+
+
+func _draw_side_arrows(font: Font, rect: Rect2, color: Color) -> void:
+	var pulse := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 1000.0 * TAU * 1.35)
+	var arrow_color := Color(color, 0.50 + 0.25 * pulse)
+	var fill := Color(color, 0.08 + 0.07 * pulse)
+	var arrow_y := rect.position.y + rect.size.y * 0.45 - 17.0
+	var left_rect := Rect2(rect.position.x + 12.0, arrow_y, 30.0, 34.0)
+	var right_rect := Rect2(rect.end.x - 42.0, arrow_y, 30.0, 34.0)
+	draw_rect(left_rect, Color(0.0, 0.0, 0.0, 0.36))
+	draw_rect(left_rect, fill)
+	draw_rect(left_rect, arrow_color, false, 1.0)
+	draw_rect(right_rect, Color(0.0, 0.0, 0.0, 0.36))
+	draw_rect(right_rect, fill)
+	draw_rect(right_rect, arrow_color, false, 1.0)
+	_draw_centered_text_in_rect(font, "<", left_rect, 24, arrow_color)
+	_draw_centered_text_in_rect(font, ">", right_rect, 24, arrow_color)
+
+
 func _draw_testing_prompt(font: Font, rect: Rect2, color: Color) -> void:
 	var pulse := 0.55 + 0.45 * absf(sin(float(Time.get_ticks_msec()) / 1000.0 * TAU * 1.18))
 	var prompt_rect := Rect2(
@@ -700,49 +731,57 @@ func _draw() -> void:
 	var cards_x := cx - total_w / 2.0
 	var cards_y := CARDS_Y
 
-	for i in card_count:
+	for i in SLOT_COUNT:
 		var col := i % columns
 		var row := int(floor(float(i) / float(columns)))
 		var card_x := cards_x + float(col) * (card_w + CARD_GAP)
 		var card_y := cards_y + float(row) * (card_h + row_gap)
 		var card_rect := Rect2(Vector2(card_x, card_y), Vector2(card_w, card_h))
-		var animal_data: Dictionary = _animals[i]
+		var player_index := _get_slot_player(i)
+		if player_index < 0:
+			_draw_panel(card_rect, Color(0.045, 0.045, 0.052, 0.88), Color(0.18, 0.18, 0.2, 0.72), 1.5)
+			draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 5.0)), Color(0.18, 0.18, 0.2, 0.85))
+			_draw_centered_text_in_rect(font, "SLOT LIBRE",
+				Rect2(card_x, card_y + card_h * 0.42, card_w, 28.0), 18, Color(0.45, 0.45, 0.48))
+			_draw_centered_text_in_rect(font, "Sin usuario eligiendo",
+				Rect2(card_x, card_y + card_h * 0.50, card_w, 22.0), 12, Color(0.34, 0.34, 0.38))
+			continue
+
+		var animal_index: int = _player_cursor[player_index] as int
+		var animal_data: Dictionary = _animals[animal_index]
 		var animal_color: Color = animal_data["color"] as Color
 		var animal_name: String = animal_data["name"] as String
 		var animal_sub: String = animal_data["subtitle"] as String
 		var animal_id: Enums.EscapistAnimal = animal_data["id"] as Enums.EscapistAnimal
 		var ability: Dictionary = animal_data["ability"] as Dictionary
 
-		var hovering_pis: Array[int] = []
+		var confirmed: bool = _player_confirmed.get(player_index, false)
+		var taken_by: int = _get_confirmed_animal_owner(animal_index, player_index)
+		var confirmed_pi: int = player_index
+		var hovering_pis: Array[int] = [player_index]
 		var preview_pis: Array[int] = []
-		var confirmed_pi := -1
-		for pi: int in _player_cursor:
-			if (_player_cursor[pi] as int) == i:
-				if _player_confirmed.get(pi, false):
-					confirmed_pi = pi
-				else:
-					hovering_pis.append(pi)
-		for pi: int in _viewer_cursor:
-			if (_viewer_cursor[pi] as int) == i and _is_viewer_testing(pi):
-				preview_pis.append(pi)
-
 		var bg_color := Color(0.095, 0.095, 0.105)
-		if confirmed_pi >= 0:
+		if confirmed:
 			bg_color = Color(animal_color, 0.23)
-		var border_color := animal_color if confirmed_pi >= 0 else Color(0.3, 0.3, 0.3)
-		if confirmed_pi < 0 and (not hovering_pis.is_empty() or not preview_pis.is_empty()):
-			border_color = Color(animal_color, 0.82)
-		_draw_panel(card_rect, bg_color, border_color, 4.0 if confirmed_pi >= 0 else 2.0)
-		if confirmed_pi >= 0:
+		var border_color := animal_color if confirmed else Color(animal_color, 0.82)
+		if taken_by >= 0 and not confirmed:
+			border_color = Color(1.0, 0.18, 0.12, 0.92)
+		_draw_panel(card_rect, bg_color, border_color, 4.0 if confirmed else 2.0)
+		if confirmed:
 			draw_rect(card_rect.grow(-6.0), Color(animal_color, 0.18), false, 1.5)
-		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 7.0 if confirmed_pi >= 0 else 5.0)),
-			Color(animal_color, 1.0 if confirmed_pi >= 0 else 0.92))
+		draw_rect(Rect2(card_rect.position, Vector2(card_rect.size.x, 7.0 if confirmed else 5.0)),
+			Color(animal_color, 1.0 if confirmed else 0.92))
+		_draw_character_index(font, Vector2(card_x + CARD_MARGIN, card_y + 12.0), animal_index)
+		_draw_selection_badge(font,
+			Rect2(card_x + card_w - CARD_MARGIN - 170.0, card_y + 12.0, 170.0, 24.0),
+			_player_display_name(player_index), animal_color, confirmed)
+		_draw_side_arrows(font, card_rect, animal_color)
 
 		var art_h := clampf(card_h * 0.54, 145.0, 225.0)
 		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		draw_rect(art_rect, Color(animal_color, 0.10))
 		draw_rect(art_rect, Color(animal_color, 0.25), false, 1.0)
-		var demo_running := _is_card_testing(i)
+		var demo_running := _is_viewer_testing(player_index)
 		if demo_running:
 			_draw_centered_text_in_rect(font, "PRUEBA REAL",
 				art_rect, 12, Color(animal_color, 0.9))
@@ -766,7 +805,21 @@ func _draw() -> void:
 		_draw_wrapped_text(font, ability["desc"] as String, Vector2(text_x, ability_y + 22.0),
 			text_w, 12, Color(0.62, 0.62, 0.62), 16.0, 4)
 
-		if confirmed_pi >= 0:
+		if confirmed:
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 42.0, card_w - CARD_MARGIN * 2.0, 28.0),
+				"%s ELIGIÓ" % _player_display_name(player_index), animal_color, true)
+		elif taken_by >= 0:
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
+				"YA ELEGIDO POR %s" % _player_display_name(taken_by), Color(1.0, 0.18, 0.12), false)
+		else:
+			_draw_selection_badge(font,
+				Rect2(card_x + CARD_MARGIN, card_y + card_h - 40.0, card_w - CARD_MARGIN * 2.0, 26.0),
+				"%s ELIGIENDO" % _player_display_name(player_index), animal_color, false)
+		continue
+
+		if confirmed:
 			var taken_label := "%s ELIGIÓ" % _player_display_name(confirmed_pi)
 			_draw_selection_badge(font,
 				Rect2(card_x + CARD_MARGIN, card_y + card_h - 42.0, card_w - CARD_MARGIN * 2.0, 28.0),
@@ -826,9 +879,9 @@ func _draw() -> void:
 			Color(0.58, 0.75, 1.0) if _is_viewer_testing(pi) else Color(0.48, 0.52, 0.58))
 		status_y += 20.0
 
-	var hint := "A elegir | B deseleccionar | Y testing | Palanca izq. mover | Select cancelar"
+	var hint := "A elegir | B deseleccionar | Y testing | Izq./Der. cambiar | Select cancelar"
 	if _allow_back:
-		hint = "A elegir | B deseleccionar | Y testing | Palanca izq. mover | Select volver"
+		hint = "A elegir | B deseleccionar | Y testing | Izq./Der. cambiar | Select volver"
 	if _selection_complete():
 		hint = "Start continuar | B cambiar selección | Y testing | Select volver" if _allow_back else "Start continuar | B cambiar selección | Y testing"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
