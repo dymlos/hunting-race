@@ -81,6 +81,13 @@ func set_practice_assignments(assignments: Dictionary, roles: Dictionary) -> voi
 	escapist_team = Enums.Team.TEAM_1
 
 
+func set_survival_assignments(assignments: Dictionary, roles: Dictionary) -> void:
+	practice_mode = false
+	team_assignments = assignments.duplicate()
+	role_assignments = roles.duplicate()
+	escapist_team = Enums.Team.TEAM_1
+
+
 func set_character_selections(selections: Dictionary) -> void:
 	for pi: int in selections:
 		character_selections[pi] = selections[pi]
@@ -299,6 +306,8 @@ func can_trappers_act() -> bool:
 
 
 func escapists_have_single_ability_use_per_life() -> bool:
+	if current_state == Enums.GameState.SURVIVAL:
+		return false
 	return not practice_mode \
 		and not is_skill_test_context_active() \
 		and is_strategic_hunt_enabled()
@@ -432,6 +441,23 @@ func start_practice() -> void:
 	_round_stats.clear()
 	player_characters.clear()
 	_change_state(Enums.GameState.PRACTICE)
+
+
+func start_survival() -> void:
+	practice_mode = false
+	_awaiting_character_select = false
+	round_number = 0
+	match_scores = [0, 0]
+	hunt_active = false
+	trap_lifetime_active = false
+	_escape_timer_running = false
+	_living_escapists = 0
+	for pi: int in role_assignments:
+		if role_assignments[pi] == Enums.Role.ESCAPIST:
+			_living_escapists += 1
+	_round_stats.clear()
+	player_characters.clear()
+	_change_state(Enums.GameState.SURVIVAL)
 
 
 func _change_state(new_state: Enums.GameState) -> void:

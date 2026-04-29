@@ -3,6 +3,7 @@ extends Control
 
 signal official_requested
 signal practice_requested
+signal survival_requested
 signal rules_requested
 signal back_requested
 
@@ -13,7 +14,7 @@ var _nav_cooldown: float = 0.0
 var _prev_keyboard_confirm: bool = false
 
 const NAV_COOLDOWN: float = 0.2
-const OPTIONS: Array[String] = ["Partida oficial", "Modo práctica", "Cómo jugar"]
+const OPTIONS: Array[String] = ["Partida oficial", "Modo práctica", "Survival Escape", "Cómo jugar"]
 
 
 func _ready() -> void:
@@ -64,6 +65,8 @@ func _confirm_selection() -> void:
 			official_requested.emit()
 		1:
 			practice_requested.emit()
+		2:
+			survival_requested.emit()
 		_:
 			rules_requested.emit()
 
@@ -82,26 +85,30 @@ func _draw() -> void:
 	draw_string(font, Vector2(cx - title_width / 2.0, cy - 150.0),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color.WHITE)
 
-	var sub := "Juega una partida, entrena libremente o revisa las reglas."
+	var sub := "Juega una partida, entrena libremente, prueba survival o revisa las reglas."
 	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - sub_width / 2.0, cy - 112.0),
 		sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.65, 0.65, 0.65))
 
-	var option_w := 230.0
+	var option_w := 220.0
 	var option_h := 92.0
-	var gap := 28.0
+	var gap := 22.0
 	var total_w := OPTIONS.size() * option_w + (OPTIONS.size() - 1) * gap
 	var start_x := cx - total_w / 2.0
 	for i in OPTIONS.size():
 		var rect := Rect2(Vector2(start_x + float(i) * (option_w + gap), cy - 40.0),
 			Vector2(option_w, option_h))
 		var selected := i == _selected_index
-		var is_help := i == 2
+		var is_help := i == 3
+		var is_survival := i == 2
 		var border_color := Color.YELLOW if selected else Color(0.45, 0.45, 0.45)
 		var bg_color := Color(0.16, 0.16, 0.16) if selected else Color(0.1, 0.1, 0.1)
 		if is_help and not selected:
 			border_color = Color(0.38, 0.38, 0.42)
 			bg_color = Color(0.08, 0.08, 0.085)
+		elif is_survival and not selected:
+			border_color = Color(0.24, 0.68, 0.42)
+			bg_color = Color(0.055, 0.095, 0.07)
 		draw_rect(rect, bg_color)
 		draw_rect(rect, border_color, false, 2.0)
 
@@ -109,6 +116,8 @@ func _draw() -> void:
 		var text_size := 22
 		if is_help:
 			text_size = 19
+		elif is_survival:
+			text_size = 18
 		var text_width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
 		var text_y := rect.position.y + 40.0
 		if is_help:
@@ -121,6 +130,8 @@ func _draw() -> void:
 		if i == 1:
 			detail = "Sala libre, sin puntaje"
 		elif i == 2:
+			detail = "Roles fijos y oleadas"
+		elif i == 3:
 			detail = "Reglas, puntaje, habilidades"
 		var detail_width := font.get_string_size(detail, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 		draw_string(font, Vector2(rect.position.x + rect.size.x / 2.0 - detail_width / 2.0,
@@ -128,6 +139,8 @@ func _draw() -> void:
 			detail, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.62, 0.62, 0.62))
 		if is_help:
 			_draw_centered_text_in_rect(font, "AYUDA", Rect2(rect.position.x, rect.position.y + 12.0, rect.size.x, 14.0), 11, Color(0.9, 0.8, 0.45))
+		elif is_survival:
+			_draw_centered_text_in_rect(font, "NUEVO", Rect2(rect.position.x, rect.position.y + 12.0, rect.size.x, 14.0), 11, Color(0.55, 1.0, 0.72))
 
 	var hint := "Izq./Der. elegir | Start confirmar | Select volver"
 	var hint_width := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x

@@ -25,6 +25,8 @@ const CRUSH_MOVING_WALL_CONTACT_MARGIN: float = 7.0
 const CRUSH_BLOCKING_WALL_DISTANCE: float = 8.0
 
 signal goal_entered(escapist: Escapist)
+signal goal_body_entered(body: Node2D)
+signal goal_body_exited(body: Node2D)
 
 
 func load_map(map_data: Dictionary) -> void:
@@ -210,10 +212,12 @@ func _create_goal_zone(rect: Rect2) -> Area2D:
 	add_child(area)
 
 	area.body_entered.connect(_on_goal_body_entered)
+	area.body_exited.connect(_on_goal_body_exited)
 	return area
 
 
 func _on_goal_body_entered(body: Node2D) -> void:
+	goal_body_entered.emit(body)
 	if not GameManager.hunt_active:
 		return
 	if body is Escapist:
@@ -221,6 +225,10 @@ func _on_goal_body_entered(body: Node2D) -> void:
 		if not esc.has_scored and not esc.is_dead:
 			esc.score()
 			goal_entered.emit(esc)
+
+
+func _on_goal_body_exited(body: Node2D) -> void:
+	goal_body_exited.emit(body)
 
 
 func _build_safety_checkpoints() -> void:

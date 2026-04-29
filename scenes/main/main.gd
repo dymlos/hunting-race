@@ -8,6 +8,7 @@ const CoverScreenScene := preload("res://scenes/ui/cover_screen.tscn")
 const ModeSelectScene := preload("res://scenes/ui/mode_select.gd")
 const HowToPlayScene := preload("res://scenes/ui/how_to_play.gd")
 const PracticeSetupScene := preload("res://scenes/ui/practice_setup.gd")
+const SurvivalEscapeSetupScene := preload("res://scenes/ui/survival_escape_setup.gd")
 const OfficialBriefingScene := preload("res://scenes/ui/official_briefing.gd")
 const StageSelectScene := preload("res://scenes/ui/stage_select.tscn")
 const EscapistSelectScene := preload("res://scenes/ui/escapist_select.tscn")
@@ -17,9 +18,11 @@ const PauseMenuScene := preload("res://scenes/ui/pause_menu.gd")
 const ArenaScene := preload("res://scenes/arena/arena.tscn")
 const PhaseOverlayScene := preload("res://scenes/ui/phase_overlay.tscn")
 const GameHudScene := preload("res://scenes/ui/game_hud.tscn")
+const SurvivalEscapeHudScene := preload("res://scenes/ui/survival_escape_hud.gd")
 const RoundReplayScene := preload("res://scenes/ui/round_replay.gd")
 const EscapistScene := preload("res://scenes/characters/escapist/escapist.tscn")
 const TrapperScene := preload("res://scenes/characters/trapper/trapper.tscn")
+const SurvivalTrapperScene := preload("res://scenes/characters/trapper/survival_trapper.gd")
 const MenuMusicPlayerScene := preload("res://scenes/audio/menu_music_player.gd")
 
 const ROUND_REPLAY_SAMPLE_INTERVAL: float = 0.08
@@ -70,6 +73,7 @@ var cover_screen: CoverScreen
 var mode_select: ModeSelect
 var how_to_play: HowToPlay
 var practice_setup: PracticeSetup
+var survival_escape_setup
 var official_briefing: OfficialBriefing
 var team_setup: TeamSetup
 var stage_select: StageSelect
@@ -79,10 +83,15 @@ var settings_menu: SettingsMenu
 var pause_menu: PauseMenu
 var phase_overlay: PhaseOverlay
 var game_hud: GameHud
+var survival_hud
 var round_replay: RoundReplay
 var menu_music: MenuMusicPlayer
 var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
 var _is_practice_flow: bool = false
+var _is_survival_flow: bool = false
+var _survival_map_data: Dictionary = {}
+var _survival_goal_escapists: Dictionary = {}
+var _survival_match_finished: bool = false
 
 
 func _ready() -> void:
@@ -108,6 +117,7 @@ func _ready() -> void:
 	mode_select.hide()
 	mode_select.official_requested.connect(_start_team_setup)
 	mode_select.practice_requested.connect(_start_practice_setup)
+	mode_select.survival_requested.connect(_start_survival_escape_setup)
 	mode_select.rules_requested.connect(_open_how_to_play)
 	mode_select.back_requested.connect(_start_cover_screen)
 
@@ -121,6 +131,12 @@ func _ready() -> void:
 	practice_setup.hide()
 	practice_setup.practice_ready.connect(_on_practice_ready)
 	practice_setup.back_requested.connect(_start_mode_select)
+
+	survival_escape_setup = SurvivalEscapeSetupScene.new()
+	ui_layer.add_child(survival_escape_setup)
+	survival_escape_setup.hide()
+	survival_escape_setup.survival_ready.connect(_on_survival_escape_ready)
+	survival_escape_setup.back_requested.connect(_start_mode_select)
 
 	official_briefing = OfficialBriefingScene.new() as OfficialBriefing
 	ui_layer.add_child(official_briefing)
@@ -181,6 +197,10 @@ func _ready() -> void:
 	ui_layer.add_child(game_hud)
 	game_hud.hide()
 
+	survival_hud = SurvivalEscapeHudScene.new()
+	ui_layer.add_child(survival_hud)
+	survival_hud.hide()
+
 	round_replay = RoundReplayScene.new() as RoundReplay
 	character_container.add_child(round_replay)
 	round_replay.finished.connect(_on_round_replay_finished)
@@ -210,6 +230,7 @@ func _start_intro_screen() -> void:
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	_hide_survival_hud()
 	menu_music.use_intro_volume()
 	menu_music.start_music()
 
@@ -239,6 +260,7 @@ func _start_cover_screen() -> void:
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	_hide_survival_hud()
 	menu_music.use_menu_volume()
 	menu_music.start_music()
 
@@ -259,11 +281,13 @@ func _start_mode_select() -> void:
 	_cleanup_round()
 	_active_player_indices.clear()
 	_is_practice_flow = false
+	_is_survival_flow = false
 	if arena:
 		arena.queue_free()
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	_hide_survival_hud()
 	menu_music.use_menu_volume()
 	menu_music.start_music()
 
@@ -295,6 +319,11 @@ func _close_how_to_play() -> void:
 		_start_mode_select()
 
 
+func _hide_survival_hud() -> void:
+	if survival_hud:
+		survival_hud.hide()
+
+
 func _start_practice_setup() -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
@@ -306,11 +335,13 @@ func _start_practice_setup() -> void:
 	GameManager.settings_overrides[&"practice_obstacles_enabled"] = true
 	GameManager.settings_overrides[&"practice_bots_enabled"] = false
 	_is_practice_flow = true
+	_is_survival_flow = false
 	if arena:
 		arena.queue_free()
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	_hide_survival_hud()
 	menu_music.use_menu_volume()
 	menu_music.start_music()
 
@@ -319,6 +350,30 @@ func _start_practice_setup() -> void:
 
 	practice_setup.setup()
 	push_view(practice_setup)
+
+
+func _start_survival_escape_setup() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	_practice_bots_added = false
+	_active_player_indices.clear()
+	_is_practice_flow = false
+	_is_survival_flow = false
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	_hide_survival_hud()
+	menu_music.use_menu_volume()
+	menu_music.start_music()
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	survival_escape_setup.setup()
+	push_view(survival_escape_setup)
 
 
 func _on_practice_ready(team_assignments: Dictionary, role_assignments: Dictionary) -> void:
@@ -331,6 +386,44 @@ func _on_practice_ready(team_assignments: Dictionary, role_assignments: Dictiona
 	_show_escapist_select(true)
 
 
+func _on_survival_escape_ready(role_assignments: Dictionary) -> void:
+	_is_practice_flow = false
+	_is_survival_flow = true
+	var team_assignments: Dictionary = {}
+	_active_player_indices.clear()
+	var escapist_order := 0
+	var trapper_order := 0
+	var escapist_animals: Array[Enums.EscapistAnimal] = [
+		Enums.EscapistAnimal.RABBIT,
+		Enums.EscapistAnimal.RAT,
+		Enums.EscapistAnimal.SQUIRREL,
+		Enums.EscapistAnimal.FLY,
+	]
+	var trapper_characters: Array[Enums.TrapperCharacter] = [
+		Enums.TrapperCharacter.ARANA,
+		Enums.TrapperCharacter.HONGO,
+		Enums.TrapperCharacter.ESCORPION,
+		Enums.TrapperCharacter.PULPO,
+	]
+	for pi: int in role_assignments:
+		var role: Enums.Role = role_assignments[pi] as Enums.Role
+		team_assignments[pi] = Enums.Team.TEAM_1 if role == Enums.Role.ESCAPIST else Enums.Team.TEAM_2
+		if role == Enums.Role.ESCAPIST:
+			GameManager.escapist_selections[pi] = escapist_animals[escapist_order % escapist_animals.size()]
+			escapist_order += 1
+		else:
+			GameManager.character_selections[pi] = trapper_characters[trapper_order % trapper_characters.size()]
+			trapper_order += 1
+		_active_player_indices.append(pi)
+	_active_player_indices.sort()
+	GameManager.set_survival_assignments(team_assignments, role_assignments)
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	_start_survival_escape_session()
+
+
 func _start_team_setup() -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
@@ -338,11 +431,13 @@ func _start_team_setup() -> void:
 	_practice_bots_added = false
 	_active_player_indices.clear()
 	_is_practice_flow = false
+	_is_survival_flow = false
 	if arena:
 		arena.queue_free()
 		arena = null
 	phase_overlay.clear()
 	game_hud.hide()
+	_hide_survival_hud()
 	menu_music.use_menu_volume()
 	menu_music.start_music()
 
@@ -355,6 +450,7 @@ func _start_team_setup() -> void:
 
 func _on_teams_ready(t_assignments: Dictionary) -> void:
 	_is_practice_flow = false
+	_is_survival_flow = false
 	GameManager.set_team_assignments(t_assignments)
 	_active_player_indices.clear()
 	for pi: int in t_assignments:
@@ -505,6 +601,31 @@ func _start_practice_session() -> void:
 		_add_practice_bots()
 
 
+func _setup_survival_arena() -> void:
+	if arena:
+		arena.queue_free()
+	arena = ArenaScene.instantiate() as Arena
+	arena_container.add_child(arena)
+	_survival_map_data = MapData.get_survival_test_map()
+	arena.load_map(_survival_map_data)
+	arena.goal_body_entered.connect(_on_survival_goal_body_entered)
+	arena.goal_body_exited.connect(_on_survival_goal_body_exited)
+	_setup_camera()
+
+
+func _start_survival_escape_session() -> void:
+	_setup_survival_arena()
+	_survival_goal_escapists.clear()
+	_survival_match_finished = false
+	game_hud.hide()
+	if survival_hud:
+		survival_hud.open(_get_survival_escapist_total(), _get_survival_trapper_total())
+	menu_music.use_round_volume()
+	GameManager.start_survival()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
 func _setup_camera() -> void:
 	if not arena:
 		return
@@ -529,6 +650,53 @@ func _on_viewport_size_changed() -> void:
 func _on_goal_entered(escapist: Escapist) -> void:
 	_capture_round_replay_finish(escapist)
 	GameManager.register_escapist_scored(escapist.player_index)
+
+
+func _on_survival_goal_body_entered(body: Node2D) -> void:
+	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
+		return
+	if not body is Escapist:
+		return
+	var esc := body as Escapist
+	if esc.is_dead:
+		return
+	_survival_goal_escapists[esc.player_index] = true
+	_update_survival_exit_hud()
+	_check_survival_escape_complete()
+
+
+func _on_survival_goal_body_exited(body: Node2D) -> void:
+	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
+		return
+	if not body is Escapist:
+		return
+	var esc := body as Escapist
+	_survival_goal_escapists.erase(esc.player_index)
+	_update_survival_exit_hud()
+
+
+func _update_survival_exit_hud() -> void:
+	if survival_hud:
+		survival_hud.set_exit_count(_survival_goal_escapists.size())
+
+
+func _check_survival_escape_complete() -> void:
+	var total := _get_survival_escapist_total()
+	if total <= 0:
+		return
+	if _survival_goal_escapists.size() >= total:
+		_finish_survival_escape(true)
+
+
+func _finish_survival_escape(escapists_won: bool) -> void:
+	if _survival_match_finished:
+		return
+	_survival_match_finished = true
+	_freeze_all()
+	if survival_hud:
+		var text := "ESCAPISTAS ESCAPARON" if escapists_won else "CAZADORES GANARON"
+		var color := Enums.role_color(Enums.Role.ESCAPIST) if escapists_won else Enums.role_color(Enums.Role.TRAPPER)
+		survival_hud.show_result(text, color)
 
 
 func _cleanup_round() -> void:
@@ -581,6 +749,72 @@ func _spawn_characters() -> void:
 			character_container.add_child(trapper)
 			characters.append(trapper)
 			GameManager.register_player_character(pi, trapper)
+
+
+func _spawn_survival_characters() -> void:
+	_cleanup_round()
+	var escapist_idx := 0
+	var trapper_idx := 0
+
+	for pi in _active_player_indices:
+		var t: Enums.Team = GameManager.get_player_team(pi)
+		var r: Enums.Role = GameManager.get_player_role(pi)
+
+		if r == Enums.Role.ESCAPIST:
+			var esc := EscapistScene.instantiate() as Escapist
+			esc.player_index = pi
+			esc.team = t
+			esc.escapist_animal = GameManager.get_player_escapist_animal(pi)
+			esc.player_color = Enums.escapist_animal_color(esc.escapist_animal)
+			esc.position = _get_survival_escapist_spawn(escapist_idx)
+			esc.spawn_position = esc.position
+			esc.aim_direction = Vector2.RIGHT
+			escapist_idx += 1
+			character_container.add_child(esc)
+			characters.append(esc)
+			GameManager.register_player_character(pi, esc)
+		elif r == Enums.Role.TRAPPER:
+			var trapper = SurvivalTrapperScene.new()
+			trapper.player_index = pi
+			trapper.team = t
+			trapper.trapper_character = GameManager.get_player_character(pi)
+			trapper.player_color = Enums.trapper_character_color(trapper.trapper_character)
+			trapper.position = _get_survival_trapper_spawn(trapper_idx)
+			trapper.aim_direction = Vector2.LEFT
+			trapper_idx += 1
+			character_container.add_child(trapper)
+			characters.append(trapper)
+			GameManager.register_player_character(pi, trapper)
+
+
+func _get_survival_escapist_spawn(index: int) -> Vector2:
+	var spawns: Array = _survival_map_data.get("spawns", []) as Array
+	if index < spawns.size():
+		return spawns[index] as Vector2
+	return arena.get_map_center() if arena else Vector2.ZERO
+
+
+func _get_survival_trapper_spawn(index: int) -> Vector2:
+	var spawns: Array = _survival_map_data.get("survival_trapper_spawns", []) as Array
+	if index < spawns.size():
+		return spawns[index] as Vector2
+	return arena.get_map_center() if arena else Vector2.ZERO
+
+
+func _get_survival_escapist_total() -> int:
+	var total := 0
+	for pi: int in GameManager.role_assignments:
+		if GameManager.role_assignments[pi] == Enums.Role.ESCAPIST:
+			total += 1
+	return total
+
+
+func _get_survival_trapper_total() -> int:
+	var total := 0
+	for pi: int in GameManager.role_assignments:
+		if GameManager.role_assignments[pi] == Enums.Role.TRAPPER:
+			total += 1
+	return total
 
 
 func _build_official_escapist_bot_route(spawn_position: Vector2) -> Array[Vector2]:
@@ -684,6 +918,11 @@ func _on_state_changed(new_state: Enums.GameState) -> void:
 		Enums.GameState.PRACTICE:
 			menu_music.use_round_volume()
 			_spawn_characters()
+			_unfreeze_all()
+			phase_overlay.clear()
+		Enums.GameState.SURVIVAL:
+			menu_music.use_round_volume()
+			_spawn_survival_characters()
 			_unfreeze_all()
 			phase_overlay.clear()
 
@@ -1009,6 +1248,10 @@ func _process(delta: float) -> void:
 	if state == Enums.GameState.HUNT:
 		phase_overlay.show_hunt_countdown(GameManager.get_observation_time())
 
+	if state == Enums.GameState.SURVIVAL:
+		_check_survival_return_input()
+		return
+
 	if state == Enums.GameState.OBSERVATION \
 			or state == Enums.GameState.HUNT \
 			or state == Enums.GameState.ESCAPE \
@@ -1025,6 +1268,39 @@ func _process(delta: float) -> void:
 
 
 # --- Debug ---
+
+func _check_survival_return_input() -> void:
+	for pi in _active_player_indices:
+		var device_id := InputManager.get_device_id(pi)
+		if device_id < 0:
+			continue
+		if InputManager.is_menu_back_just_pressed(device_id):
+			_return_to_survival_placeholder()
+			return
+
+
+func _return_to_survival_placeholder() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	_hide_survival_hud()
+	menu_music.use_menu_volume()
+	menu_music.start_music()
+	GameManager.reset_match()
+	_survival_goal_escapists.clear()
+	_survival_match_finished = false
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	survival_escape_setup.reopen_placeholder()
+	push_view(survival_escape_setup)
+	InputManager.suppress_edge_detection(3)
 
 func _check_debug_input() -> void:
 	for pi in _active_player_indices:

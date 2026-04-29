@@ -955,5 +955,47 @@ static func get_practice_map() -> Dictionary:
 	}
 
 
+static func get_survival_test_map() -> Dictionary:
+	var w := 1500.0
+	var h := 860.0
+	var t := 24.0
+
+	return {
+		"name": "Refugio de prueba",
+		"description": "Mapa compacto para probar roles fijos, movimiento fisico y salida grupal.",
+		"size": Vector2(w, h),
+		"walls": [
+			{"pos": Vector2(0, 0), "size": Vector2(w, t)},
+			{"pos": Vector2(0, h - t), "size": Vector2(w, t)},
+			{"pos": Vector2(0, 0), "size": Vector2(t, h)},
+			{"pos": Vector2(w - t, 0), "size": Vector2(t, h)},
+
+			{"pos": Vector2(305, 145), "size": Vector2(t, 245)},
+			{"pos": Vector2(305, 510), "size": Vector2(t, 205)},
+			{"pos": Vector2(520, 250), "size": Vector2(350, t)},
+			{"pos": Vector2(520, 590), "size": Vector2(350, t)},
+			{"pos": Vector2(735, 360), "size": Vector2(t, 140)},
+			{"pos": Vector2(1030, 120), "size": Vector2(t, 255)},
+			{"pos": Vector2(1030, 525), "size": Vector2(t, 225)},
+			{"pos": Vector2(1195, 300), "size": Vector2(130, t)},
+			{"pos": Vector2(1195, 535), "size": Vector2(130, t)},
+		],
+		"hazards": [],
+		"spawns": [
+			Vector2(118, 330),
+			Vector2(118, 430),
+			Vector2(118, 530),
+			Vector2(118, 630),
+		],
+		"survival_trapper_spawns": [
+			Vector2(610, 410),
+			Vector2(905, 455),
+			Vector2(1110, 220),
+			Vector2(1110, 660),
+		],
+		"goal": Rect2(w - t - 86, 292, 86, 276),
+	}
+
+
 static func get_all() -> Array[Dictionary]:
 	return [get_gauntlet_map()]
