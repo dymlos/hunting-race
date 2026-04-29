@@ -92,6 +92,8 @@ var _is_survival_flow: bool = false
 var _survival_map_data: Dictionary = {}
 var _survival_goal_escapists: Dictionary = {}
 var _survival_match_finished: bool = false
+var _survival_time_remaining: float = 0.0
+var _survival_time_total: float = Constants.SURVIVAL_ESCAPE_DURATION
 
 
 func _ready() -> void:
@@ -617,9 +619,11 @@ func _start_survival_escape_session() -> void:
 	_setup_survival_arena()
 	_survival_goal_escapists.clear()
 	_survival_match_finished = false
+	_survival_time_total = _get_survival_duration()
+	_survival_time_remaining = _survival_time_total
 	game_hud.hide()
 	if survival_hud:
-		survival_hud.open(_get_survival_escapist_total(), _get_survival_trapper_total())
+		survival_hud.open(_get_survival_escapist_total(), _get_survival_trapper_total(), _survival_time_total)
 	menu_music.use_round_volume()
 	GameManager.start_survival()
 	_prime_start_button_state()
@@ -696,7 +700,25 @@ func _finish_survival_escape(escapists_won: bool) -> void:
 	if survival_hud:
 		var text := "ESCAPISTAS ESCAPARON" if escapists_won else "CAZADORES GANARON"
 		var color := Enums.role_color(Enums.Role.ESCAPIST) if escapists_won else Enums.role_color(Enums.Role.TRAPPER)
-		survival_hud.show_result(text, color)
+		var hint := "Todos llegaron a la salida con %.0f segundos restantes." % maxf(_survival_time_remaining, 0.0)
+		if not escapists_won:
+			hint = "Se termino el tiempo antes de que todos llegaran a la salida."
+		survival_hud.show_result(text, color, hint)
+
+
+func _get_survival_duration() -> float:
+	var map_duration: float = _survival_map_data.get("survival_duration", Constants.SURVIVAL_ESCAPE_DURATION) as float
+	return GameManager.settings_overrides.get(&"survival_escape_duration", map_duration) as float
+
+
+func _update_survival_escape(delta: float) -> void:
+	if _survival_match_finished:
+		return
+	_survival_time_remaining = maxf(_survival_time_remaining - delta, 0.0)
+	if survival_hud:
+		survival_hud.set_time_remaining(_survival_time_remaining)
+	if _survival_time_remaining <= 0.0:
+		_finish_survival_escape(false)
 
 
 func _cleanup_round() -> void:
@@ -1249,6 +1271,7 @@ func _process(delta: float) -> void:
 		phase_overlay.show_hunt_countdown(GameManager.get_observation_time())
 
 	if state == Enums.GameState.SURVIVAL:
+		_update_survival_escape(delta)
 		_check_survival_return_input()
 		return
 
@@ -1294,6 +1317,7 @@ func _return_to_survival_placeholder() -> void:
 	GameManager.reset_match()
 	_survival_goal_escapists.clear()
 	_survival_match_finished = false
+	_survival_time_remaining = 0.0
 
 	while not _view_stack.is_empty():
 		pop_view()

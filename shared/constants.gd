@@ -31,6 +31,10 @@ const ROUND_END_DURATION: float = 3.0
 const SCORE_TO_WIN: int = 3
 const HUNT_DURATION: float = 75.0
 
+# --- Survival Escape ---
+const SURVIVAL_ESCAPE_DURATION: float = 240.0
+const SURVIVAL_TIME_WARNING: float = 30.0
+
 # --- Scoring ---
 const SCORE_ESCAPE_BASE: int = 100
 const SCORE_ESCAPE_TIME_MULTIPLIER: int = 5

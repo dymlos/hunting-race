@@ -962,8 +962,9 @@ static func get_survival_test_map() -> Dictionary:
 
 	return {
 		"name": "Refugio de prueba",
-		"description": "Mapa compacto para probar roles fijos, movimiento fisico y salida grupal.",
+		"description": "Mapa compacto para probar roles fijos, movimiento fisico, timer y salida grupal.",
 		"size": Vector2(w, h),
+		"survival_duration": 240.0,
 		"walls": [
 			{"pos": Vector2(0, 0), "size": Vector2(w, t)},
 			{"pos": Vector2(0, h - t), "size": Vector2(w, t)},

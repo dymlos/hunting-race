@@ -252,7 +252,7 @@ func _draw_placeholder(screen: Vector2, font: Font) -> void:
 	draw_rect(Rect2(panel_rect.position, Vector2(panel_rect.size.x, 6.0)), Color(0.24, 0.82, 0.48, 1.0))
 	_draw_centered_text_in_rect(font, "ROLES FIJOS CONFIRMADOS",
 		Rect2(panel_rect.position.x, panel_rect.position.y + 18.0, panel_rect.size.x, 30.0), 24, Color.WHITE)
-	_draw_centered_text_in_rect(font, "Revisa los roles y avanza al mapa jugable basico.",
+	_draw_centered_text_in_rect(font, "Revisa los roles y avanza al mapa con timer de escape.",
 		Rect2(panel_rect.position.x, panel_rect.position.y + 52.0, panel_rect.size.x, 24.0), 14, Color(0.68, 0.72, 0.70))
 
 	var left_rect := Rect2(panel_rect.position.x + 34.0, panel_rect.position.y + 104.0, 420.0, 270.0)
@@ -260,7 +260,7 @@ func _draw_placeholder(screen: Vector2, font: Font) -> void:
 	_draw_assigned_role_list(font, left_rect, Enums.Role.ESCAPIST)
 	_draw_assigned_role_list(font, right_rect, Enums.Role.TRAPPER)
 
-	_draw_centered_text_in_rect(font, "Start carga el mapa basico de prueba. Select vuelve a editar roles.",
+	_draw_centered_text_in_rect(font, "Start carga el mapa de prueba. Select vuelve a editar roles.",
 		Rect2(panel_rect.position.x, panel_rect.end.y - 64.0, panel_rect.size.x, 22.0), 14, Color(0.58, 0.62, 0.60))
 	_draw_centered_text_in_rect(font, "Start cargar mapa | Select volver a roles",
 		Rect2(cx - 320.0, screen.y - 64.0, 640.0, 32.0), 18, Color.YELLOW)
