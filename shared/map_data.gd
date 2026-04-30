@@ -962,7 +962,7 @@ static func get_survival_test_map() -> Dictionary:
 
 	return {
 		"name": "Refugio de prueba",
-		"description": "Mapa compacto para probar roles fijos, movimiento fisico, timer y salida grupal.",
+		"description": "Mapa compacto para probar roles fijos, timer, salida grupal y oleadas simples.",
 		"size": Vector2(w, h),
 		"survival_duration": 240.0,
 		"walls": [
@@ -993,6 +993,16 @@ static func get_survival_test_map() -> Dictionary:
 			Vector2(905, 455),
 			Vector2(1110, 220),
 			Vector2(1110, 660),
+		],
+		"survival_zombie_spawns": [
+			Vector2(435, 96),
+			Vector2(680, 96),
+			Vector2(950, 92),
+			Vector2(1340, 180),
+			Vector2(1345, 700),
+			Vector2(940, 772),
+			Vector2(640, 772),
+			Vector2(430, 765),
 		],
 		"goal": Rect2(w - t - 86, 292, 86, 276),
 	}

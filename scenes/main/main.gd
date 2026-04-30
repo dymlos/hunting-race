@@ -23,6 +23,7 @@ const RoundReplayScene := preload("res://scenes/ui/round_replay.gd")
 const EscapistScene := preload("res://scenes/characters/escapist/escapist.tscn")
 const TrapperScene := preload("res://scenes/characters/trapper/trapper.tscn")
 const SurvivalTrapperScene := preload("res://scenes/characters/trapper/survival_trapper.gd")
+const SurvivalZombieScene := preload("res://scenes/characters/enemies/survival_zombie.gd")
 const MenuMusicPlayerScene := preload("res://scenes/audio/menu_music_player.gd")
 
 const ROUND_REPLAY_SAMPLE_INTERVAL: float = 0.08
@@ -94,6 +95,13 @@ var _survival_goal_escapists: Dictionary = {}
 var _survival_match_finished: bool = false
 var _survival_time_remaining: float = 0.0
 var _survival_time_total: float = Constants.SURVIVAL_ESCAPE_DURATION
+var _survival_zombies: Array[Node2D] = []
+var _survival_wave_number: int = 0
+var _survival_wave_timer: float = 0.0
+var _survival_spawn_queue: int = 0
+var _survival_spawn_step_timer: float = 0.0
+var _survival_death_count: int = 0
+var _survival_zombie_spawn_index: int = 0
 
 
 func _ready() -> void:
@@ -621,9 +629,11 @@ func _start_survival_escape_session() -> void:
 	_survival_match_finished = false
 	_survival_time_total = _get_survival_duration()
 	_survival_time_remaining = _survival_time_total
+	_reset_survival_waves()
 	game_hud.hide()
 	if survival_hud:
 		survival_hud.open(_get_survival_escapist_total(), _get_survival_trapper_total(), _survival_time_total)
+		_update_survival_wave_hud()
 	menu_music.use_round_volume()
 	GameManager.start_survival()
 	_prime_start_button_state()
@@ -697,6 +707,7 @@ func _finish_survival_escape(escapists_won: bool) -> void:
 		return
 	_survival_match_finished = true
 	_freeze_all()
+	_set_survival_zombies_active(false)
 	if survival_hud:
 		var text := "ESCAPISTAS ESCAPARON" if escapists_won else "CAZADORES GANARON"
 		var color := Enums.role_color(Enums.Role.ESCAPIST) if escapists_won else Enums.role_color(Enums.Role.TRAPPER)
@@ -721,12 +732,130 @@ func _update_survival_escape(delta: float) -> void:
 		_finish_survival_escape(false)
 
 
+func _reset_survival_waves() -> void:
+	for zombie in _survival_zombies:
+		if is_instance_valid(zombie):
+			zombie.queue_free()
+	_survival_zombies.clear()
+	_survival_wave_number = 0
+	_survival_wave_timer = Constants.SURVIVAL_FIRST_WAVE_DELAY
+	_survival_spawn_queue = 0
+	_survival_spawn_step_timer = 0.0
+	_survival_death_count = 0
+	_survival_zombie_spawn_index = 0
+
+
+func _update_survival_waves(delta: float) -> void:
+	if _survival_match_finished:
+		return
+	_survival_wave_timer = maxf(_survival_wave_timer - delta, 0.0)
+	if _survival_spawn_queue > 0:
+		_survival_spawn_step_timer = maxf(_survival_spawn_step_timer - delta, 0.0)
+		while _survival_spawn_queue > 0 and _survival_spawn_step_timer <= 0.0:
+			_spawn_survival_zombie()
+			_survival_spawn_queue -= 1
+			_survival_spawn_step_timer += Constants.SURVIVAL_ZOMBIE_SPAWN_STEP
+	if _survival_wave_timer <= 0.0 and _survival_spawn_queue <= 0:
+		_start_survival_wave()
+	_update_survival_wave_hud()
+
+
+func _start_survival_wave() -> void:
+	_survival_wave_number += 1
+	_survival_spawn_queue = Constants.SURVIVAL_WAVE_BASE_COUNT \
+		+ (_survival_wave_number - 1) * Constants.SURVIVAL_WAVE_GROWTH \
+		+ int(floorf(float(_survival_death_count) * 0.5))
+	_survival_spawn_step_timer = 0.0
+	var death_pressure := minf(float(_survival_death_count) * 1.5, 10.0)
+	_survival_wave_timer = maxf(Constants.SURVIVAL_WAVE_INTERVAL - death_pressure, 10.0)
+
+
+func _spawn_survival_zombie() -> void:
+	if arena == null:
+		return
+	var spawn_position := _get_survival_zombie_spawn(_survival_zombie_spawn_index)
+	_survival_zombie_spawn_index += 1
+	var zombie = SurvivalZombieScene.new()
+	zombie.setup(_survival_zombie_spawn_index, spawn_position, _get_survival_zombie_speed())
+	zombie.escapist_caught.connect(_on_survival_zombie_caught)
+	character_container.add_child(zombie)
+	_survival_zombies.append(zombie)
+
+
+func _get_survival_zombie_spawn(index: int) -> Vector2:
+	var spawns: Array = _survival_map_data.get("survival_zombie_spawns", []) as Array
+	if not spawns.is_empty():
+		return spawns[index % spawns.size()] as Vector2
+	var map_size := arena.get_map_size() if arena else Vector2(1500.0, 860.0)
+	return Vector2(map_size.x * 0.5, 80.0)
+
+
+func _get_survival_zombie_speed() -> float:
+	return Constants.SURVIVAL_ZOMBIE_SPEED \
+		+ float(_survival_wave_number) * 1.25 \
+		+ float(_survival_death_count) * Constants.SURVIVAL_ZOMBIE_SPEED_PER_DEATH
+
+
+func _get_survival_zombie_alive_count() -> int:
+	var alive := 0
+	var valid_zombies: Array[Node2D] = []
+	for zombie in _survival_zombies:
+		if not is_instance_valid(zombie):
+			continue
+		valid_zombies.append(zombie)
+		alive += 1
+	_survival_zombies = valid_zombies
+	return alive
+
+
+func _update_survival_wave_hud() -> void:
+	if survival_hud:
+		survival_hud.set_wave_status(
+			_survival_wave_number,
+			_get_survival_zombie_alive_count(),
+			_survival_death_count,
+			_survival_wave_timer
+		)
+
+
+func _on_survival_zombie_caught(escapist: Escapist, _zombie: Node) -> void:
+	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
+		return
+	if not is_instance_valid(escapist) or escapist.is_dead or escapist.has_scored:
+		return
+	if escapist.is_effect_immune():
+		return
+	_survival_death_count += 1
+	_survival_goal_escapists.erase(escapist.player_index)
+	escapist.notify_trap_status("ZOMBIE", Color(0.60, 1.0, 0.42), 0.9)
+	escapist.respawn()
+	for zombie in _survival_zombies:
+		if is_instance_valid(zombie) and zombie.has_method("release_if_attached_to"):
+			zombie.call("release_if_attached_to", escapist)
+	_survival_wave_timer = maxf(_survival_wave_timer - 3.0, 4.0)
+	var updated_speed := _get_survival_zombie_speed()
+	for zombie in _survival_zombies:
+		if is_instance_valid(zombie):
+			zombie.set("move_speed", updated_speed)
+	_update_survival_exit_hud()
+	_update_survival_wave_hud()
+
+
+func _set_survival_zombies_active(active: bool) -> void:
+	for zombie in _survival_zombies:
+		if is_instance_valid(zombie) and zombie.has_method("set_active"):
+			zombie.call("set_active", active)
+
+
 func _cleanup_round() -> void:
 	_clear_round_replay()
 	for c in characters:
 		if is_instance_valid(c):
 			c.queue_free()
 	characters.clear()
+	for zombie in get_tree().get_nodes_in_group("survival_zombies"):
+		zombie.queue_free()
+	_survival_zombies.clear()
 	for node in get_tree().get_nodes_in_group("traps"):
 		node.queue_free()
 	for node in get_tree().get_nodes_in_group("projectiles"):
@@ -1272,6 +1401,7 @@ func _process(delta: float) -> void:
 
 	if state == Enums.GameState.SURVIVAL:
 		_update_survival_escape(delta)
+		_update_survival_waves(delta)
 		_check_survival_return_input()
 		return
 
@@ -1318,6 +1448,7 @@ func _return_to_survival_placeholder() -> void:
 	_survival_goal_escapists.clear()
 	_survival_match_finished = false
 	_survival_time_remaining = 0.0
+	_reset_survival_waves()
 
 	while not _view_stack.is_empty():
 		pop_view()

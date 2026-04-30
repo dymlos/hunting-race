@@ -203,7 +203,7 @@ func _draw_role_setup(screen: Vector2, font: Font) -> void:
 		Rect2(cx - 260.0, 28.0, 520.0, 46.0), 38, Color.WHITE)
 	_draw_centered_text_in_rect(font, "Elige un rol fijo para toda la partida.",
 		Rect2(cx - 360.0, 78.0, 720.0, 22.0), 16, Color(0.66, 0.70, 0.68))
-	_draw_centered_text_in_rect(font, "Esta etapa solo prepara el flujo y la vista previa del modo.",
+	_draw_centered_text_in_rect(font, "Esta etapa permite probar timer, salida grupal y primeras oleadas.",
 		Rect2(cx - 420.0, 102.0, 840.0, 20.0), 13, Color(0.48, 0.52, 0.50))
 
 	var joined := _get_joined_devices()
@@ -252,7 +252,7 @@ func _draw_placeholder(screen: Vector2, font: Font) -> void:
 	draw_rect(Rect2(panel_rect.position, Vector2(panel_rect.size.x, 6.0)), Color(0.24, 0.82, 0.48, 1.0))
 	_draw_centered_text_in_rect(font, "ROLES FIJOS CONFIRMADOS",
 		Rect2(panel_rect.position.x, panel_rect.position.y + 18.0, panel_rect.size.x, 30.0), 24, Color.WHITE)
-	_draw_centered_text_in_rect(font, "Revisa los roles y avanza al mapa con timer de escape.",
+	_draw_centered_text_in_rect(font, "Revisa los roles y avanza al mapa con zombies de prueba.",
 		Rect2(panel_rect.position.x, panel_rect.position.y + 52.0, panel_rect.size.x, 24.0), 14, Color(0.68, 0.72, 0.70))
 
 	var left_rect := Rect2(panel_rect.position.x + 34.0, panel_rect.position.y + 104.0, 420.0, 270.0)

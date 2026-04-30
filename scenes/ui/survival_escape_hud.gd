@@ -8,6 +8,10 @@ var _trapper_total: int = 0
 var _escapists_in_exit: int = 0
 var _time_total: float = Constants.SURVIVAL_ESCAPE_DURATION
 var _time_remaining: float = Constants.SURVIVAL_ESCAPE_DURATION
+var _wave_number: int = 0
+var _zombie_count: int = 0
+var _death_count: int = 0
+var _next_wave_time: float = 0.0
 var _result_text: String = ""
 var _result_hint: String = ""
 var _result_color: Color = Color.WHITE
@@ -19,6 +23,10 @@ func open(escapist_total: int, trapper_total: int, duration: float = Constants.S
 	_escapists_in_exit = 0
 	_time_total = maxf(duration, 1.0)
 	_time_remaining = _time_total
+	_wave_number = 0
+	_zombie_count = 0
+	_death_count = 0
+	_next_wave_time = Constants.SURVIVAL_FIRST_WAVE_DELAY
 	_result_text = ""
 	_result_hint = ""
 	_result_color = Color.WHITE
@@ -33,6 +41,14 @@ func set_exit_count(value: int) -> void:
 
 func set_time_remaining(value: float) -> void:
 	_time_remaining = clampf(value, 0.0, _time_total)
+	queue_redraw()
+
+
+func set_wave_status(wave_number: int, zombie_count: int, death_count: int, next_wave_time: float) -> void:
+	_wave_number = maxi(wave_number, 0)
+	_zombie_count = maxi(zombie_count, 0)
+	_death_count = maxi(death_count, 0)
+	_next_wave_time = maxf(next_wave_time, 0.0)
 	queue_redraw()
 
 
@@ -91,6 +107,16 @@ func _draw() -> void:
 	_draw_centered_text_in_rect(font, exit_text,
 		Rect2(exit_rect.position.x, exit_rect.position.y + 28.0, exit_rect.size.x, 28.0), 22, Color(0.42, 1.0, 0.58))
 
+	var wave_rect := Rect2(screen.x - 260.0, 88.0, 242.0, 34.0)
+	_draw_panel(wave_rect, Color(0.025, 0.035, 0.022, 0.82), Color(0.42, 0.78, 0.36, 0.60), 1.5)
+	var wave_text := "Oleada %d | Zombies %d" % [_wave_number, _zombie_count]
+	if _wave_number <= 0:
+		wave_text = "1ra oleada en %.0fs" % _next_wave_time
+	_draw_centered_text_in_rect(font, wave_text,
+		Rect2(wave_rect.position.x + 8.0, wave_rect.position.y + 4.0, wave_rect.size.x - 16.0, 16.0), 12, Color(0.72, 1.0, 0.62))
+	_draw_centered_text_in_rect(font, "Muertes: %d" % _death_count,
+		Rect2(wave_rect.position.x + 8.0, wave_rect.position.y + 18.0, wave_rect.size.x - 16.0, 14.0), 10, Color(0.70, 0.74, 0.70))
+
 	var footer := "Select volver a la pantalla anterior"
 	var footer_w := font.get_string_size(footer, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
 	draw_string(font, Vector2(cx - footer_w * 0.5, bar_h - 10.0),
@@ -105,7 +131,7 @@ func _draw() -> void:
 			Rect2(panel.position.x, panel.position.y + 34.0, panel.size.x, 42.0), 32, _result_color)
 		var hint := _result_hint
 		if hint.is_empty():
-			hint = "Etapa 3 completada: timer, victoria grupal y derrota por tiempo."
+			hint = "Etapa 4 completada: timer, salida grupal y oleadas de zombies."
 		_draw_centered_text_in_rect(font, hint,
 			Rect2(panel.position.x + 24.0, panel.position.y + 88.0, panel.size.x - 48.0, 24.0), 14, Color(0.78, 0.82, 0.80))
 		_draw_centered_text_in_rect(font, "Select para volver",
@@ -129,6 +155,6 @@ func _draw_centered_text_in_rect(font: Font, text: String, rect: Rect2, font_siz
 
 func _format_time(seconds: float) -> String:
 	var whole := int(ceilf(maxf(seconds, 0.0)))
-	var minutes := int(floor(float(whole) / 60.0))
+	var minutes := int(floorf(float(whole) / 60.0))
 	var secs := whole % 60
 	return "%d:%02d" % [minutes, secs]
