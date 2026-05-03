@@ -3,6 +3,8 @@ extends CharacterBody2D
 
 signal escapist_caught(escapist: Escapist, zombie: Node)
 
+const GRAB_SLOW_KEY := &"survival_zombie_grab"
+
 var zombie_index: int = 0
 var move_speed: float = Constants.SURVIVAL_ZOMBIE_SPEED
 
@@ -38,6 +40,13 @@ func _ready() -> void:
 	var collision := CollisionShape2D.new()
 	collision.shape = shape
 	add_child(collision)
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_attached_escapist):
+		var escapist := _attached_escapist
+		_attached_escapist = null
+		_update_grab_slow_for_escapist(escapist)
 
 
 func set_active(value: bool) -> void:
@@ -90,7 +99,7 @@ func _update_attached(delta: float) -> void:
 	global_position = _attached_escapist.global_position + _attach_offset
 	velocity = Vector2.ZERO
 
-	if _is_touching_wall_or_trapper() or _is_touching_loose_zombie():
+	if _is_touching_wall_or_trapper():
 		_release_from_escapist(0.8)
 		return
 
@@ -158,16 +167,20 @@ func _attach_to_escapist(escapist: Escapist) -> void:
 	collision_mask = 0
 	z_index = 9
 	escapist.notify_trap_status("AGARRE", Color(0.65, 1.0, 0.42), 0.75)
+	_update_grab_slow_for_escapist(escapist)
 	queue_redraw()
 
 
 func _release_from_escapist(cooldown: float) -> void:
+	var previous_escapist := _attached_escapist
 	_attached_escapist = null
 	_grab_elapsed = 0.0
 	_release_cooldown = cooldown
 	collision_layer = _collision_layer_default
 	collision_mask = _collision_mask_default
 	z_index = 6
+	if is_instance_valid(previous_escapist):
+		_update_grab_slow_for_escapist(previous_escapist)
 	queue_redraw()
 
 
@@ -205,21 +218,6 @@ func _is_touching_wall() -> bool:
 	return not world.direct_space_state.intersect_shape(query, 1).is_empty()
 
 
-func _is_touching_loose_zombie() -> bool:
-	var tree := get_tree()
-	if tree == null:
-		return false
-	for node: Node in tree.get_nodes_in_group("survival_zombies"):
-		if node == self or not node is Node2D:
-			continue
-		if node.has_method("is_attached_to") and node.call("is_attached_to", _attached_escapist):
-			continue
-		var other := node as Node2D
-		if global_position.distance_to(other.global_position) <= Constants.SURVIVAL_ZOMBIE_RELEASE_CONTACT_RADIUS:
-			return true
-	return false
-
-
 func is_attached_to(escapist: Escapist) -> bool:
 	return _attached_escapist == escapist
 
@@ -233,6 +231,31 @@ func _get_attached_count_for_escapist(escapist: Escapist) -> int:
 		if node.has_method("is_attached_to") and node.call("is_attached_to", escapist):
 			count += 1
 	return maxi(count, 1)
+
+
+func _get_real_attached_count_for_escapist(escapist: Escapist) -> int:
+	var count := 0
+	var tree := get_tree()
+	if tree == null:
+		return 0
+	for node: Node in tree.get_nodes_in_group("survival_zombies"):
+		if node.has_method("is_attached_to") and node.call("is_attached_to", escapist):
+			count += 1
+	return count
+
+
+func _update_grab_slow_for_escapist(escapist: Escapist) -> void:
+	if not is_instance_valid(escapist) or escapist.movement == null:
+		return
+	var attached_count := _get_real_attached_count_for_escapist(escapist)
+	if attached_count <= 0:
+		escapist.movement.remove_speed_modifier(GRAB_SLOW_KEY)
+		return
+	var multiplier := maxf(
+		Constants.SURVIVAL_ZOMBIE_GRAB_MIN_SPEED,
+		1.0 - Constants.SURVIVAL_ZOMBIE_GRAB_SLOW_PER_ZOMBIE * float(attached_count)
+	)
+	escapist.movement.set_speed_modifier(GRAB_SLOW_KEY, multiplier)
 
 
 func _draw() -> void:
