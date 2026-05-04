@@ -1,0 +1,5 @@
+Antlion sprites by Clint Bellanger, hosted on OpenGameArt.org.
+Source: https://opengameart.org/content/antlion
+License: CC-BY 3.0
+
+The project uses cropped animation frames from antlion_0.png for the survival zombie enemy.

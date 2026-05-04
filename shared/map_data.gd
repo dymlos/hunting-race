@@ -955,16 +955,23 @@ static func get_practice_map() -> Dictionary:
 	}
 
 
-static func get_survival_test_map() -> Dictionary:
+static func get_survival_test_map(team_size: int = 1) -> Dictionary:
 	var w := 1500.0
 	var h := 860.0
 	var t := 24.0
 
-	return {
+	var map_data: Dictionary = {
 		"name": "Refugio de prueba",
 		"description": "Mapa compacto para probar roles fijos, timer, salida grupal y oleadas simples.",
 		"size": Vector2(w, h),
 		"survival_duration": 240.0,
+		"floor_color": Color(0.52, 0.49, 0.40),
+		"floor_upper_haze": Color(0.70, 0.65, 0.52, 0.18),
+		"floor_lower_haze": Color(0.40, 0.38, 0.32, 0.16),
+		"floor_dust_color": Color(0.94, 0.88, 0.70, 0.08),
+		"floor_border_color": Color(0.15, 0.13, 0.10, 0.18),
+		"floor_outside_margin": 512.0,
+		"goal_blocks_survival_enemies": true,
 		"walls": [
 			{"pos": Vector2(0, 0), "size": Vector2(w, t)},
 			{"pos": Vector2(0, h - t), "size": Vector2(w, t)},
@@ -1004,8 +1011,85 @@ static func get_survival_test_map() -> Dictionary:
 			Vector2(640, 772),
 			Vector2(430, 765),
 		],
+		"survival_jail": {
+			"rect": Rect2(52, 692, 146, 104),
+			"release_rect": Rect2(204, 714, 44, 60),
+			"spawn": Vector2(125, 744),
+			"release_position": Vector2(270, 744),
+			"wall_thickness": 12.0,
+		},
+		"survival_locks": [
+			{
+				"id": "blue",
+				"label": "AZUL",
+				"color": Color(0.20, 0.58, 1.0),
+				"key_rect": Rect2(1262, 674, 38, 38),
+				"key_hidden": true,
+				"gate_rect": Rect2(390, 90, 70, 70),
+				"button_rect": Rect2(404, 104, 42, 42),
+			},
+			{
+				"id": "red",
+				"label": "ROJA",
+				"color": Color(1.0, 0.22, 0.18),
+				"key_rect": Rect2(1220, 168, 38, 38),
+				"key_hidden": true,
+				"gate_rect": Rect2(390, 695, 70, 70),
+				"button_rect": Rect2(404, 709, 42, 42),
+			},
+			{
+				"id": "yellow",
+				"label": "AMARILLA",
+				"color": Color(1.0, 0.84, 0.16),
+				"key_rect": Rect2(190, 430, 38, 38),
+				"key_hidden": true,
+				"gate_rect": Rect2(880, 410, 70, 70),
+				"button_rect": Rect2(894, 424, 42, 42),
+			},
+		],
 		"goal": Rect2(w - t - 86, 292, 86, 276),
 	}
+	var scale := _get_survival_team_scale(team_size)
+	var scaled_map := _scale_survival_map_data(map_data, scale)
+	scaled_map["survival_team_size"] = clampi(team_size, 1, 4)
+	scaled_map["survival_team_scale"] = scale
+	return scaled_map
+
+
+static func _get_survival_team_scale(team_size: int) -> float:
+	match clampi(team_size, 1, 4):
+		1:
+			return 1.0
+		2:
+			return 1.12
+		3:
+			return 1.20
+	return 1.28
+
+
+static func _scale_survival_map_data(map_data: Dictionary, scale: float) -> Dictionary:
+	if is_equal_approx(scale, 1.0):
+		return map_data.duplicate(true)
+	return _scale_survival_value(map_data, scale) as Dictionary
+
+
+static func _scale_survival_value(value: Variant, scale: float) -> Variant:
+	if value is Vector2:
+		return (value as Vector2) * scale
+	if value is Rect2:
+		var rect := value as Rect2
+		return Rect2(rect.position * scale, rect.size * scale)
+	if value is Dictionary:
+		var scaled_dict: Dictionary = {}
+		for key in value:
+			scaled_dict[key] = _scale_survival_value(value[key], scale)
+		return scaled_dict
+	if value is Array:
+		var scaled_array: Array = []
+		for item in value:
+			scaled_array.append(_scale_survival_value(item, scale))
+		return scaled_array
+	return value
 
 
 static func get_all() -> Array[Dictionary]:

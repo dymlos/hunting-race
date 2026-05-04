@@ -10,54 +10,76 @@ signal setting_changed(key: String, value: Variant)
 var input_blocked: bool = false
 
 var _selected_index: int = 0
-var _prev_stick_x: float = 0.0
-var _prev_stick_y: float = 0.0
+var _survival_context: bool = false
+var _nav_axis_locked: bool = false
+var _value_axis_locked: bool = false
 
 # Each setting: {key, label, type, options/min/max/step, default, value}
 # type: "options" (cycle through list), "int" (min/max), "number" (multiplier ±%)
+var _all_settings: Array[Dictionary] = []
 var _settings: Array[Dictionary] = []
 
-const NAV_COOLDOWN: float = 0.2
-var _nav_cooldown: float = 0.0
+const VALUE_AXIS_THRESHOLD: float = 0.86
+const VALUE_AXIS_RELEASE: float = 0.42
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_settings = [
+	_all_settings = [
 		{
 			"key": "bot_fill", "label": "Rellenar con bots",
 			"type": "options", "options": ["Sí", "No"],
 			"value": 1,
 		},
 		{
+			"key": "survival_static_bots", "label": "Bots estáticos",
+			"type": "options", "options": ["Sí", "No"],
+			"value": 0,
+			"contexts": ["survival"],
+		},
+		{
 			"key": "bot_ai", "label": "IA de cazadores",
 			"type": "options", "options": ["No", "Sí"],
 			"value": 0,
+			"hide_in_survival": true,
 		},
 		{
 			"key": "hunt_duration", "label": "Tiempo de ronda",
 			"type": "int", "min": 15, "max": 180, "step": 15,
 			"value": int(Constants.HUNT_DURATION),
+			"hide_in_survival": true,
+		},
+		{
+			"key": "survival_escape_duration", "label": "Tiempo survival",
+			"type": "int", "min": 60, "max": 600, "step": 15,
+			"value": int(Constants.SURVIVAL_ESCAPE_DURATION),
+			"contexts": ["survival"],
 		},
 		{
 			"key": "hunt_countdown_enabled", "label": "Cazería planificada",
 			"type": "options", "options": ["Sí", "No"],
 			"value": 0,
+			"hide_in_survival": true,
 		},
 		{
 			"key": "observation_duration", "label": "Tiempo de vista previa",
 			"type": "int", "min": 1, "max": 20, "step": 1,
 			"value": int(Constants.OBSERVATION_DURATION),
+			"hide_in_survival": true,
 		},
 		{
 			"key": "hunt_countdown_duration", "label": "Tiempo de cazería",
 			"type": "int", "min": 1, "max": 60, "step": 1,
 			"value": int(Constants.HUNT_COUNTDOWN_DURATION),
+			"hide_in_survival": true,
 		},
 		{
 			"key": "score_to_win", "label": "Rondas a jugar",
 			"type": "int", "min": 1, "max": 30, "step": 1,
 			"value": Constants.SCORE_TO_WIN,
+			"hide_in_survival": true,
 		},
 		{
 			"key": "team_size", "label": "Tamaño de equipo",
@@ -88,54 +110,109 @@ func _ready() -> void:
 			"value": int(Constants.POISON_DURATION),
 		},
 	]
+	_refresh_visible_settings()
 
 
 func open() -> void:
+	_refresh_visible_settings()
 	_selected_index = 0
-	_prev_stick_x = 0.0
-	_prev_stick_y = 0.0
-	_nav_cooldown = 0.0
+	_nav_axis_locked = _is_any_axis_active(JOY_AXIS_LEFT_Y, NAV_AXIS_RELEASE)
+	_value_axis_locked = _is_any_axis_active(JOY_AXIS_LEFT_X, VALUE_AXIS_RELEASE)
 	show()
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func set_survival_context(enabled: bool) -> void:
+	_survival_context = enabled
+	_refresh_visible_settings()
+	queue_redraw()
+
+
+func _is_any_axis_active(axis: int, release_threshold: float) -> bool:
+	for device_id: int in Input.get_connected_joypads():
+		if absf(Input.get_joy_axis(device_id, axis as JoyAxis)) > release_threshold:
+			return true
+	return false
+
+
+func _refresh_visible_settings() -> void:
+	_settings.clear()
+	for setting: Dictionary in _all_settings:
+		if _is_setting_visible(setting):
+			_settings.append(setting)
+	if _settings.is_empty():
+		_selected_index = 0
+	else:
+		_selected_index = clampi(_selected_index, 0, _settings.size() - 1)
+
+
+func _is_setting_visible(setting: Dictionary) -> bool:
+	if _survival_context and (setting.get("hide_in_survival", false) as bool):
+		return false
+	var contexts: Array = setting.get("contexts", []) as Array
+	if contexts.is_empty():
+		return true
+	return ("survival" in contexts) == _survival_context
+
+
+func _process(_delta: float) -> void:
 	if not visible or input_blocked:
 		return
-
-	_nav_cooldown = maxf(0.0, _nav_cooldown - delta)
+	if _settings.is_empty():
+		return
 
 	var pads := Input.get_connected_joypads()
+	var nav_direction := 0
+	var value_direction := 0
+	var nav_neutral := true
+	var value_neutral := true
 	for device_id: int in pads:
 		var stick_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
 		var stick_y := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)
+		var abs_x := absf(stick_x)
+		var abs_y := absf(stick_y)
+		var horizontal_is_dominant := abs_x >= abs_y
+		var vertical_is_dominant := abs_y > abs_x
 
-		# UP/DOWN navigation
-		if _nav_cooldown <= 0.0:
-			if stick_y > 0.5:
-				_selected_index = (_selected_index + 1) % _settings.size()
-				_nav_cooldown = NAV_COOLDOWN
-			elif stick_y < -0.5:
-				_selected_index = (_selected_index - 1 + _settings.size()) % _settings.size()
-				_nav_cooldown = NAV_COOLDOWN
+		if abs_y > NAV_AXIS_RELEASE:
+			nav_neutral = false
+		if abs_x > VALUE_AXIS_RELEASE:
+			value_neutral = false
 
-		# LEFT/RIGHT value change (edge detection)
-		if stick_x > 0.5 and _prev_stick_x <= 0.5:
-			_change_value(1)
-		elif stick_x < -0.5 and _prev_stick_x >= -0.5:
-			_change_value(-1)
+		if not _nav_axis_locked and nav_direction == 0 and vertical_is_dominant:
+			if stick_y > NAV_AXIS_THRESHOLD:
+				nav_direction = 1
+			elif stick_y < -NAV_AXIS_THRESHOLD:
+				nav_direction = -1
 
-		_prev_stick_x = stick_x
-		_prev_stick_y = stick_y
+		if not _value_axis_locked and value_direction == 0 and horizontal_is_dominant:
+			if stick_x > VALUE_AXIS_THRESHOLD:
+				value_direction = 1
+			elif stick_x < -VALUE_AXIS_THRESHOLD:
+				value_direction = -1
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			closed.emit()
 			return
 
+	if _nav_axis_locked and nav_neutral:
+		_nav_axis_locked = false
+	if _value_axis_locked and value_neutral:
+		_value_axis_locked = false
+
+	if not _nav_axis_locked and nav_direction != 0:
+		_selected_index = (_selected_index + nav_direction + _settings.size()) % _settings.size()
+		_nav_axis_locked = true
+	elif not _value_axis_locked and value_direction != 0:
+		_change_value(value_direction)
+		_value_axis_locked = true
+
 	queue_redraw()
 
 
 func _change_value(direction: int) -> void:
+	if _settings.is_empty():
+		return
 	var setting: Dictionary = _settings[_selected_index]
 	var key: String = setting["key"] as String
 	var type: String = setting["type"] as String
@@ -167,7 +244,7 @@ func _change_value(direction: int) -> void:
 
 
 func get_setting(key: String) -> Variant:
-	for s: Dictionary in _settings:
+	for s: Dictionary in _all_settings:
 		if (s["key"] as String) == key:
 			return s["value"]
 	return null
@@ -193,6 +270,8 @@ func _draw() -> void:
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color.WHITE)
 
 	# Settings list
+	if _settings.is_empty():
+		return
 	var list_y := margin + 70.0
 	var available_h := screen.y - list_y - margin - 40.0
 	var item_spacing := minf(36.0, available_h / _settings.size())

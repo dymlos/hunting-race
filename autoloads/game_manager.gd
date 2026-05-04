@@ -389,6 +389,11 @@ func unpause_game() -> void:
 	_change_state(_pre_pause_state)
 
 
+func is_survival_context() -> bool:
+	return current_state == Enums.GameState.SURVIVAL \
+		or (current_state == Enums.GameState.PAUSED and _pre_pause_state == Enums.GameState.SURVIVAL)
+
+
 func reset_match() -> void:
 	practice_mode = false
 	round_number = 0

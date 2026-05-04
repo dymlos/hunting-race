@@ -5,11 +5,13 @@ signal back_requested
 
 var input_blocked: bool = false
 var _page_index: int = 0
-var _nav_cooldown: float = 0.0
+var _nav_axis_locked: bool = false
 var _prev_keyboard_next: bool = false
 var _prev_keyboard_back: bool = false
+var _survival_mode: bool = false
 
-const NAV_COOLDOWN: float = 0.22
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 const PAGES := [
 	{
 		"title": "FLUJO DE PARTIDA",
@@ -57,6 +59,50 @@ const PAGES := [
 		],
 	},
 ]
+const SURVIVAL_PAGES := [
+	{
+		"title": "OBJETIVO SURVIVAL",
+		"accent": Color(0.28, 0.95, 0.48),
+		"lines": [
+			"Los escapistas deben encontrar tres llaves ocultas: azul, roja y amarilla.",
+			"Cada llave abre la compuerta de su mismo color. Detras de cada compuerta hay un boton.",
+			"Cuando los tres botones estan activados, todos los escapistas deben llegar a la zona verde.",
+			"La zona verde esta abierta desde el comienzo, pero solo completa el mapa al final del objetivo.",
+		],
+	},
+	{
+		"title": "LLAVES Y COMPUERTAS",
+		"accent": Color(0.30, 0.82, 1.0),
+		"lines": [
+			"Las llaves empiezan invisibles y bloquean el paso: chocarlas ayuda a adivinar donde estan.",
+			"Para levantar una llave, un escapista debe quedarse pegado a ella durante 3 segundos.",
+			"Si varios escapistas ayudan, la barra sube mas rapido.",
+			"Para abrir una compuerta, el escapista que tiene la llave correcta debe quedarse pegado 3 segundos.",
+			"Si el portador muere, la llave cae visible en el lugar para que otro escapista la tome.",
+		],
+	},
+	{
+		"title": "BOTONES Y SALIDA",
+		"accent": Color(0.95, 0.84, 0.18),
+		"lines": [
+			"Una vez abierta una compuerta, cualquier escapista puede pulsar el boton de adentro.",
+			"Los botones son el requisito que desbloquea la salida real del mapa.",
+			"El mapa se completa cuando todos los escapistas vivos estan dentro de la zona verde.",
+			"Los cazadores y zombies no pueden entrar a esa zona segura.",
+		],
+	},
+	{
+		"title": "CARCEL Y OLEADAS",
+		"accent": Color(1.0, 0.36, 0.24),
+		"lines": [
+			"En survival por equipos, los escapistas muertos reaparecen en la carcel cerca del respawn.",
+			"Otro escapista puede liberarlos quedandose pegado a la carcel durante 3 segundos.",
+			"Dentro de la carcel no los persiguen zombies ni bots cazadores.",
+			"Las oleadas llegan mas espaciadas, pero los zombies ganan velocidad poco a poco.",
+			"Los bots estaticos dejan quietos a los bots de jugador; no afectan a los zombies.",
+		],
+	},
+]
 
 
 func _ready() -> void:
@@ -64,29 +110,50 @@ func _ready() -> void:
 
 
 func open() -> void:
+	_survival_mode = false
+	_open_common()
+
+
+func open_survival() -> void:
+	_survival_mode = true
+	_open_common()
+
+
+func _open_common() -> void:
 	_page_index = 0
-	_nav_cooldown = 0.0
+	_nav_axis_locked = _is_any_navigation_axis_active()
 	_prev_keyboard_next = Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
 	_prev_keyboard_back = Input.is_key_pressed(KEY_ESCAPE) or Input.is_key_pressed(KEY_BACKSPACE)
 	show()
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func _get_pages() -> Array:
+	return SURVIVAL_PAGES if _survival_mode else PAGES
+
+
+func _is_any_navigation_axis_active() -> bool:
+	for device_id: int in Input.get_connected_joypads():
+		if absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE:
+			return true
+	return false
+
+
+func _process(_delta: float) -> void:
 	if not visible or input_blocked:
 		return
 
-	_nav_cooldown = maxf(_nav_cooldown - delta, 0.0)
-
+	var axis_direction := 0
+	var axis_neutral := true
 	for device_id: int in Input.get_connected_joypads():
 		var move_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-		if _nav_cooldown <= 0.0:
-			if move_x > 0.5:
-				_next_page()
-				_nav_cooldown = NAV_COOLDOWN
-			elif move_x < -0.5:
-				_previous_page()
-				_nav_cooldown = NAV_COOLDOWN
+		if absf(move_x) > NAV_AXIS_RELEASE:
+			axis_neutral = false
+		if not _nav_axis_locked and axis_direction == 0:
+			if move_x > NAV_AXIS_THRESHOLD:
+				axis_direction = 1
+			elif move_x < -NAV_AXIS_THRESHOLD:
+				axis_direction = -1
 
 		if InputManager.is_menu_confirm_just_pressed(device_id):
 			_next_page()
@@ -94,6 +161,16 @@ func _process(delta: float) -> void:
 		if InputManager.is_menu_back_just_pressed(device_id):
 			back_requested.emit()
 			return
+
+	if _nav_axis_locked and axis_neutral:
+		_nav_axis_locked = false
+	if not _nav_axis_locked and axis_direction != 0:
+		if axis_direction > 0:
+			_next_page()
+		else:
+			_previous_page()
+		_nav_axis_locked = true
+		return
 
 	var keyboard_next := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
 	if keyboard_next and not _prev_keyboard_next:
@@ -111,12 +188,14 @@ func _process(delta: float) -> void:
 
 
 func _next_page() -> void:
-	_page_index = (_page_index + 1) % PAGES.size()
+	var pages := _get_pages()
+	_page_index = (_page_index + 1) % pages.size()
 	queue_redraw()
 
 
 func _previous_page() -> void:
-	_page_index = (_page_index - 1 + PAGES.size()) % PAGES.size()
+	var pages := _get_pages()
+	_page_index = (_page_index - 1 + pages.size()) % pages.size()
 	queue_redraw()
 
 
@@ -124,7 +203,8 @@ func _draw() -> void:
 	var screen := get_viewport_rect().size
 	var cx := screen.x / 2.0
 	var font := ThemeDB.fallback_font
-	var page: Dictionary = PAGES[_page_index]
+	var pages := _get_pages()
+	var page: Dictionary = pages[_page_index]
 	var page_title: String = page["title"] as String
 	var accent: Color = page["accent"] as Color
 
@@ -132,7 +212,8 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, Vector2(screen.x, screen.y * 0.42)), Color(accent, 0.08))
 
 	_draw_centered_text_in_rect(font, "CÓMO JUGAR", Rect2(cx - 260.0, 38.0, 520.0, 42.0), 34, Color.WHITE)
-	_draw_centered_text_in_rect(font, "Las partidas oficiales alternan rondas de escape y caza.",
+	var subtitle := "Survival Escape combina llaves, botones, oleadas y salida grupal." if _survival_mode else "Las partidas oficiales alternan rondas de escape y caza."
+	_draw_centered_text_in_rect(font, subtitle,
 		Rect2(cx - 420.0, 82.0, 840.0, 24.0), 15, Color(0.68, 0.68, 0.70))
 
 	var panel_rect := Rect2(cx - 470.0, 138.0, 940.0, 500.0)
@@ -144,7 +225,7 @@ func _draw() -> void:
 
 	if page_title == "HABILIDADES":
 		_draw_skills_page(font, panel_rect, accent)
-		var indicator := "%d / %d" % [_page_index + 1, PAGES.size()]
+		var indicator := "%d / %d" % [_page_index + 1, pages.size()]
 		_draw_centered_text_in_rect(font, indicator, Rect2(cx - 100.0, panel_rect.end.y - 42.0, 200.0, 24.0),
 			16, Color(0.72, 0.72, 0.74))
 		var hint := "Izq./Der. páginas | Start siguiente | Select volver"
@@ -162,7 +243,7 @@ func _draw() -> void:
 			panel_rect.size.x - 150.0, 19, Color(0.88, 0.88, 0.88), 25.0, 3)
 		y += 22.0
 
-	var indicator := "%d / %d" % [_page_index + 1, PAGES.size()]
+	var indicator := "%d / %d" % [_page_index + 1, pages.size()]
 	_draw_centered_text_in_rect(font, indicator, Rect2(cx - 100.0, panel_rect.end.y - 42.0, 200.0, 24.0),
 		16, Color(0.72, 0.72, 0.74))
 

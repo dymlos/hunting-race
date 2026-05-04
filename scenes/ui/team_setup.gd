@@ -11,12 +11,13 @@ signal back_requested
 var _player_joined: Dictionary = {}    # {device_id: bool}
 var _player_teams: Dictionary = {}     # {device_id: Enums.Team}
 var _team_cursor: Dictionary = {}      # {device_id: Enums.Team}
-var _nav_cooldowns: Dictionary = {}    # {device_id: float}
+var _nav_axis_locks: Dictionary = {}   # {device_id: bool}
 var _awaiting_start_confirmation: bool = false
 var input_blocked: bool = false
 var auto_fill_bots: bool = false
 
-const NAV_COOLDOWN: float = 0.2
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 const TITLE_FONT_SIZE: int = 42
 const SUMMARY_LABEL_FONT_SIZE: int = 13
 const SUMMARY_VALUE_FONT_SIZE: int = 22
@@ -34,13 +35,13 @@ func setup() -> void:
 	_player_joined.clear()
 	_player_teams.clear()
 	_team_cursor.clear()
-	_nav_cooldowns.clear()
+	_nav_axis_locks.clear()
 	_awaiting_start_confirmation = false
 	show()
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not visible or input_blocked:
 		queue_redraw()
 		return
@@ -55,17 +56,15 @@ func _process(delta: float) -> void:
 		_player_joined.erase(device_id)
 		_player_teams.erase(device_id)
 		_team_cursor.erase(device_id)
-		_nav_cooldowns.erase(device_id)
+		_nav_axis_locks.erase(device_id)
 		_awaiting_start_confirmation = false
-
-	# Tick nav cooldowns
-	for device_id: int in _nav_cooldowns:
-		_nav_cooldowns[device_id] = maxf(0.0, _nav_cooldowns[device_id] - delta)
 
 	var pads := connected_pads
 	for device_id: int in pads:
 		if not _team_cursor.has(device_id):
 			_team_cursor[device_id] = _pick_join_team()
+		if not _nav_axis_locks.has(device_id):
+			_nav_axis_locks[device_id] = absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			_awaiting_start_confirmation = false
@@ -80,21 +79,23 @@ func _process(delta: float) -> void:
 				_advance()
 				return
 
-		if _nav_cooldowns.get(device_id, 0.0) <= 0.0:
-			var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-			if x < -0.5:
+		var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
+		if _nav_axis_locks.get(device_id, false):
+			if absf(x) <= NAV_AXIS_RELEASE:
+				_nav_axis_locks[device_id] = false
+		else:
+			if x < -NAV_AXIS_THRESHOLD:
 				_set_team_cursor(device_id, Enums.Team.TEAM_1)
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
-			elif x > 0.5:
+				_nav_axis_locks[device_id] = true
+			elif x > NAV_AXIS_THRESHOLD:
 				_set_team_cursor(device_id, Enums.Team.TEAM_2)
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
+				_nav_axis_locks[device_id] = true
 
 		if _player_joined.get(device_id, false):
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 				_awaiting_start_confirmation = false
 				_player_joined.erase(device_id)
 				_player_teams.erase(device_id)
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
 				continue
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 				_set_player_team_if_available(device_id, _team_cursor[device_id] as Enums.Team)
@@ -107,7 +108,6 @@ func _process(delta: float) -> void:
 					_team_cursor[device_id] = target_team
 					_player_joined[device_id] = true
 					_player_teams[device_id] = target_team
-					_nav_cooldowns[device_id] = NAV_COOLDOWN
 					_awaiting_start_confirmation = false
 
 	queue_redraw()

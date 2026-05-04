@@ -3,6 +3,7 @@ extends BaseCharacter
 
 signal died(escapist: Escapist)
 signal scored(escapist: Escapist)
+signal respawning(escapist: Escapist, death_position: Vector2)
 
 const ESCAPIST_ANIMATION_DIRECTIONS: Array[String] = [
 	"up",
@@ -62,8 +63,15 @@ var _official_bot_route_index: int = 0
 var _official_bot_ability_timer: float = 1.2
 var _official_bot_stuck_timer: float = 0.0
 var _official_bot_last_position: Vector2 = Vector2.ZERO
+var _survival_bot_route_enabled: bool = false
+var _survival_bot_route: Array[Dictionary] = []
+var _survival_bot_route_index: int = 0
+var _survival_bot_hold_timer: float = 0.0
+var _survival_bot_stuck_timer: float = 0.0
+var _survival_bot_last_position: Vector2 = Vector2.ZERO
 var _animal_sprite: AnimatedSprite2D = null
 var _animal_last_animation: String = "rabbit_walk_down"
+var _survival_key_badges: Array[Color] = []
 
 
 func _setup_role() -> void:
@@ -106,6 +114,28 @@ func configure_official_route_bot(route: Array[Vector2]) -> void:
 	_official_bot_last_position = position
 	if _official_bot_route_enabled:
 		aim_direction = (_official_bot_route[0] - position).normalized()
+
+
+func configure_survival_objective_bot(route: Array[Dictionary]) -> void:
+	_survival_bot_route = route.duplicate(true)
+	_survival_bot_route_enabled = not _survival_bot_route.is_empty()
+	_survival_bot_route_index = 0
+	_survival_bot_hold_timer = 0.0
+	_survival_bot_stuck_timer = 0.0
+	_survival_bot_last_position = position
+	if _survival_bot_route_enabled:
+		var first_point := _survival_bot_route[0]
+		var target: Vector2 = first_point.get("position", position) as Vector2
+		if target.distance_squared_to(position) > 0.01:
+			aim_direction = (target - position).normalized()
+
+
+func set_survival_bot_static(make_static: bool) -> void:
+	_survival_bot_route_enabled = not make_static and not _survival_bot_route.is_empty()
+	_survival_bot_hold_timer = 0.0
+	_survival_bot_stuck_timer = 0.0
+	if make_static and movement:
+		movement.apply_movement(Vector2.ZERO)
 
 
 func _setup_animal_sprite() -> void:
@@ -379,10 +409,62 @@ func _physics_process(delta: float) -> void:
 			_ability_available = true
 			_notify_ability_recharged()
 	_update_floating_text(delta)
+	if _process_survival_objective_bot(delta):
+		super._physics_process(delta)
+		_update_animal_sprite()
+		return
 	_process_official_route_bot(delta)
 	_process_patrol_bot()
 	super._physics_process(delta)
 	_update_animal_sprite()
+
+
+func _process_survival_objective_bot(delta: float) -> bool:
+	if not _survival_bot_route_enabled:
+		return false
+	if input_locked or is_dead or has_scored:
+		return true
+	if _survival_bot_route.is_empty():
+		movement.apply_movement(Vector2.ZERO)
+		return true
+
+	_survival_bot_route_index = clampi(_survival_bot_route_index, 0, _survival_bot_route.size() - 1)
+	var waypoint := _survival_bot_route[_survival_bot_route_index]
+	var target: Vector2 = waypoint.get("position", position) as Vector2
+	var hold_time: float = waypoint.get("hold_time", 0.0) as float
+	var to_target := target - position
+	var arrive_radius: float = waypoint.get("arrival_radius", 24.0) as float
+
+	if to_target.length() <= arrive_radius:
+		movement.apply_movement(Vector2.ZERO)
+		if hold_time > 0.0:
+			_survival_bot_hold_timer += delta
+			if _survival_bot_hold_timer < hold_time:
+				return true
+		_advance_survival_bot_route()
+		return true
+
+	var move_vec := to_target.normalized()
+	if controls_inverted:
+		move_vec *= -1.0
+	aim_direction = move_vec
+	movement.apply_movement(move_vec)
+
+	if position.distance_to(_survival_bot_last_position) < 1.5 and movement.velocity.length() > 20.0:
+		_survival_bot_stuck_timer += delta
+	else:
+		_survival_bot_stuck_timer = 0.0
+	_survival_bot_last_position = position
+	if hold_time <= 0.0 and _survival_bot_stuck_timer >= 1.8:
+		_advance_survival_bot_route()
+	return true
+
+
+func _advance_survival_bot_route() -> void:
+	_survival_bot_hold_timer = 0.0
+	_survival_bot_stuck_timer = 0.0
+	if _survival_bot_route_index < _survival_bot_route.size() - 1:
+		_survival_bot_route_index += 1
 
 
 func _process_official_route_bot(delta: float) -> void:
@@ -475,6 +557,19 @@ func respawn() -> void:
 	recharge_ability_after_death()
 
 
+func revive_from_death_at_spawn() -> void:
+	if not is_dead or has_scored:
+		return
+	is_dead = false
+	visible = true
+	input_locked = false
+	_return_to_spawn_with_death_message()
+	if poison.is_poisoned:
+		poison.cure()
+	recharge_ability_after_death()
+	movement.unfreeze()
+
+
 func activate_safety_respawn(respawn_position: Vector2) -> void:
 	var was_active := _has_safety_respawn
 	_has_safety_respawn = true
@@ -494,6 +589,7 @@ func _on_crushed() -> void:
 
 
 func _return_to_spawn_with_death_message() -> void:
+	respawning.emit(self, global_position)
 	position = spawn_position
 	movement.velocity = Vector2.ZERO
 	movement.slippery = false
@@ -661,7 +757,19 @@ func notify_trap_status(text: String, text_color: Color, duration: float = 0.9) 
 	_show_floating_text(text, text_color, duration, 20)
 
 
+func set_survival_key_badges(key_colors: Array) -> void:
+	_survival_key_badges.clear()
+	for color_variant in key_colors:
+		if color_variant is Color:
+			_survival_key_badges.append(color_variant as Color)
+	queue_redraw()
+
+
 func is_effect_immune() -> bool:
+	if get_meta("survival_safe_zone", false) as bool:
+		return true
+	if get_meta("survival_jailed", false) as bool:
+		return true
 	return _effect_immunity_timer > 0.0
 
 
@@ -942,6 +1050,22 @@ func _draw_ability_ready_sparkles(animal_color: Color) -> void:
 			Color(1.0, 1.0, 0.55, sparkle_alpha), 1.4)
 
 
+func _draw_survival_key_badges() -> void:
+	if _survival_key_badges.is_empty() or is_dead or has_scored:
+		return
+	var count := mini(_survival_key_badges.size(), 3)
+	for i in range(count):
+		var color := _survival_key_badges[i]
+		var center := Vector2(20.0 + float(i) * 13.0, -31.0)
+		draw_circle(center + Vector2(1.6, 1.8), 8.4, Color(0.0, 0.0, 0.0, 0.46))
+		draw_circle(center, 7.5, Color(color, 0.92))
+		draw_arc(center, 7.8, 0.0, TAU, 18, Color(1.0, 1.0, 1.0, 0.46), 1.2)
+		draw_circle(center + Vector2(-2.7, -0.8), 2.4, Color(0.0, 0.0, 0.0, 0.68))
+		draw_line(center + Vector2(1.0, -0.7), center + Vector2(7.0, -0.7), Color(0.04, 0.04, 0.03, 0.78), 2.3)
+		draw_line(center + Vector2(5.0, -0.7), center + Vector2(5.0, 3.0), Color(0.04, 0.04, 0.03, 0.78), 1.8)
+		draw_line(center + Vector2(7.0, -0.7), center + Vector2(7.0, 2.3), Color(0.04, 0.04, 0.03, 0.78), 1.8)
+
+
 func _draw_rat_tail_visual(base_color: Color) -> void:
 	if _rat_tail_visual_timer <= 0.0:
 		return
@@ -1049,6 +1173,7 @@ func _draw() -> void:
 	if player_index >= 100:
 		label = "BOT"
 	_draw_player_label(label, Vector2(-10, -Constants.CHARACTER_RADIUS - 8), 14, team_color)
+	_draw_survival_key_badges()
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / maxf(_floating_text_duration, 0.01), 0.0, 1.0)
 		var text_size := _floating_text_size

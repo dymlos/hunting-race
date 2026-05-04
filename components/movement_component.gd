@@ -324,6 +324,10 @@ func _resolve_airborne_landing() -> void:
 func _is_landing_clear(position: Vector2) -> bool:
 	if not body or not body.get_world_2d():
 		return true
+	if body.has_meta("map_bounds"):
+		var map_bounds := body.get_meta("map_bounds") as Rect2
+		if not map_bounds.has_point(position):
+			return false
 	var shape := CircleShape2D.new()
 	shape.radius = Constants.CHARACTER_RADIUS
 	var query := PhysicsShapeQueryParameters2D.new()

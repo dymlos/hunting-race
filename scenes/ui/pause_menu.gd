@@ -14,12 +14,14 @@ signal round_reset_requested
 var input_blocked: bool = false
 
 var _selected_index: int = 0
-var _nav_cooldown: float = 0.0
+var _nav_axis_locked: bool = false
 var _showing_ability_guide: bool = false
 
-const NAV_COOLDOWN: float = 0.2
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Restart Round", "Practice Mode", "Return to Setup"]
 const PRACTICE_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
+const SURVIVAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Cooldowns", "Restart Survival", "Return to Survival Setup"]
 
 
 func _ready() -> void:
@@ -28,18 +30,27 @@ func _ready() -> void:
 
 func open() -> void:
 	_selected_index = 0
-	_nav_cooldown = 0.0
+	_nav_axis_locked = _is_any_assigned_navigation_axis_active()
 	_showing_ability_guide = false
 	show()
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func _is_any_assigned_navigation_axis_active() -> bool:
+	for device_id: int in Input.get_connected_joypads():
+		if not InputManager.is_assigned_device(device_id):
+			continue
+		if absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)) > NAV_AXIS_RELEASE:
+			return true
+	return false
+
+
+func _process(_delta: float) -> void:
 	if not visible or input_blocked:
 		return
 
-	_nav_cooldown = maxf(0.0, _nav_cooldown - delta)
-
+	var axis_direction := 0
+	var axis_neutral := true
 	for device_id: int in Input.get_connected_joypads():
 		if not InputManager.is_assigned_device(device_id):
 			continue
@@ -54,13 +65,13 @@ func _process(delta: float) -> void:
 
 		var options := _get_options()
 		var stick_y := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)
-		if _nav_cooldown <= 0.0:
-			if stick_y > 0.5:
-				_selected_index = (_selected_index + 1) % options.size()
-				_nav_cooldown = NAV_COOLDOWN
-			elif stick_y < -0.5:
-				_selected_index = (_selected_index - 1 + options.size()) % options.size()
-				_nav_cooldown = NAV_COOLDOWN
+		if absf(stick_y) > NAV_AXIS_RELEASE:
+			axis_neutral = false
+		if not _nav_axis_locked and axis_direction == 0:
+			if stick_y > NAV_AXIS_THRESHOLD:
+				axis_direction = 1
+			elif stick_y < -NAV_AXIS_THRESHOLD:
+				axis_direction = -1
 
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK):
 			if GameManager.practice_mode:
@@ -76,6 +87,13 @@ func _process(delta: float) -> void:
 		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 			_activate_option(options[_selected_index])
 			return
+
+	if _nav_axis_locked and axis_neutral:
+		_nav_axis_locked = false
+	if not _nav_axis_locked and axis_direction != 0:
+		var nav_options := _get_options()
+		_selected_index = (_selected_index + axis_direction + nav_options.size()) % nav_options.size()
+		_nav_axis_locked = true
 
 	queue_redraw()
 
@@ -117,6 +135,8 @@ func _draw() -> void:
 	var hint := "Arriba/Abajo elegir | A confirmar | B reanudar | Select equipos"
 	if GameManager.practice_mode:
 		hint = "Arriba/Abajo elegir | A confirmar | B reanudar | Select práctica"
+	elif GameManager.is_survival_context():
+		hint = "Arriba/Abajo elegir | A confirmar | B reanudar | Select setup"
 	var hint_size := 13
 	var hint_w := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size).x
 	draw_string(font, Vector2(cx - hint_w / 2.0, panel_pos.y + panel_size.y - 24),
@@ -151,6 +171,8 @@ func _draw_ability_guide(font: Font, screen: Vector2) -> void:
 
 
 func _get_options() -> Array[String]:
+	if GameManager.is_survival_context():
+		return SURVIVAL_OPTIONS
 	if GameManager.practice_mode:
 		return PRACTICE_OPTIONS
 	return OFFICIAL_OPTIONS
@@ -160,7 +182,7 @@ func _get_option_label(option: String) -> String:
 	match option:
 		"Cooldowns":
 			var enabled := GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
-			return "Recargas: < %s >" % ("Sí" if enabled else "No")
+			return "Recargas de habilidades: < %s >" % ("Sí" if enabled else "No")
 		"Practice Obstacles":
 			var enabled := GameManager.settings_overrides.get(&"practice_obstacles_enabled", false) as bool
 			return "Obstáculos: < %s >" % ("Sí" if enabled else "No")
@@ -177,10 +199,14 @@ func _get_option_label(option: String) -> String:
 			return "Guía de habilidades"
 		"Restart Round":
 			return "Reiniciar ronda"
+		"Restart Survival":
+			return "Reiniciar survival"
 		"Practice Mode":
 			return "Modo práctica"
 		"Return to Setup":
 			return "Volver a equipos"
+		"Return to Survival Setup":
+			return "Volver a setup survival"
 		"Change Characters":
 			return "Cambiar personajes"
 		"Restart Practice Setup":
@@ -205,6 +231,8 @@ func _activate_option(option: String) -> void:
 			practice_requested.emit()
 		"Restart Round":
 			round_reset_requested.emit()
+		"Restart Survival":
+			round_reset_requested.emit()
 		"Practice Obstacles":
 			_toggle_practice_obstacles()
 		"Practice Bots":
@@ -214,6 +242,8 @@ func _activate_option(option: String) -> void:
 		"Restart Practice Setup":
 			practice_requested.emit()
 		"Return to Setup":
+			reset_requested.emit()
+		"Return to Survival Setup":
 			reset_requested.emit()
 
 

@@ -17,7 +17,7 @@ var _trapping_team: Enums.Team = Enums.Team.NONE
 var _player_cursor: Dictionary = {}          # {pi: int} — index into _characters array
 var _player_confirmed: Dictionary = {}       # {pi: bool}
 var _viewer_cursor: Dictionary = {}          # {pi: int} for humans previewing while waiting
-var _nav_cooldowns: Dictionary = {}          # {pi: float}
+var _nav_axis_locks: Dictionary = {}         # {pi: bool}
 
 var _characters: Array[Dictionary] = []      # TrapperCharacters.get_all()
 var _allow_back: bool = true                 # false between rounds
@@ -34,7 +34,8 @@ var _skill_test_cards: Dictionary = {}       # {pi: card_index}
 var _trapper_portrait_cache: Dictionary = {}
 var _blocked_start_message_timer: float = 0.0
 
-const NAV_COOLDOWN: float = 0.2
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 const PREVIEW_DURATION: float = 0.8
 const DEMO_EFFECT_DURATION: float = 0.75
 const BLOCKED_START_MESSAGE_DURATION: float = 3.0
@@ -60,7 +61,7 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 	_player_cursor.clear()
 	_player_confirmed.clear()
 	_viewer_cursor.clear()
-	_nav_cooldowns.clear()
+	_nav_axis_locks.clear()
 	_preview_timers.clear()
 	_demo_active = false
 	_demo_player_index = -1
@@ -77,7 +78,11 @@ func setup(player_indices: Array[int], team_assignments: Dictionary,
 		if _is_trapper_player(pi):
 			_player_cursor[pi] = cursor_idx % _characters.size()
 			_player_confirmed[pi] = false
-			_nav_cooldowns[pi] = 0.0
+			var device_id := InputManager.get_device_id(pi)
+			var axis_active := false
+			if device_id >= 0:
+				axis_active = absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE
+			_nav_axis_locks[pi] = axis_active
 			cursor_idx += 1
 
 	show()
@@ -265,17 +270,19 @@ func _move_cursor_on_grid(current_index: int, dx: int, _dy: int) -> int:
 
 
 func _handle_grid_navigation(pi: int, device_id: int) -> void:
-	if _nav_cooldowns.get(pi, 0.0) > 0.0:
-		return
 	var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-	if absf(x) < 0.5:
+	if _nav_axis_locks.get(pi, false):
+		if absf(x) <= NAV_AXIS_RELEASE:
+			_nav_axis_locks[pi] = false
+		return
+	if absf(x) < NAV_AXIS_THRESHOLD:
 		return
 	var dx := 1 if x > 0.0 else -1
 	var current_index := _get_screen_cursor(pi)
 	var next_index := _move_cursor_on_grid(current_index, dx, 0)
 	if next_index != current_index:
 		_set_screen_cursor(pi, next_index)
-	_nav_cooldowns[pi] = NAV_COOLDOWN
+	_nav_axis_locks[pi] = true
 
 
 func _process(delta: float) -> void:
@@ -287,10 +294,6 @@ func _process(delta: float) -> void:
 	_update_preview_timers(delta)
 	_update_skill_test_layout()
 	_blocked_start_message_timer = maxf(_blocked_start_message_timer - delta, 0.0)
-
-	# Tick nav cooldowns
-	for pi: int in _nav_cooldowns:
-		_nav_cooldowns[pi] = maxf(0.0, _nav_cooldowns[pi] - delta)
 
 	var confirmed_this_frame := false
 	for pi: int in _player_indices:

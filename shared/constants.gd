@@ -35,10 +35,11 @@ const HUNT_DURATION: float = 75.0
 const SURVIVAL_ESCAPE_DURATION: float = 240.0
 const SURVIVAL_TIME_WARNING: float = 30.0
 const SURVIVAL_FIRST_WAVE_DELAY: float = 4.0
-const SURVIVAL_WAVE_INTERVAL: float = 24.0
+const SURVIVAL_WAVE_INTERVAL: float = 42.0
 const SURVIVAL_WAVE_BASE_COUNT: int = 4
 const SURVIVAL_WAVE_GROWTH: int = 2
 const SURVIVAL_ZOMBIE_SPEED: float = 78.0
+const SURVIVAL_ZOMBIE_SPEED_PER_WAVE: float = 2.0
 const SURVIVAL_ZOMBIE_SPEED_PER_DEATH: float = 3.0
 const SURVIVAL_ZOMBIE_GRAB_RADIUS: float = 38.0
 const SURVIVAL_ZOMBIE_GRAB_DURATION: float = 5.0
@@ -82,6 +83,7 @@ const LAYER_WALLS: int = 1
 const LAYER_CHARACTERS: int = 2
 const LAYER_GOAL_ZONES: int = 16
 const LAYER_TRAPS: int = 32
+const LAYER_SURVIVAL_SAFE_BLOCKERS: int = 64
 
 # --- Spider ---
 const ARANA_WEB_SLOW: float = 0.3

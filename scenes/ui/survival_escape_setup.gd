@@ -2,28 +2,32 @@ class_name SurvivalEscapeSetup
 extends Control
 
 signal back_requested
+signal settings_requested
 signal survival_ready(role_assignments: Dictionary)
 
 var input_blocked: bool = false
+var auto_fill_bots: bool = false
 
 var _player_joined: Dictionary = {}
 var _player_roles: Dictionary = {}
 var _role_cursor: Dictionary = {}
-var _nav_cooldowns: Dictionary = {}
+var _nav_axis_locks: Dictionary = {}
 var _assigned_roles: Dictionary = {}
 var _showing_placeholder: bool = false
 var _message_timer: float = 0.0
 var _message_text: String = ""
 
 const MAX_PLAYERS: int = 4
-const NAV_COOLDOWN: float = 0.2
+const BOT_START_INDEX: int = 100
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 
 
 func setup() -> void:
 	_player_joined.clear()
 	_player_roles.clear()
 	_role_cursor.clear()
-	_nav_cooldowns.clear()
+	_nav_axis_locks.clear()
 	_assigned_roles.clear()
 	_showing_placeholder = false
 	_message_timer = 0.0
@@ -52,16 +56,19 @@ func _process(delta: float) -> void:
 		return
 
 	_prune_disconnected_devices()
-	for device_id: int in _nav_cooldowns:
-		_nav_cooldowns[device_id] = maxf(0.0, _nav_cooldowns[device_id] - delta)
-
 	var connected_pads := Input.get_connected_joypads()
 	for device_id: int in connected_pads:
 		if not _role_cursor.has(device_id):
 			_role_cursor[device_id] = _pick_default_role()
+		if not _nav_axis_locks.has(device_id):
+			_nav_axis_locks[device_id] = absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE
 
 		if InputManager.is_menu_back_just_pressed(device_id):
 			back_requested.emit()
+			return
+
+		if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_Y):
+			settings_requested.emit()
 			return
 
 		if InputManager.is_menu_confirm_just_pressed(device_id):
@@ -71,20 +78,22 @@ func _process(delta: float) -> void:
 				_enter_placeholder()
 			return
 
-		if _nav_cooldowns.get(device_id, 0.0) <= 0.0:
-			var move_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-			if move_x < -0.5:
+		var move_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
+		if _nav_axis_locks.get(device_id, false):
+			if absf(move_x) <= NAV_AXIS_RELEASE:
+				_nav_axis_locks[device_id] = false
+		else:
+			if move_x < -NAV_AXIS_THRESHOLD:
 				_set_role_cursor(device_id, Enums.Role.ESCAPIST)
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
-			elif move_x > 0.5:
+				_nav_axis_locks[device_id] = true
+			elif move_x > NAV_AXIS_THRESHOLD:
 				_set_role_cursor(device_id, Enums.Role.TRAPPER)
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
+				_nav_axis_locks[device_id] = true
 
 		if _player_joined.get(device_id, false):
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 				_player_joined.erase(device_id)
 				_player_roles.erase(device_id)
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
 				continue
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 				_player_roles[device_id] = _role_cursor[device_id]
@@ -94,7 +103,6 @@ func _process(delta: float) -> void:
 				continue
 			_player_joined[device_id] = true
 			_player_roles[device_id] = _role_cursor[device_id]
-			_nav_cooldowns[device_id] = NAV_COOLDOWN
 
 	queue_redraw()
 
@@ -123,7 +131,7 @@ func _prune_disconnected_devices() -> void:
 		_player_joined.erase(device_id)
 		_player_roles.erase(device_id)
 		_role_cursor.erase(device_id)
-		_nav_cooldowns.erase(device_id)
+		_nav_axis_locks.erase(device_id)
 
 
 func _set_role_cursor(device_id: int, role: Enums.Role) -> void:
@@ -156,6 +164,36 @@ func _get_role_devices(role: Enums.Role) -> Array[int]:
 	return devices
 
 
+func _get_survival_target_size() -> int:
+	var configured: int = GameManager.settings_overrides.get(&"team_size", MAX_PLAYERS) as int
+	var escapists := _get_role_devices(Enums.Role.ESCAPIST).size()
+	var trappers := _get_role_devices(Enums.Role.TRAPPER).size()
+	var target := maxi(configured, escapists)
+	target = maxi(target, trappers)
+	target = maxi(target, 1)
+	return clampi(target, 1, MAX_PLAYERS)
+
+
+func _get_bot_counts_for_display() -> Dictionary:
+	var counts := {
+		Enums.Role.ESCAPIST: 0,
+		Enums.Role.TRAPPER: 0,
+	}
+	if not auto_fill_bots:
+		return counts
+	var target_size := _get_survival_target_size()
+	var escapists := _get_role_devices(Enums.Role.ESCAPIST).size()
+	var trappers := _get_role_devices(Enums.Role.TRAPPER).size()
+	counts[Enums.Role.ESCAPIST] = maxi(0, target_size - escapists)
+	counts[Enums.Role.TRAPPER] = maxi(0, target_size - trappers)
+	return counts
+
+
+func _get_total_role_count(role: Enums.Role) -> int:
+	var bots := _get_bot_counts_for_display()
+	return _get_role_devices(role).size() + (bots.get(role, 0) as int)
+
+
 func _get_player_number_for_device(device_id: int) -> int:
 	return _get_joined_devices().find(device_id) + 1
 
@@ -169,7 +207,23 @@ func _enter_placeholder() -> void:
 		var device_id: int = devices[i]
 		InputManager.assign_device(i, device_id)
 		_assigned_roles[i] = _player_roles.get(device_id, Enums.Role.ESCAPIST)
+	_add_survival_bots_to_assignments()
 	_showing_placeholder = true
+
+
+func _add_survival_bots_to_assignments() -> void:
+	if not auto_fill_bots:
+		return
+	var bot_counts := _get_bot_counts_for_display()
+	var bot_id := BOT_START_INDEX
+	var escapist_bots: int = bot_counts.get(Enums.Role.ESCAPIST, 0) as int
+	for _i in range(escapist_bots):
+		_assigned_roles[bot_id] = Enums.Role.ESCAPIST
+		bot_id += 1
+	var trapper_bots: int = bot_counts.get(Enums.Role.TRAPPER, 0) as int
+	for _i in range(trapper_bots):
+		_assigned_roles[bot_id] = Enums.Role.TRAPPER
+		bot_id += 1
 
 
 func _get_assigned_role_count(role: Enums.Role) -> int:
@@ -203,21 +257,31 @@ func _draw_role_setup(screen: Vector2, font: Font) -> void:
 		Rect2(cx - 260.0, 28.0, 520.0, 46.0), 38, Color.WHITE)
 	_draw_centered_text_in_rect(font, "Elige un rol fijo para toda la partida.",
 		Rect2(cx - 360.0, 78.0, 720.0, 22.0), 16, Color(0.66, 0.70, 0.68))
-	_draw_centered_text_in_rect(font, "Esta etapa permite probar timer, salida grupal y primeras oleadas.",
+	_draw_centered_text_in_rect(font, "Usa ajustes para activar bots y definir formatos 2v2, 3v3 o 4v4.",
 		Rect2(cx - 420.0, 102.0, 840.0, 20.0), 13, Color(0.48, 0.52, 0.50))
 
 	var joined := _get_joined_devices()
 	var escapists := _get_role_devices(Enums.Role.ESCAPIST)
 	var trappers := _get_role_devices(Enums.Role.TRAPPER)
-	var summary_rect := Rect2(cx - 350.0, 138.0, 700.0, 62.0)
+	var bot_counts := _get_bot_counts_for_display()
+	var escapist_bots: int = bot_counts.get(Enums.Role.ESCAPIST, 0) as int
+	var trapper_bots: int = bot_counts.get(Enums.Role.TRAPPER, 0) as int
+	var target_size := _get_survival_target_size()
+	var summary_rect := Rect2(cx - 430.0, 138.0, 860.0, 62.0)
 	_draw_panel(summary_rect, Color(0.04, 0.045, 0.045, 0.94), Color(0.28, 0.38, 0.32, 0.86), 2.0)
 	draw_rect(Rect2(summary_rect.position, Vector2(summary_rect.size.x, 5.0)), Color(0.22, 0.85, 0.48, 0.9))
-	_draw_summary_block(font, Rect2(summary_rect.position.x, summary_rect.position.y, summary_rect.size.x / 3.0, summary_rect.size.y),
+	var summary_col_w := summary_rect.size.x / 4.0
+	var mode_text := "Libre"
+	if auto_fill_bots:
+		mode_text = "%dv%d" % [target_size, target_size]
+	_draw_summary_block(font, Rect2(summary_rect.position.x, summary_rect.position.y, summary_col_w, summary_rect.size.y),
 		"Usuarios", "%d/%d" % [joined.size(), MAX_PLAYERS], Color(0.90, 0.90, 0.90))
-	_draw_summary_block(font, Rect2(summary_rect.position.x + summary_rect.size.x / 3.0, summary_rect.position.y, summary_rect.size.x / 3.0, summary_rect.size.y),
-		"Escapistas", str(escapists.size()), Enums.role_color(Enums.Role.ESCAPIST))
-	_draw_summary_block(font, Rect2(summary_rect.position.x + summary_rect.size.x * 2.0 / 3.0, summary_rect.position.y, summary_rect.size.x / 3.0, summary_rect.size.y),
-		"Cazadores", str(trappers.size()), Enums.role_color(Enums.Role.TRAPPER))
+	_draw_summary_block(font, Rect2(summary_rect.position.x + summary_col_w, summary_rect.position.y, summary_col_w, summary_rect.size.y),
+		"Modo", mode_text, Color(0.98, 0.86, 0.32))
+	_draw_summary_block(font, Rect2(summary_rect.position.x + summary_col_w * 2.0, summary_rect.position.y, summary_col_w, summary_rect.size.y),
+		"Escapistas", "%d +%d" % [escapists.size(), escapist_bots], Enums.role_color(Enums.Role.ESCAPIST))
+	_draw_summary_block(font, Rect2(summary_rect.position.x + summary_col_w * 3.0, summary_rect.position.y, summary_col_w, summary_rect.size.y),
+		"Cazadores", "%d +%d" % [trappers.size(), trapper_bots], Enums.role_color(Enums.Role.TRAPPER))
 
 	var side_margin := 70.0
 	var gap := 36.0
@@ -228,9 +292,9 @@ func _draw_role_setup(screen: Vector2, font: Font) -> void:
 	var left_rect := Rect2(side_margin, panel_top, panel_w, panel_h)
 	var right_rect := Rect2(side_margin + panel_w + gap, panel_top, panel_w, panel_h)
 	_draw_role_panel(font, left_rect, Enums.Role.ESCAPIST, escapists,
-		"Deben llegar juntos a la salida.", Color(0.18, 0.95, 0.54))
+		escapist_bots, "Deben llegar juntos a la salida.", Color(0.18, 0.95, 0.54))
 	_draw_role_panel(font, right_rect, Enums.Role.TRAPPER, trappers,
-		"Presionan con trampas y control del mapa.", Color(0.70, 0.34, 1.0))
+		trapper_bots, "Presionan con cuerpo y control del mapa.", Color(0.70, 0.34, 1.0))
 
 	_draw_unjoined_controls(font, screen, joined)
 	_draw_footer(font, screen, joined)
@@ -252,7 +316,7 @@ func _draw_placeholder(screen: Vector2, font: Font) -> void:
 	draw_rect(Rect2(panel_rect.position, Vector2(panel_rect.size.x, 6.0)), Color(0.24, 0.82, 0.48, 1.0))
 	_draw_centered_text_in_rect(font, "ROLES FIJOS CONFIRMADOS",
 		Rect2(panel_rect.position.x, panel_rect.position.y + 18.0, panel_rect.size.x, 30.0), 24, Color.WHITE)
-	_draw_centered_text_in_rect(font, "Revisa los roles y avanza al mapa con zombies de prueba.",
+	_draw_centered_text_in_rect(font, "Revisa roles, bots y avanza al mapa survival.",
 		Rect2(panel_rect.position.x, panel_rect.position.y + 52.0, panel_rect.size.x, 24.0), 14, Color(0.68, 0.72, 0.70))
 
 	var left_rect := Rect2(panel_rect.position.x + 34.0, panel_rect.position.y + 104.0, 420.0, 270.0)
@@ -268,7 +332,7 @@ func _draw_placeholder(screen: Vector2, font: Font) -> void:
 
 
 func _draw_role_panel(font: Font, rect: Rect2, role: Enums.Role, devices: Array[int],
-		description: String, accent: Color) -> void:
+		bot_count: int, description: String, accent: Color) -> void:
 	_draw_panel(rect, Color(accent, 0.09), Color(accent, 0.72), 2.0)
 	draw_rect(Rect2(rect.position, Vector2(rect.size.x, 6.0)), accent)
 	_draw_centered_text_in_rect(font, Enums.role_name(role).to_upper(),
@@ -278,7 +342,7 @@ func _draw_role_panel(font: Font, rect: Rect2, role: Enums.Role, devices: Array[
 	draw_line(Vector2(rect.position.x + 22.0, rect.position.y + 88.0),
 		Vector2(rect.end.x - 22.0, rect.position.y + 88.0), Color(accent, 0.36), 1.0)
 
-	if devices.is_empty():
+	if devices.is_empty() and bot_count <= 0:
 		_draw_centered_text_in_rect(font, "Sin usuarios en este rol",
 			Rect2(rect.position.x, rect.position.y + 136.0, rect.size.x, 24.0), 16, Color(0.48, 0.50, 0.50))
 		_draw_centered_text_in_rect(font, "Palanca izq./der. y A para elegir",
@@ -286,9 +350,10 @@ func _draw_role_panel(font: Font, rect: Rect2, role: Enums.Role, devices: Array[
 		return
 
 	var slot_y := rect.position.y + 112.0
+	var row_index := 0
 	for i in devices.size():
 		var device_id: int = devices[i]
-		var card_rect := Rect2(rect.position.x + 26.0, slot_y + float(i) * 58.0, rect.size.x - 52.0, 46.0)
+		var card_rect := Rect2(rect.position.x + 26.0, slot_y + float(row_index) * 58.0, rect.size.x - 52.0, 46.0)
 		_draw_panel(card_rect, Color(0.025, 0.028, 0.03, 0.92), Color(accent, 0.45), 1.5)
 		draw_rect(Rect2(card_rect.position, Vector2(6.0, card_rect.size.y)), accent)
 		var player_number := _get_player_number_for_device(device_id)
@@ -298,6 +363,19 @@ func _draw_role_panel(font: Font, rect: Rect2, role: Enums.Role, devices: Array[
 			"Control %d" % device_id, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.88, 0.88, 0.90))
 		draw_string(font, Vector2(card_rect.position.x + 144.0, card_rect.position.y + 42.0),
 			"Rol fijo", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.58, 0.62, 0.60))
+		row_index += 1
+
+	for i in range(bot_count):
+		var card_rect := Rect2(rect.position.x + 26.0, slot_y + float(row_index) * 58.0, rect.size.x - 52.0, 46.0)
+		_draw_panel(card_rect, Color(0.055, 0.050, 0.025, 0.92), Color(0.98, 0.86, 0.32, 0.46), 1.5)
+		draw_rect(Rect2(card_rect.position, Vector2(6.0, card_rect.size.y)), Color(0.98, 0.86, 0.32))
+		draw_string(font, Vector2(card_rect.position.x + 18.0, card_rect.position.y + 30.0),
+			"BOT %d" % (i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.98, 0.86, 0.32))
+		draw_string(font, Vector2(card_rect.position.x + 144.0, card_rect.position.y + 30.0),
+			"Autorrelleno", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.88, 0.88, 0.90))
+		draw_string(font, Vector2(card_rect.position.x + 144.0, card_rect.position.y + 42.0),
+			"IA survival", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.62, 0.62, 0.50))
+		row_index += 1
 
 
 func _draw_unjoined_controls(font: Font, screen: Vector2, joined: Array[int]) -> void:
@@ -339,7 +417,7 @@ func _draw_footer(font: Font, screen: Vector2, joined: Array[int]) -> void:
 		main_color = Color(0.72, 0.72, 0.54)
 	_draw_centered_text_in_rect(font, main_text,
 		Rect2(footer_rect.position.x, footer_rect.position.y + 2.0, footer_rect.size.x, 18.0), 14, main_color)
-	_draw_centered_text_in_rect(font, "Palanca izq./der. rol | A elegir | B deseleccionar | Select volver",
+	_draw_centered_text_in_rect(font, "Palanca izq./der. rol | A elegir | B deseleccionar | Y ajustes | Select volver",
 		Rect2(footer_rect.position.x, footer_rect.position.y + 20.0, footer_rect.size.x, 18.0), 12, Color(0.54, 0.56, 0.56))
 
 
@@ -355,14 +433,20 @@ func _draw_assigned_role_list(font: Font, rect: Rect2, role: Enums.Role) -> void
 			players.append(player_index)
 	players.sort()
 	if players.is_empty():
-		_draw_centered_text_in_rect(font, "Sin usuarios",
+		_draw_centered_text_in_rect(font, "Sin participantes",
 			Rect2(rect.position.x, rect.position.y + 122.0, rect.size.x, 22.0), 15, Color(0.48, 0.50, 0.50))
 		return
 	for i in players.size():
 		var player_index: int = players[i]
 		var row := Rect2(rect.position.x + 28.0, rect.position.y + 72.0 + float(i) * 42.0, rect.size.x - 56.0, 34.0)
 		_draw_panel(row, Color(0.02, 0.022, 0.024, 0.88), Color(accent, 0.34), 1.0)
-		_draw_centered_text_in_rect(font, "USUARIO %d" % (player_index + 1), row, 14, Color(0.9, 0.9, 0.92))
+		_draw_centered_text_in_rect(font, _get_participant_label(player_index), row, 14, Color(0.9, 0.9, 0.92))
+
+
+func _get_participant_label(player_index: int) -> String:
+	if player_index >= BOT_START_INDEX:
+		return "BOT %d" % (player_index - BOT_START_INDEX + 1)
+	return "USUARIO %d" % (player_index + 1)
 
 
 func _draw_summary_block(font: Font, rect: Rect2, label: String, value: String, color: Color) -> void:

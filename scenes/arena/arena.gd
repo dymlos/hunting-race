@@ -6,6 +6,7 @@ extends Node2D
 var _map_data: Dictionary = {}
 var _wall_bodies: Array[StaticBody2D] = []
 var _goal_zones: Array[Area2D] = []
+var _goal_blockers: Array[StaticBody2D] = []
 var _safety_checkpoint_zones: Array[Area2D] = []
 var _hazard_nodes: Array[Node] = []
 var _moving_wall_data: Array[Dictionary] = []  # For _draw() to render moving walls
@@ -16,6 +17,27 @@ var _moving_sticky_wall_data: Array[Dictionary] = []
 var _hazard_tweens: Array[Tween] = []
 var _base_hazards: Array[Dictionary] = []
 var _active_hazards: Array[Dictionary] = []
+var _survival_lock_data: Array[Dictionary] = []
+var _survival_key_areas: Dictionary = {}
+var _survival_key_bodies: Dictionary = {}
+var _survival_button_areas: Dictionary = {}
+var _survival_gate_areas: Dictionary = {}
+var _survival_gate_bodies: Dictionary = {}
+var _survival_key_holders: Dictionary = {}
+var _survival_key_dropped: Dictionary = {}
+var _survival_opened_gates: Dictionary = {}
+var _survival_pressed_buttons: Dictionary = {}
+var _survival_key_progress: Dictionary = {}
+var _survival_gate_progress: Dictionary = {}
+var _survival_jail_bodies: Array[StaticBody2D] = []
+var _survival_jail_area: Area2D = null
+var _survival_jail_rect: Rect2 = Rect2()
+var _survival_jail_release_rect: Rect2 = Rect2()
+var _survival_jail_spawn_position: Vector2 = Vector2.ZERO
+var _survival_jail_release_position: Vector2 = Vector2.ZERO
+var _survival_jail_progress: float = 0.0
+var _survival_jail_has_prisoner: bool = false
+var _survival_exit_unlocked: bool = true
 
 const FROST_VENT_VISUAL_ON_DURATION: float = 2.55
 const FROST_VENT_VISUAL_OFF_DURATION: float = FROST_VENT_VISUAL_ON_DURATION
@@ -23,10 +45,18 @@ const STICKY_BLOB_DEFAULT_PATROL_MARGIN: float = 44.0
 const STICKY_BLOB_PATROL_DISTANCE_MULTIPLIER: float = 1.45
 const CRUSH_MOVING_WALL_CONTACT_MARGIN: float = 7.0
 const CRUSH_BLOCKING_WALL_DISTANCE: float = 8.0
+const SURVIVAL_LOCKED_EXIT_HINT_COOLDOWN: float = 0.65
+const SURVIVAL_INTERACTION_DURATION: float = 3.0
+const SURVIVAL_KEY_COLLISION_RADIUS: float = 13.0
+const SURVIVAL_KEY_DETECTION_RADIUS: float = 34.0
 
 signal goal_entered(escapist: Escapist)
 signal goal_body_entered(body: Node2D)
 signal goal_body_exited(body: Node2D)
+signal survival_objective_changed(status: Dictionary)
+signal survival_jail_release_completed(rescuer: Escapist)
+
+var _locked_exit_hint_timer: float = 0.0
 
 
 func load_map(map_data: Dictionary) -> void:
@@ -38,6 +68,7 @@ func load_map(map_data: Dictionary) -> void:
 	_build_goals()
 	_build_safety_checkpoints()
 	_build_hazards()
+	_build_survival_objectives()
 	queue_redraw()
 
 
@@ -82,9 +113,13 @@ func _clear() -> void:
 	for zone in _goal_zones:
 		zone.queue_free()
 	_goal_zones.clear()
+	for blocker in _goal_blockers:
+		blocker.queue_free()
+	_goal_blockers.clear()
 	for zone in _safety_checkpoint_zones:
 		zone.queue_free()
 	_safety_checkpoint_zones.clear()
+	_clear_survival_objectives()
 	_clear_hazards()
 	_base_hazards.clear()
 	_active_hazards.clear()
@@ -107,6 +142,52 @@ func _clear_hazards() -> void:
 	_moving_slippery_zone_data.clear()
 	_sticky_blob_data.clear()
 	_moving_sticky_wall_data.clear()
+
+
+func _clear_survival_objectives() -> void:
+	for area in _survival_key_areas.values():
+		if is_instance_valid(area):
+			(area as Node).queue_free()
+	_survival_key_areas.clear()
+	for body in _survival_key_bodies.values():
+		if is_instance_valid(body):
+			(body as Node).queue_free()
+	_survival_key_bodies.clear()
+	for area in _survival_button_areas.values():
+		if is_instance_valid(area):
+			(area as Node).queue_free()
+	_survival_button_areas.clear()
+	for area in _survival_gate_areas.values():
+		if is_instance_valid(area):
+			(area as Node).queue_free()
+	_survival_gate_areas.clear()
+	for body in _survival_gate_bodies.values():
+		if is_instance_valid(body):
+			(body as Node).queue_free()
+	_survival_gate_bodies.clear()
+	_survival_lock_data.clear()
+	_survival_key_holders.clear()
+	_survival_key_dropped.clear()
+	_survival_opened_gates.clear()
+	_survival_pressed_buttons.clear()
+	_survival_key_progress.clear()
+	_survival_gate_progress.clear()
+	for body in _survival_jail_bodies:
+		if is_instance_valid(body):
+			body.queue_free()
+	_survival_jail_bodies.clear()
+	if is_instance_valid(_survival_jail_area):
+		_survival_jail_area.queue_free()
+	_survival_jail_area = null
+	_survival_jail_rect = Rect2()
+	_survival_jail_release_rect = Rect2()
+	_survival_jail_spawn_position = Vector2.ZERO
+	_survival_jail_release_position = Vector2.ZERO
+	_survival_jail_progress = 0.0
+	_survival_jail_has_prisoner = false
+	_survival_exit_unlocked = true
+	_locked_exit_hint_timer = 0.0
+	_clear_survival_key_badges()
 
 
 func _duplicate_hazards(hazards: Array) -> Array[Dictionary]:
@@ -191,6 +272,8 @@ func _build_goals() -> void:
 	if goal_rect.size.x <= 0.0 or goal_rect.size.y <= 0.0:
 		return
 	_goal_zones.append(_create_goal_zone(goal_rect))
+	if _map_data.get("goal_blocks_survival_enemies", false) as bool:
+		_goal_blockers.append(_create_survival_safe_goal_blocker(goal_rect))
 
 
 func _create_goal_zone(rect: Rect2) -> Area2D:
@@ -216,6 +299,25 @@ func _create_goal_zone(rect: Rect2) -> Area2D:
 	return area
 
 
+func _create_survival_safe_goal_blocker(rect: Rect2) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.collision_layer = Constants.LAYER_SURVIVAL_SAFE_BLOCKERS
+	body.collision_mask = 0
+	body.set_meta("survival_safe_goal_blocker", true)
+
+	var shape := RectangleShape2D.new()
+	shape.size = rect.size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = rect.size / 2.0
+
+	body.position = rect.position
+	body.add_child(col)
+	add_child(body)
+	return body
+
+
 func _on_goal_body_entered(body: Node2D) -> void:
 	goal_body_entered.emit(body)
 	if not GameManager.hunt_active:
@@ -229,6 +331,591 @@ func _on_goal_body_entered(body: Node2D) -> void:
 
 func _on_goal_body_exited(body: Node2D) -> void:
 	goal_body_exited.emit(body)
+
+
+func _has_survival_locks() -> bool:
+	return not _survival_lock_data.is_empty()
+
+
+func get_survival_objective_status() -> Dictionary:
+	var total := _survival_lock_data.size()
+	return {
+		"keys_collected": _survival_key_holders.size() + _survival_opened_gates.size(),
+		"keys_total": total,
+		"buttons_pressed": _survival_pressed_buttons.size(),
+		"buttons_total": total,
+		"exit_unlocked": _survival_exit_unlocked,
+	}
+
+
+func get_survival_jail_spawn_position() -> Vector2:
+	return _survival_jail_spawn_position
+
+
+func get_survival_jail_release_position() -> Vector2:
+	return _survival_jail_release_position
+
+
+func set_survival_jail_has_prisoner(has_prisoner: bool) -> void:
+	_survival_jail_has_prisoner = has_prisoner
+	if not has_prisoner:
+		_survival_jail_progress = 0.0
+	queue_redraw()
+
+
+func _build_survival_objectives() -> void:
+	var locks: Array = _map_data.get("survival_locks", []) as Array
+	_survival_exit_unlocked = locks.is_empty()
+	for lock_def_variant in locks:
+		if not lock_def_variant is Dictionary:
+			continue
+		var lock_def := (lock_def_variant as Dictionary).duplicate(true)
+		var lock_id := lock_def.get("id", "") as String
+		if lock_id.is_empty():
+			continue
+		_survival_lock_data.append(lock_def)
+		var key_rect: Rect2 = lock_def.get("key_rect", Rect2()) as Rect2
+		if key_rect.size.x > 0.0 and key_rect.size.y > 0.0:
+			_survival_key_areas[lock_id] = _create_survival_key_area(key_rect, lock_id)
+			_survival_key_bodies[lock_id] = _create_survival_key_body(key_rect, lock_id)
+		var button_rect: Rect2 = lock_def.get("button_rect", Rect2()) as Rect2
+		if button_rect.size.x > 0.0 and button_rect.size.y > 0.0:
+			_survival_button_areas[lock_id] = _create_survival_area(button_rect, lock_id, "button")
+		var gate_rect: Rect2 = lock_def.get("gate_rect", Rect2()) as Rect2
+		if gate_rect.size.x > 0.0 and gate_rect.size.y > 0.0:
+			_survival_gate_bodies[lock_id] = _create_survival_gate(gate_rect, lock_id)
+			_survival_gate_areas[lock_id] = _create_survival_area(gate_rect.grow(18.0), lock_id, "gate")
+	_build_survival_jail()
+	_emit_survival_objective_changed()
+
+
+func _build_survival_jail() -> void:
+	var jail: Dictionary = _map_data.get("survival_jail", {}) as Dictionary
+	if jail.is_empty():
+		return
+	_survival_jail_rect = jail.get("rect", Rect2()) as Rect2
+	_survival_jail_release_rect = jail.get("release_rect", Rect2()) as Rect2
+	if _survival_jail_rect.size.x <= 0.0 or _survival_jail_rect.size.y <= 0.0:
+		return
+	if _survival_jail_release_rect.size.x <= 0.0 or _survival_jail_release_rect.size.y <= 0.0:
+		_survival_jail_release_rect = Rect2(_survival_jail_rect.end + Vector2(8.0, 0.0), Vector2(42.0, _survival_jail_rect.size.y))
+	_survival_jail_spawn_position = jail.get("spawn", _survival_jail_rect.get_center()) as Vector2
+	_survival_jail_release_position = jail.get(
+		"release_position",
+		Vector2(_survival_jail_rect.end.x + Constants.CHARACTER_RADIUS + 10.0, _survival_jail_rect.get_center().y)
+	) as Vector2
+
+	var wall_thickness: float = jail.get("wall_thickness", 12.0) as float
+	var wall_defs: Array[Rect2] = [
+		Rect2(_survival_jail_rect.position, Vector2(_survival_jail_rect.size.x, wall_thickness)),
+		Rect2(Vector2(_survival_jail_rect.position.x, _survival_jail_rect.end.y - wall_thickness), Vector2(_survival_jail_rect.size.x, wall_thickness)),
+		Rect2(_survival_jail_rect.position, Vector2(wall_thickness, _survival_jail_rect.size.y)),
+		Rect2(Vector2(_survival_jail_rect.end.x - wall_thickness, _survival_jail_rect.position.y), Vector2(wall_thickness, _survival_jail_rect.size.y)),
+	]
+	for wall_rect in wall_defs:
+		_survival_jail_bodies.append(_create_survival_jail_wall(wall_rect))
+	_survival_jail_area = _create_survival_jail_release_area(_survival_jail_release_rect)
+
+
+func _create_survival_jail_wall(rect: Rect2) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.collision_layer = Constants.LAYER_WALLS
+	body.collision_mask = 0
+	body.set_meta("survival_jail_wall", true)
+
+	var shape := RectangleShape2D.new()
+	shape.size = rect.size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = rect.size / 2.0
+
+	body.position = rect.position
+	body.add_child(col)
+	add_child(body)
+	return body
+
+
+func _create_survival_jail_release_area(rect: Rect2) -> Area2D:
+	var area := Area2D.new()
+	area.collision_layer = 0
+	area.collision_mask = Constants.LAYER_CHARACTERS
+	area.monitoring = true
+	area.monitorable = false
+	area.set_meta("survival_objective_kind", "jail_release")
+
+	var shape := RectangleShape2D.new()
+	shape.size = rect.size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = rect.size / 2.0
+
+	area.position = rect.position
+	area.add_child(col)
+	add_child(area)
+	return area
+
+
+func _create_survival_area(rect: Rect2, lock_id: String, kind: String) -> Area2D:
+	var area := Area2D.new()
+	area.collision_layer = 0
+	area.collision_mask = Constants.LAYER_CHARACTERS
+	area.monitoring = true
+	area.monitorable = false
+	area.set_meta("survival_lock_id", lock_id)
+	area.set_meta("survival_objective_kind", kind)
+
+	var shape := RectangleShape2D.new()
+	shape.size = rect.size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = rect.size / 2.0
+
+	area.position = rect.position
+	area.add_child(col)
+	add_child(area)
+	match kind:
+		"button":
+			area.body_entered.connect(_on_survival_button_entered.bind(lock_id))
+	return area
+
+
+func _create_survival_key_area(rect: Rect2, lock_id: String) -> Area2D:
+	var area := Area2D.new()
+	area.collision_layer = 0
+	area.collision_mask = Constants.LAYER_CHARACTERS
+	area.monitoring = true
+	area.monitorable = false
+	area.set_meta("survival_lock_id", lock_id)
+	area.set_meta("survival_objective_kind", "key")
+
+	var shape := CircleShape2D.new()
+	shape.radius = SURVIVAL_KEY_DETECTION_RADIUS
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+
+	area.position = rect.get_center()
+	area.add_child(col)
+	add_child(area)
+	return area
+
+
+func _create_survival_key_body(rect: Rect2, lock_id: String) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.collision_layer = Constants.LAYER_WALLS
+	body.collision_mask = 0
+	body.set_meta("survival_lock_id", lock_id)
+	body.set_meta("survival_objective_kind", "key")
+
+	var shape := CircleShape2D.new()
+	shape.radius = SURVIVAL_KEY_COLLISION_RADIUS
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+
+	body.position = rect.get_center()
+	body.add_child(col)
+	add_child(body)
+	return body
+
+
+func _create_survival_gate(rect: Rect2, lock_id: String) -> StaticBody2D:
+	var body := StaticBody2D.new()
+	body.collision_layer = Constants.LAYER_WALLS
+	body.collision_mask = 0
+	body.set_meta("survival_lock_id", lock_id)
+
+	var shape := RectangleShape2D.new()
+	shape.size = rect.size
+
+	var col := CollisionShape2D.new()
+	col.shape = shape
+	col.position = rect.size / 2.0
+
+	body.position = rect.position
+	body.add_child(col)
+	add_child(body)
+	return body
+
+
+func _on_survival_key_entered(body: Node2D, lock_id: String) -> void:
+	if not _survival_objective_body_is_valid(body):
+		return
+	_complete_survival_key_pickup(body as Escapist, lock_id)
+
+
+func _complete_survival_key_pickup(esc: Escapist, lock_id: String) -> void:
+	if not is_instance_valid(esc):
+		return
+	if _survival_opened_gates.has(lock_id) or _survival_key_holders.has(lock_id):
+		return
+	_survival_key_holders[lock_id] = esc.player_index
+	_survival_key_dropped.erase(lock_id)
+	_survival_key_progress.erase(lock_id)
+	_set_survival_key_area_enabled(lock_id, false)
+	_update_survival_key_badge_for_escapist(esc)
+	esc.notify_trap_status("LLAVE %s" % _get_survival_lock_label(lock_id), _get_survival_lock_color(lock_id), 0.85)
+	_emit_survival_objective_changed()
+	queue_redraw()
+
+
+func _on_survival_gate_entered(body: Node2D, lock_id: String) -> void:
+	if not _survival_objective_body_is_valid(body):
+		return
+	_complete_survival_gate_open(body as Escapist, lock_id)
+
+
+func _complete_survival_gate_open(esc: Escapist, lock_id: String) -> void:
+	if not is_instance_valid(esc):
+		return
+	if _survival_opened_gates.has(lock_id):
+		return
+	var holder_index: int = _survival_key_holders.get(lock_id, -1) as int
+	if holder_index != esc.player_index:
+		esc.notify_trap_status("FALTA LLAVE %s" % _get_survival_lock_label(lock_id), _get_survival_lock_color(lock_id), 0.65)
+		return
+	_survival_key_holders.erase(lock_id)
+	_survival_gate_progress.erase(lock_id)
+	_open_survival_gate(lock_id)
+	_update_survival_key_badge_for_escapist(esc)
+	esc.notify_trap_status("COMPUERTA %s" % _get_survival_lock_label(lock_id), _get_survival_lock_color(lock_id), 0.85)
+	_emit_survival_objective_changed()
+	queue_redraw()
+
+
+func _on_survival_button_entered(body: Node2D, lock_id: String) -> void:
+	if not _survival_objective_body_is_valid(body):
+		return
+	var esc := body as Escapist
+	if not _survival_opened_gates.has(lock_id):
+		esc.notify_trap_status("COMPUERTA CERRADA", _get_survival_lock_color(lock_id), 0.65)
+		return
+	if _survival_pressed_buttons.has(lock_id):
+		return
+	_survival_pressed_buttons[lock_id] = true
+	esc.notify_trap_status("BOTON %s" % _get_survival_lock_label(lock_id), _get_survival_lock_color(lock_id), 0.85)
+	if _survival_pressed_buttons.size() >= _survival_lock_data.size():
+		_unlock_survival_exit()
+	else:
+		_emit_survival_objective_changed()
+	queue_redraw()
+
+
+func _process_survival_objective_interactions(delta: float) -> void:
+	if _survival_lock_data.is_empty() and _survival_jail_area == null:
+		return
+	_process_survival_key_progress(delta)
+	_process_survival_gate_progress(delta)
+	_process_survival_jail_progress(delta)
+
+
+func _process_survival_key_progress(delta: float) -> void:
+	for lock_def in _survival_lock_data:
+		var lock_id := lock_def.get("id", "") as String
+		if lock_id.is_empty():
+			continue
+		if _survival_opened_gates.has(lock_id) or _survival_key_holders.has(lock_id):
+			_survival_key_progress.erase(lock_id)
+			continue
+		var area := _survival_key_areas.get(lock_id, null) as Area2D
+		var preferred_player := _get_survival_progress_player(_survival_key_progress, lock_id)
+		var escapists := _get_survival_interacting_escapists(area)
+		if escapists.is_empty():
+			_survival_key_progress.erase(lock_id)
+			continue
+		var esc := _choose_survival_progress_escapist(escapists, preferred_player)
+		var elapsed := _get_survival_progress_elapsed(_survival_key_progress, lock_id, esc.player_index) \
+			+ delta * float(escapists.size())
+		if elapsed >= SURVIVAL_INTERACTION_DURATION:
+			_survival_key_progress.erase(lock_id)
+			_complete_survival_key_pickup(esc, lock_id)
+		else:
+			_survival_key_progress[lock_id] = {
+				"player_index": esc.player_index,
+				"elapsed": elapsed,
+			}
+
+
+func _process_survival_gate_progress(delta: float) -> void:
+	for lock_def in _survival_lock_data:
+		var lock_id := lock_def.get("id", "") as String
+		if lock_id.is_empty():
+			continue
+		if _survival_opened_gates.has(lock_id):
+			_survival_gate_progress.erase(lock_id)
+			continue
+		var holder_index: int = _survival_key_holders.get(lock_id, -1) as int
+		if holder_index < 0:
+			_survival_gate_progress.erase(lock_id)
+			continue
+		var area := _survival_gate_areas.get(lock_id, null) as Area2D
+		var escapists := _get_survival_interacting_escapists(area)
+		var esc := _find_survival_escapist_by_player(escapists, holder_index)
+		if esc == null:
+			_survival_gate_progress.erase(lock_id)
+			continue
+		var elapsed := _get_survival_progress_elapsed(_survival_gate_progress, lock_id, esc.player_index) \
+			+ delta * float(escapists.size())
+		if elapsed >= SURVIVAL_INTERACTION_DURATION:
+			_survival_gate_progress.erase(lock_id)
+			_complete_survival_gate_open(esc, lock_id)
+		else:
+			_survival_gate_progress[lock_id] = {
+				"player_index": esc.player_index,
+				"elapsed": elapsed,
+			}
+
+
+func _process_survival_jail_progress(delta: float) -> void:
+	if _survival_jail_area == null or not is_instance_valid(_survival_jail_area):
+		_survival_jail_progress = 0.0
+		return
+	if not _survival_jail_has_prisoner:
+		_survival_jail_progress = 0.0
+		return
+	var helpers := _get_survival_release_helpers(_survival_jail_area)
+	if helpers.is_empty():
+		_survival_jail_progress = 0.0
+		return
+	_survival_jail_progress += delta * float(helpers.size())
+	if _survival_jail_progress >= SURVIVAL_INTERACTION_DURATION:
+		_survival_jail_progress = 0.0
+		survival_jail_release_completed.emit(helpers[0] as Escapist)
+
+
+func _get_survival_release_helpers(area: Area2D) -> Array[Escapist]:
+	var helpers: Array[Escapist] = []
+	if area == null or not is_instance_valid(area):
+		return helpers
+	for body in area.get_overlapping_bodies():
+		if not body is Escapist:
+			continue
+		if not _survival_objective_body_is_valid(body):
+			continue
+		var esc := body as Escapist
+		if esc.get_meta("survival_jailed", false) as bool:
+			continue
+		helpers.append(esc)
+	return helpers
+
+
+func _get_survival_interacting_escapist(area: Area2D, preferred_player_index: int) -> Escapist:
+	if area == null or not is_instance_valid(area):
+		return null
+	var fallback: Escapist = null
+	for body in area.get_overlapping_bodies():
+		if not body is Escapist:
+			continue
+		if not _survival_objective_body_is_valid(body):
+			continue
+		var esc := body as Escapist
+		if esc.player_index == preferred_player_index:
+			return esc
+		if fallback == null:
+			fallback = esc
+	return fallback
+
+
+func _get_survival_interacting_escapists(area: Area2D) -> Array[Escapist]:
+	var escapists: Array[Escapist] = []
+	if area == null or not is_instance_valid(area):
+		return escapists
+	for body in area.get_overlapping_bodies():
+		if not body is Escapist:
+			continue
+		if not _survival_objective_body_is_valid(body):
+			continue
+		escapists.append(body as Escapist)
+	return escapists
+
+
+func _choose_survival_progress_escapist(escapists: Array[Escapist], preferred_player_index: int) -> Escapist:
+	var preferred := _find_survival_escapist_by_player(escapists, preferred_player_index)
+	if preferred != null:
+		return preferred
+	return escapists[0] if not escapists.is_empty() else null
+
+
+func _find_survival_escapist_by_player(escapists: Array[Escapist], player_index: int) -> Escapist:
+	for esc in escapists:
+		if esc.player_index == player_index:
+			return esc
+	return null
+
+
+func _get_survival_progress_player(progress_data: Dictionary, lock_id: String) -> int:
+	var entry := progress_data.get(lock_id, {}) as Dictionary
+	return entry.get("player_index", -1) as int
+
+
+func _get_survival_progress_elapsed(progress_data: Dictionary, lock_id: String, player_index: int) -> float:
+	var entry := progress_data.get(lock_id, {}) as Dictionary
+	if (entry.get("player_index", -1) as int) != player_index:
+		return 0.0
+	return entry.get("elapsed", 0.0) as float
+
+
+func _get_survival_progress_ratio(progress_data: Dictionary, lock_id: String) -> float:
+	var entry := progress_data.get(lock_id, {}) as Dictionary
+	var elapsed: float = entry.get("elapsed", 0.0) as float
+	return clampf(elapsed / SURVIVAL_INTERACTION_DURATION, 0.0, 1.0)
+
+
+func _survival_objective_body_is_valid(body: Node2D) -> bool:
+	if GameManager.current_state != Enums.GameState.SURVIVAL:
+		return false
+	if not body is Escapist:
+		return false
+	var esc := body as Escapist
+	return not esc.is_dead and not esc.has_scored
+
+
+func _open_survival_gate(lock_id: String) -> void:
+	var body := _survival_gate_bodies.get(lock_id, null) as Node
+	if body != null and is_instance_valid(body):
+		body.queue_free()
+	_survival_gate_bodies.erase(lock_id)
+	var area := _survival_gate_areas.get(lock_id, null) as Node
+	if area != null and is_instance_valid(area):
+		area.queue_free()
+	_survival_gate_areas.erase(lock_id)
+	_survival_opened_gates[lock_id] = true
+
+
+func drop_survival_keys_for_escapist(escapist: Escapist) -> void:
+	if not is_instance_valid(escapist):
+		return
+	drop_survival_keys_for_escapist_at(escapist, escapist.global_position)
+
+
+func drop_survival_keys_for_escapist_at(escapist: Escapist, drop_position: Vector2) -> void:
+	if not is_instance_valid(escapist):
+		return
+	var dropped_any := false
+	for lock_id_variant in _survival_key_holders.keys():
+		var lock_id := lock_id_variant as String
+		var holder_index: int = _survival_key_holders.get(lock_id, -1) as int
+		if holder_index != escapist.player_index:
+			continue
+		_survival_key_holders.erase(lock_id)
+		_survival_key_progress.erase(lock_id)
+		_survival_gate_progress.erase(lock_id)
+		_set_survival_key_position(lock_id, drop_position)
+		_set_survival_key_area_enabled(lock_id, true)
+		_survival_key_dropped[lock_id] = true
+		dropped_any = true
+	if not dropped_any:
+		return
+	_update_survival_key_badge_for_escapist(escapist)
+	_emit_survival_objective_changed()
+	queue_redraw()
+
+
+func _set_survival_key_position(lock_id: String, center: Vector2) -> void:
+	var lock_def := _get_survival_lock_data(lock_id)
+	var rect: Rect2 = lock_def.get("key_rect", Rect2(center - Vector2(15.0, 15.0), Vector2(30.0, 30.0))) as Rect2
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		rect.size = Vector2(30.0, 30.0)
+	rect.position = center - rect.size * 0.5
+	_set_survival_lock_key_rect(lock_id, rect)
+	var area := _survival_key_areas.get(lock_id, null) as Area2D
+	if area != null and is_instance_valid(area):
+		area.position = rect.get_center()
+	var body := _survival_key_bodies.get(lock_id, null) as StaticBody2D
+	if body != null and is_instance_valid(body):
+		body.position = rect.get_center()
+
+
+func _set_survival_key_area_enabled(lock_id: String, enabled: bool) -> void:
+	var area := _survival_key_areas.get(lock_id, null) as Area2D
+	if area == null or not is_instance_valid(area):
+		pass
+	else:
+		area.monitoring = enabled
+		area.collision_mask = Constants.LAYER_CHARACTERS if enabled else 0
+	var body := _survival_key_bodies.get(lock_id, null) as StaticBody2D
+	if body != null and is_instance_valid(body):
+		body.collision_layer = Constants.LAYER_WALLS if enabled else 0
+
+
+func _set_survival_lock_key_rect(lock_id: String, rect: Rect2) -> void:
+	for i in range(_survival_lock_data.size()):
+		var lock_def := _survival_lock_data[i]
+		if (lock_def.get("id", "") as String) != lock_id:
+			continue
+		lock_def["key_rect"] = rect
+		_survival_lock_data[i] = lock_def
+		return
+
+
+func _update_survival_key_badge_for_escapist(escapist: Escapist) -> void:
+	if not is_instance_valid(escapist) or not escapist.has_method("set_survival_key_badges"):
+		return
+	var key_colors: Array[Color] = []
+	for lock_def in _survival_lock_data:
+		var lock_id := lock_def.get("id", "") as String
+		var holder_index: int = _survival_key_holders.get(lock_id, -1) as int
+		if holder_index == escapist.player_index:
+			key_colors.append(_get_survival_lock_color(lock_id))
+	escapist.call("set_survival_key_badges", key_colors)
+
+
+func _clear_survival_key_badges() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for node: Node in tree.get_nodes_in_group("characters"):
+		if node is Escapist and node.has_method("set_survival_key_badges"):
+			node.call("set_survival_key_badges", [])
+
+
+func _unlock_survival_exit() -> void:
+	if _survival_exit_unlocked:
+		return
+	_survival_exit_unlocked = true
+	_emit_survival_objective_changed()
+	for area in _goal_zones:
+		if not is_instance_valid(area):
+			continue
+		for body in area.get_overlapping_bodies():
+			if body is Node2D:
+				_on_goal_body_entered(body as Node2D)
+
+
+func _notify_locked_survival_exit(body: Node2D) -> void:
+	if not body is Escapist:
+		return
+	if _locked_exit_hint_timer > 0.0:
+		return
+	var esc := body as Escapist
+	if esc.is_dead or esc.has_scored:
+		return
+	esc.notify_trap_status("PUERTA BLOQUEADA", Color(0.36, 1.0, 0.48), 0.7)
+	_locked_exit_hint_timer = SURVIVAL_LOCKED_EXIT_HINT_COOLDOWN
+
+
+func _emit_survival_objective_changed() -> void:
+	survival_objective_changed.emit(get_survival_objective_status())
+
+
+func _get_survival_lock_data(lock_id: String) -> Dictionary:
+	for lock_def in _survival_lock_data:
+		if (lock_def.get("id", "") as String) == lock_id:
+			return lock_def
+	return {}
+
+
+func _get_survival_lock_label(lock_id: String) -> String:
+	var lock_def := _get_survival_lock_data(lock_id)
+	return lock_def.get("label", lock_id.to_upper()) as String
+
+
+func _get_survival_lock_color(lock_id: String) -> Color:
+	var lock_def := _get_survival_lock_data(lock_id)
+	return lock_def.get("color", Color.WHITE) as Color
 
 
 func _build_safety_checkpoints() -> void:
@@ -836,6 +1523,8 @@ func _draw() -> void:
 	if _map_data.get("show_respawn_marker", false) as bool:
 		_draw_respawn_marker()
 
+	_draw_survival_jail(now)
+
 	# Hazards
 	_draw_hazards()
 
@@ -883,10 +1572,14 @@ func _draw_beveled_rounded_rect(rect: Rect2, fill: Color, outline: Color, radius
 
 func _draw_arena_floor(map_size: Vector2, time: float) -> void:
 	var area := Rect2(Vector2.ZERO, map_size)
-	draw_rect(area, Color(0.011, 0.014, 0.017))
+	var floor_color: Color = _map_data.get("floor_color", Color(0.011, 0.014, 0.017)) as Color
+	var outside_margin: float = _map_data.get("floor_outside_margin", 0.0) as float
+	if outside_margin > 0.0:
+		draw_rect(area.grow(outside_margin), floor_color.darkened(0.12))
+	draw_rect(area, floor_color)
 
-	var upper_haze := Color(0.025, 0.042, 0.048, 0.62)
-	var lower_haze := Color(0.007, 0.009, 0.012, 0.72)
+	var upper_haze: Color = _map_data.get("floor_upper_haze", Color(0.025, 0.042, 0.048, 0.62)) as Color
+	var lower_haze: Color = _map_data.get("floor_lower_haze", Color(0.007, 0.009, 0.012, 0.72)) as Color
 	draw_rect(Rect2(Vector2.ZERO, Vector2(map_size.x, map_size.y * 0.34)), upper_haze)
 	draw_rect(Rect2(Vector2(0.0, map_size.y * 0.34), Vector2(map_size.x, map_size.y * 0.66)), lower_haze)
 
@@ -900,14 +1593,15 @@ func _draw_arena_floor(map_size: Vector2, time: float) -> void:
 		draw_circle(center, radius, Color(0.08, 0.19, 0.18, 0.025))
 		draw_circle(center + Vector2(24.0, 18.0), radius * 0.58, Color(0.0, 0.0, 0.0, 0.035))
 
-	var dust_color := Color(0.62, 0.92, 0.86, 0.08)
+	var dust_color: Color = _map_data.get("floor_dust_color", Color(0.62, 0.92, 0.86, 0.08)) as Color
 	for i in range(42):
 		var seed := float(i)
 		var px := fmod(seed * 271.0 + sin(time * 0.3 + seed) * 34.0, map_size.x)
 		var py := fmod(seed * 157.0 + cos(time * 0.22 + seed * 0.7) * 26.0, map_size.y)
 		draw_circle(Vector2(px, py), 1.5 + fmod(seed, 4.0), dust_color)
 
-	draw_rect(area, Color(0.0, 0.0, 0.0, 0.22), false, 34.0)
+	var border_color: Color = _map_data.get("floor_border_color", Color(0.0, 0.0, 0.0, 0.22)) as Color
+	draw_rect(area, border_color, false, 34.0)
 
 
 func _draw_stone_wall(rect: Rect2, time: float) -> void:
@@ -929,17 +1623,35 @@ func _draw_stone_wall(rect: Rect2, time: float) -> void:
 
 func _draw_goal_zone(rect: Rect2, time: float) -> void:
 	var goal_color := Color(0.18, 1.0, 0.55)
+	var locked := false
 	var pulse := 0.5 + 0.5 * sin(time * 4.0)
 	_draw_rounded_rect(Rect2(rect.position + Vector2(8.0, 9.0), rect.size), Color(0.0, 0.0, 0.0, 0.36), 10.0)
-	_draw_rounded_rect(rect, Color(goal_color, 0.10 + pulse * 0.06), 10.0)
-	_draw_rounded_rect(rect.grow(-8.0), Color(goal_color, 0.08), 8.0)
-	_draw_rounded_rect_outline(rect, Color(goal_color, 0.65), 10.0, 3.0)
+	_draw_rounded_rect(rect, Color(goal_color, 0.08 + pulse * 0.04), 10.0)
+	if locked:
+		_draw_rounded_rect(rect.grow(-8.0), Color(0.04, 0.10, 0.055, 0.48), 8.0)
+	else:
+		_draw_rounded_rect(rect.grow(-8.0), Color(goal_color, 0.08), 8.0)
+	_draw_rounded_rect_outline(rect, Color(goal_color, 0.54 if locked else 0.65), 10.0, 3.0)
 	_draw_rounded_rect_outline(rect.grow(-10.0), Color(0.85, 1.0, 0.92, 0.25), 7.0, 1.0)
 	var step := 42.0
 	var y := rect.position.y + fmod(time * 42.0, step)
 	while y < rect.end.y:
 		draw_line(Vector2(rect.position.x + 8.0, y), Vector2(rect.end.x - 8.0, y + 22.0), Color(goal_color, 0.32), 2.0)
 		y += step
+	if locked:
+		var bar_count := 5
+		for i in range(bar_count):
+			var x := rect.position.x + rect.size.x * (float(i) + 1.0) / float(bar_count + 1)
+			draw_line(Vector2(x, rect.position.y + 12.0), Vector2(x, rect.end.y - 12.0),
+				Color(0.02, 0.05, 0.025, 0.78), 4.0)
+		var lock_center := rect.get_center()
+		draw_circle(lock_center, 18.0 + pulse * 2.0, Color(0.0, 0.0, 0.0, 0.42))
+		draw_arc(lock_center + Vector2(0.0, -3.0), 15.0, PI, TAU, 18,
+			Color(0.36, 1.0, 0.48, 0.86), 4.0)
+		_draw_rounded_rect(Rect2(lock_center - Vector2(15.0, 1.0), Vector2(30.0, 24.0)),
+			Color(0.08, 0.23, 0.12, 0.92), 4.0)
+		_draw_rounded_rect_outline(Rect2(lock_center - Vector2(15.0, 1.0), Vector2(30.0, 24.0)),
+			Color(0.36, 1.0, 0.48, 0.86), 4.0, 2.0)
 
 
 func _draw_respawn_marker() -> void:
@@ -958,6 +1670,30 @@ func _draw_respawn_marker() -> void:
 	draw_arc(spawn, 30.0 + pulse * 4.0, 0.0, TAU, 32, color, 2.0)
 	draw_line(spawn + Vector2(-18.0, 0.0), spawn + Vector2(18.0, 0.0), color, 2.0)
 	draw_line(spawn + Vector2(0.0, -18.0), spawn + Vector2(0.0, 18.0), color, 2.0)
+
+
+func _draw_survival_jail(time: float) -> void:
+	if _survival_jail_rect.size.x <= 0.0 or _survival_jail_rect.size.y <= 0.0:
+		return
+	var color := Color(0.36, 0.78, 1.0)
+	var pulse := 0.5 + 0.5 * sin(time * 3.4)
+	_draw_rounded_rect(_survival_jail_rect, Color(0.04, 0.08, 0.10, 0.26), 8.0)
+	_draw_rounded_rect_outline(_survival_jail_rect, Color(color, 0.52 + pulse * 0.18), 8.0, 2.5)
+	var bar_count := 5
+	for i in range(bar_count):
+		var x := _survival_jail_rect.position.x + _survival_jail_rect.size.x * (float(i) + 1.0) / float(bar_count + 1)
+		draw_line(Vector2(x, _survival_jail_rect.position.y + 8.0), Vector2(x, _survival_jail_rect.end.y - 8.0),
+			Color(color, 0.42), 3.0)
+	if _survival_jail_release_rect.size.x > 0.0 and _survival_jail_release_rect.size.y > 0.0:
+		_draw_rounded_rect(_survival_jail_release_rect, Color(color, 0.08), 6.0)
+		_draw_rounded_rect_outline(_survival_jail_release_rect, Color(color, 0.55), 6.0, 1.8)
+	if _survival_jail_progress > 0.0:
+		_draw_survival_progress_bar(
+			_survival_jail_release_rect.get_center() + Vector2(0.0, -_survival_jail_release_rect.size.y * 0.5 - 16.0),
+			clampf(_survival_jail_progress / SURVIVAL_INTERACTION_DURATION, 0.0, 1.0),
+			color,
+			"LIBERAR"
+		)
 
 
 func _draw_hazards() -> void:
@@ -1039,6 +1775,108 @@ func _draw_hazards() -> void:
 			continue
 		var size: Vector2 = blob_data["size"] as Vector2
 		_draw_sticky_blob_visual(Rect2(area.position, size), now)
+
+	_draw_survival_objectives(now)
+
+
+func _draw_survival_objectives(time: float) -> void:
+	if _survival_lock_data.is_empty():
+		return
+	for lock_def in _survival_lock_data:
+		var lock_id := lock_def.get("id", "") as String
+		var color: Color = lock_def.get("color", Color.WHITE) as Color
+		var gate_rect: Rect2 = lock_def.get("gate_rect", Rect2()) as Rect2
+		var gate_closed := gate_rect.size.x > 0.0 and gate_rect.size.y > 0.0 and _survival_gate_bodies.has(lock_id)
+		if gate_closed:
+			_draw_survival_gate_visual(gate_rect, color, time)
+			var gate_progress := _get_survival_progress_ratio(_survival_gate_progress, lock_id)
+			if gate_progress > 0.0:
+				_draw_survival_progress_bar(
+					gate_rect.get_center() + Vector2(0.0, -gate_rect.size.y * 0.5 - 16.0),
+					gate_progress,
+					color,
+					"ABRIR"
+				)
+		var button_rect: Rect2 = lock_def.get("button_rect", Rect2()) as Rect2
+		if button_rect.size.x > 0.0 and button_rect.size.y > 0.0 and not gate_closed:
+			_draw_survival_button_visual(button_rect, color, _survival_pressed_buttons.has(lock_id), time)
+		var key_rect: Rect2 = lock_def.get("key_rect", Rect2()) as Rect2
+		var key_is_available := not _survival_key_holders.has(lock_id) and not _survival_opened_gates.has(lock_id)
+		if key_rect.size.x > 0.0 and key_rect.size.y > 0.0 and key_is_available:
+			var hidden: bool = lock_def.get("key_hidden", false) as bool
+			if not hidden or _survival_key_dropped.has(lock_id):
+				_draw_survival_key_visual(key_rect, color, false, time)
+			var key_progress := _get_survival_progress_ratio(_survival_key_progress, lock_id)
+			if key_progress > 0.0:
+				_draw_survival_progress_bar(
+					key_rect.get_center() + Vector2(0.0, -30.0),
+					key_progress,
+					color,
+					"LLAVE"
+				)
+
+
+func _draw_survival_gate_visual(rect: Rect2, color: Color, time: float) -> void:
+	var pulse := 0.5 + 0.5 * sin(time * 5.0 + rect.position.x * 0.02)
+	var radius := minf(8.0, minf(rect.size.x, rect.size.y) * 0.24)
+	_draw_beveled_rounded_rect(rect, color.darkened(0.62), Color(color, 0.72 + pulse * 0.22), radius, Vector2(6.0, 8.0))
+	_draw_rounded_rect(rect.grow(-7.0), Color(0.0, 0.0, 0.0, 0.22), maxf(radius - 2.0, 2.0))
+	var center := rect.get_center()
+	var horizontal := rect.size.x >= rect.size.y
+	var axis := Vector2.RIGHT if horizontal else Vector2.DOWN
+	var cross := Vector2.DOWN if horizontal else Vector2.RIGHT
+	var span := rect.size.x if horizontal else rect.size.y
+	for i in range(4):
+		var offset := -span * 0.32 + span * 0.64 * float(i) / 3.0
+		var stripe_center := center + axis * offset
+		draw_line(stripe_center - cross * 20.0, stripe_center + cross * 20.0,
+			Color(0.0, 0.0, 0.0, 0.38), 2.0)
+
+
+func _draw_survival_button_visual(rect: Rect2, color: Color, pressed: bool, time: float) -> void:
+	var center := rect.get_center()
+	var radius := minf(rect.size.x, rect.size.y) * 0.46
+	var pulse := 0.5 + 0.5 * sin(time * 4.0 + rect.position.y * 0.01)
+	var base_alpha := 0.78 if pressed else 0.42
+	draw_circle(center + Vector2(4.0, 5.0), radius + 4.0, Color(0.0, 0.0, 0.0, 0.30))
+	draw_circle(center, radius + 5.0, Color(color, 0.12 + pulse * 0.06))
+	draw_circle(center, radius, Color(color.darkened(0.18), base_alpha))
+	draw_arc(center, radius + 2.0, 0.0, TAU, 28, Color(color.lightened(0.28), 0.72), 2.0)
+	if pressed:
+		draw_circle(center, radius * 0.54, Color(0.08, 0.12, 0.08, 0.48))
+		draw_line(center + Vector2(-7.0, 0.0), center + Vector2(-1.0, 7.0),
+			Color(0.72, 1.0, 0.72, 0.92), 3.0)
+		draw_line(center + Vector2(-1.0, 7.0), center + Vector2(10.0, -8.0),
+			Color(0.72, 1.0, 0.72, 0.92), 3.0)
+
+
+func _draw_survival_key_visual(rect: Rect2, color: Color, hidden: bool, time: float) -> void:
+	var alpha := 0.22 if hidden else 0.88
+	var center := rect.get_center()
+	var pulse := 0.5 + 0.5 * sin(time * 5.2 + rect.position.x * 0.03)
+	draw_circle(center + Vector2(3.0, 4.0), rect.size.x * 0.42, Color(0.0, 0.0, 0.0, 0.24 * alpha))
+	draw_circle(center, rect.size.x * 0.46 + pulse * 2.0, Color(color, 0.16 * alpha))
+	draw_circle(center - Vector2(5.0, 0.0), rect.size.x * 0.20, Color(color, alpha))
+	draw_circle(center - Vector2(5.0, 0.0), rect.size.x * 0.09, Color(0.0, 0.0, 0.0, 0.72 * alpha))
+	draw_line(center + Vector2(1.0, 0.0), center + Vector2(13.0, 0.0), Color(color, alpha), 4.0)
+	draw_line(center + Vector2(9.0, 0.0), center + Vector2(9.0, 6.0), Color(color, alpha), 3.0)
+	draw_line(center + Vector2(13.0, 0.0), center + Vector2(13.0, 5.0), Color(color, alpha), 3.0)
+
+
+func _draw_survival_progress_bar(center: Vector2, ratio: float, color: Color, label: String) -> void:
+	var clamped := clampf(ratio, 0.0, 1.0)
+	var size := Vector2(64.0, 8.0)
+	var rect := Rect2(center - size * 0.5, size)
+	draw_rect(rect.grow(3.0), Color(0.0, 0.0, 0.0, 0.54))
+	draw_rect(rect, Color(0.05, 0.055, 0.05, 0.92))
+	draw_rect(Rect2(rect.position, Vector2(rect.size.x * clamped, rect.size.y)), Color(color, 0.88))
+	draw_rect(rect, Color(color.lightened(0.25), 0.86), false, 1.4)
+	var font := ThemeDB.fallback_font
+	var text_size := 10
+	var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
+	var text_pos := Vector2(center.x - text_w * 0.5, rect.position.y - 5.0)
+	draw_string(font, text_pos + Vector2(1.0, 1.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size, Color(0.0, 0.0, 0.0, 0.70))
+	draw_string(font, text_pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size, Color.WHITE)
 
 
 func _draw_moving_wall_visual(rect: Rect2, time: float) -> void:
@@ -1404,6 +2242,9 @@ func _get_wind_alpha(progress: float) -> float:
 
 
 func _process(_delta: float) -> void:
+	if _locked_exit_hint_timer > 0.0:
+		_locked_exit_hint_timer = maxf(_locked_exit_hint_timer - _delta, 0.0)
+	_process_survival_objective_interactions(_delta)
 	_check_moving_wall_crushes()
 	var now := Time.get_ticks_msec() / 1000.0
 	for vent_data in _frost_vent_data:
@@ -1425,7 +2266,7 @@ func _process(_delta: float) -> void:
 		else:
 			area.set_meta("pulse_timer", 0.0)
 		vent_data["was_active"] = active
-	if not _moving_wall_data.is_empty() or not _frost_vent_data.is_empty() or not _moving_slippery_zone_data.is_empty() or not _sticky_blob_data.is_empty() or not _moving_sticky_wall_data.is_empty():
+	if not _moving_wall_data.is_empty() or not _frost_vent_data.is_empty() or not _moving_slippery_zone_data.is_empty() or not _sticky_blob_data.is_empty() or not _moving_sticky_wall_data.is_empty() or not _survival_lock_data.is_empty():
 		queue_redraw()
 
 

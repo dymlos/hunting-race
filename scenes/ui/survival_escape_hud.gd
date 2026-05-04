@@ -12,6 +12,11 @@ var _wave_number: int = 0
 var _zombie_count: int = 0
 var _death_count: int = 0
 var _next_wave_time: float = 0.0
+var _objective_keys_collected: int = 0
+var _objective_keys_total: int = 0
+var _objective_buttons_pressed: int = 0
+var _objective_buttons_total: int = 0
+var _objective_exit_unlocked: bool = true
 var _result_text: String = ""
 var _result_hint: String = ""
 var _result_color: Color = Color.WHITE
@@ -27,6 +32,11 @@ func open(escapist_total: int, trapper_total: int, duration: float = Constants.S
 	_zombie_count = 0
 	_death_count = 0
 	_next_wave_time = Constants.SURVIVAL_FIRST_WAVE_DELAY
+	_objective_keys_collected = 0
+	_objective_keys_total = 0
+	_objective_buttons_pressed = 0
+	_objective_buttons_total = 0
+	_objective_exit_unlocked = true
 	_result_text = ""
 	_result_hint = ""
 	_result_color = Color.WHITE
@@ -49,6 +59,15 @@ func set_wave_status(wave_number: int, zombie_count: int, death_count: int, next
 	_zombie_count = maxi(zombie_count, 0)
 	_death_count = maxi(death_count, 0)
 	_next_wave_time = maxf(next_wave_time, 0.0)
+	queue_redraw()
+
+
+func set_objective_status(status: Dictionary) -> void:
+	_objective_keys_collected = status.get("keys_collected", 0) as int
+	_objective_keys_total = status.get("keys_total", 0) as int
+	_objective_buttons_pressed = status.get("buttons_pressed", 0) as int
+	_objective_buttons_total = status.get("buttons_total", 0) as int
+	_objective_exit_unlocked = status.get("exit_unlocked", true) as bool
 	queue_redraw()
 
 
@@ -96,10 +115,23 @@ func _draw() -> void:
 	_draw_panel(objective_rect, Color(0.025, 0.027, 0.028, 0.78), Color(0.42, 0.46, 0.44, 0.48), 1.5)
 	_draw_centered_text_in_rect(font, "OBJETIVO",
 		Rect2(objective_rect.position.x + 14.0, objective_rect.position.y + 8.0, 95.0, 16.0), 11, Color(0.62, 0.66, 0.64))
-	_draw_centered_text_in_rect(font, "Todos los escapistas deben entrar juntos en la zona verde antes de que termine el tiempo.",
+	var objective_text := "Todos los escapistas deben entrar juntos en la zona verde antes de que termine el tiempo."
+	if _objective_keys_total > 0:
+		if _objective_exit_unlocked:
+			objective_text = "Puerta verde desbloqueada. Reunan al equipo en la salida."
+		else:
+			objective_text = "Llaves %d/%d | Botones %d/%d | Zona verde segura" % [
+				_objective_keys_collected,
+				_objective_keys_total,
+				_objective_buttons_pressed,
+				_objective_buttons_total,
+			]
+	_draw_centered_text_in_rect(font, objective_text,
 		Rect2(objective_rect.position.x + 104.0, objective_rect.position.y + 6.0, objective_rect.size.x - 116.0, 20.0), 14, Color.WHITE)
 
 	var exit_text := "%d/%d en salida" % [_escapists_in_exit, _escapist_total]
+	if _objective_keys_total > 0 and not _objective_exit_unlocked:
+		exit_text = "Segura"
 	var exit_rect := Rect2(screen.x - 260.0, 18.0, 242.0, 62.0)
 	_draw_panel(exit_rect, Color(0.02, 0.035, 0.026, 0.82), Color(0.20, 0.85, 0.48, 0.76), 2.0)
 	_draw_centered_text_in_rect(font, "SALIDA",

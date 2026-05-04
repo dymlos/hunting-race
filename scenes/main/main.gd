@@ -102,6 +102,7 @@ var _survival_spawn_queue: int = 0
 var _survival_spawn_step_timer: float = 0.0
 var _survival_death_count: int = 0
 var _survival_zombie_spawn_index: int = 0
+var _survival_jailed_escapists: Dictionary = {}
 
 
 func _ready() -> void:
@@ -146,6 +147,7 @@ func _ready() -> void:
 	ui_layer.add_child(survival_escape_setup)
 	survival_escape_setup.hide()
 	survival_escape_setup.survival_ready.connect(_on_survival_escape_ready)
+	survival_escape_setup.settings_requested.connect(_open_settings)
 	survival_escape_setup.back_requested.connect(_start_mode_select)
 
 	official_briefing = OfficialBriefingScene.new() as OfficialBriefing
@@ -316,7 +318,10 @@ func _open_how_to_play() -> void:
 
 func _open_how_to_play_from_pause() -> void:
 	_hide_pause_menu_behind_subscreen()
-	how_to_play.open()
+	if GameManager.is_survival_context():
+		how_to_play.open_survival()
+	else:
+		how_to_play.open()
 	push_view(how_to_play)
 
 
@@ -368,8 +373,11 @@ func _start_survival_escape_setup() -> void:
 	_cleanup_round()
 	_practice_bots_added = false
 	_active_player_indices.clear()
+	GameManager.reset_match()
+	if not GameManager.settings_overrides.has(&"survival_static_bots"):
+		GameManager.settings_overrides[&"survival_static_bots"] = true
 	_is_practice_flow = false
-	_is_survival_flow = false
+	_is_survival_flow = true
 	if arena:
 		arena.queue_free()
 		arena = null
@@ -616,16 +624,22 @@ func _setup_survival_arena() -> void:
 		arena.queue_free()
 	arena = ArenaScene.instantiate() as Arena
 	arena_container.add_child(arena)
-	_survival_map_data = MapData.get_survival_test_map()
+	_survival_map_data = MapData.get_survival_test_map(_get_survival_format_size())
+	if not _survival_jail_enabled():
+		_survival_map_data.erase("survival_jail")
 	arena.load_map(_survival_map_data)
 	arena.goal_body_entered.connect(_on_survival_goal_body_entered)
 	arena.goal_body_exited.connect(_on_survival_goal_body_exited)
+	arena.survival_objective_changed.connect(_on_survival_objective_changed)
+	if arena.has_signal("survival_jail_release_completed"):
+		arena.survival_jail_release_completed.connect(_on_survival_jail_release_completed)
 	_setup_camera()
 
 
 func _start_survival_escape_session() -> void:
 	_setup_survival_arena()
 	_survival_goal_escapists.clear()
+	_survival_jailed_escapists.clear()
 	_survival_match_finished = false
 	_survival_time_total = _get_survival_duration()
 	_survival_time_remaining = _survival_time_total
@@ -633,6 +647,7 @@ func _start_survival_escape_session() -> void:
 	game_hud.hide()
 	if survival_hud:
 		survival_hud.open(_get_survival_escapist_total(), _get_survival_trapper_total(), _survival_time_total)
+		_update_survival_objective_hud()
 		_update_survival_wave_hud()
 	menu_music.use_round_volume()
 	GameManager.start_survival()
@@ -674,6 +689,7 @@ func _on_survival_goal_body_entered(body: Node2D) -> void:
 	var esc := body as Escapist
 	if esc.is_dead:
 		return
+	esc.set_meta("survival_safe_zone", true)
 	_survival_goal_escapists[esc.player_index] = true
 	_update_survival_exit_hud()
 	_check_survival_escape_complete()
@@ -685,6 +701,7 @@ func _on_survival_goal_body_exited(body: Node2D) -> void:
 	if not body is Escapist:
 		return
 	var esc := body as Escapist
+	esc.set_meta("survival_safe_zone", false)
 	_survival_goal_escapists.erase(esc.player_index)
 	_update_survival_exit_hud()
 
@@ -694,12 +711,33 @@ func _update_survival_exit_hud() -> void:
 		survival_hud.set_exit_count(_survival_goal_escapists.size())
 
 
+func _on_survival_objective_changed(_status: Dictionary) -> void:
+	_update_survival_objective_hud()
+	_update_survival_exit_hud()
+	_check_survival_escape_complete()
+
+
+func _update_survival_objective_hud() -> void:
+	if survival_hud and arena and arena.has_method("get_survival_objective_status"):
+		var status := arena.call("get_survival_objective_status") as Dictionary
+		survival_hud.set_objective_status(status)
+
+
 func _check_survival_escape_complete() -> void:
 	var total := _get_survival_escapist_total()
 	if total <= 0:
 		return
+	if not _survival_objectives_complete():
+		return
 	if _survival_goal_escapists.size() >= total:
 		_finish_survival_escape(true)
+
+
+func _survival_objectives_complete() -> bool:
+	if arena == null or not arena.has_method("get_survival_objective_status"):
+		return true
+	var status := arena.call("get_survival_objective_status") as Dictionary
+	return status.get("exit_unlocked", true) as bool
 
 
 func _finish_survival_escape(escapists_won: bool) -> void:
@@ -768,6 +806,7 @@ func _start_survival_wave() -> void:
 	_survival_spawn_step_timer = 0.0
 	var death_pressure := minf(float(_survival_death_count) * 1.5, 10.0)
 	_survival_wave_timer = maxf(Constants.SURVIVAL_WAVE_INTERVAL - death_pressure, 10.0)
+	_apply_survival_zombie_speed()
 
 
 func _spawn_survival_zombie() -> void:
@@ -791,9 +830,17 @@ func _get_survival_zombie_spawn(index: int) -> Vector2:
 
 
 func _get_survival_zombie_speed() -> float:
+	var wave_bonus := maxf(float(_survival_wave_number - 1), 0.0) * Constants.SURVIVAL_ZOMBIE_SPEED_PER_WAVE
 	return Constants.SURVIVAL_ZOMBIE_SPEED \
-		+ float(_survival_wave_number) * 1.25 \
+		+ wave_bonus \
 		+ float(_survival_death_count) * Constants.SURVIVAL_ZOMBIE_SPEED_PER_DEATH
+
+
+func _apply_survival_zombie_speed() -> void:
+	var updated_speed := _get_survival_zombie_speed()
+	for zombie in _survival_zombies:
+		if is_instance_valid(zombie):
+			zombie.set("move_speed", updated_speed)
 
 
 func _get_survival_zombie_alive_count() -> int:
@@ -827,18 +874,100 @@ func _on_survival_zombie_caught(escapist: Escapist, _zombie: Node) -> void:
 		return
 	_survival_death_count += 1
 	_survival_goal_escapists.erase(escapist.player_index)
+	escapist.set_meta("survival_safe_zone", false)
 	escapist.notify_trap_status("ZOMBIE", Color(0.60, 1.0, 0.42), 0.9)
+	if arena and arena.has_method("drop_survival_keys_for_escapist"):
+		arena.call("drop_survival_keys_for_escapist", escapist)
 	escapist.respawn()
 	for zombie in _survival_zombies:
 		if is_instance_valid(zombie) and zombie.has_method("release_if_attached_to"):
 			zombie.call("release_if_attached_to", escapist)
 	_survival_wave_timer = maxf(_survival_wave_timer - 3.0, 4.0)
-	var updated_speed := _get_survival_zombie_speed()
-	for zombie in _survival_zombies:
-		if is_instance_valid(zombie):
-			zombie.set("move_speed", updated_speed)
+	_apply_survival_zombie_speed()
 	_update_survival_exit_hud()
 	_update_survival_wave_hud()
+
+
+func _on_survival_escapist_respawning(escapist: Escapist, death_position: Vector2) -> void:
+	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
+		return
+	_survival_goal_escapists.erase(escapist.player_index)
+	escapist.set_meta("survival_safe_zone", false)
+	if arena and arena.has_method("drop_survival_keys_for_escapist_at"):
+		arena.call("drop_survival_keys_for_escapist_at", escapist, death_position)
+	if _survival_jail_enabled():
+		_prepare_survival_escapist_jail_respawn(escapist)
+		call_deferred("_lock_survival_jailed_escapist", escapist)
+
+
+func _on_survival_escapist_died(escapist: Escapist) -> void:
+	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
+		return
+	_survival_goal_escapists.erase(escapist.player_index)
+	escapist.set_meta("survival_safe_zone", false)
+	if arena and arena.has_method("drop_survival_keys_for_escapist"):
+		arena.call("drop_survival_keys_for_escapist", escapist)
+	if _survival_jail_enabled():
+		_prepare_survival_escapist_jail_respawn(escapist)
+	call_deferred("_revive_survival_dead_escapist", escapist)
+
+
+func _survival_jail_enabled() -> bool:
+	return _get_survival_escapist_total() > 1
+
+
+func _prepare_survival_escapist_jail_respawn(escapist: Escapist) -> void:
+	if arena == null or not arena.has_method("get_survival_jail_spawn_position"):
+		return
+	escapist.spawn_position = arena.call("get_survival_jail_spawn_position") as Vector2
+	escapist.set_meta("survival_jailed", true)
+
+
+func _revive_survival_dead_escapist(escapist: Escapist) -> void:
+	if not is_instance_valid(escapist) or not escapist.is_dead:
+		return
+	if escapist.has_method("revive_from_death_at_spawn"):
+		escapist.call("revive_from_death_at_spawn")
+	if escapist.get_meta("survival_jailed", false) as bool:
+		_lock_survival_jailed_escapist(escapist)
+
+
+func _lock_survival_jailed_escapist(escapist: Escapist) -> void:
+	if not is_instance_valid(escapist) or not (escapist.get_meta("survival_jailed", false) as bool):
+		return
+	_survival_jailed_escapists[escapist.player_index] = escapist
+	escapist.input_locked = true
+	if escapist.movement:
+		escapist.movement.freeze()
+	escapist.notify_trap_status("CARCEL", Color(0.45, 0.85, 1.0), 0.9)
+	_update_survival_jail_state()
+
+
+func _on_survival_jail_release_completed(_rescuer: Escapist) -> void:
+	for player_index in _survival_jailed_escapists.keys():
+		var esc := _survival_jailed_escapists[player_index] as Escapist
+		if not is_instance_valid(esc):
+			_survival_jailed_escapists.erase(player_index)
+			continue
+		_release_survival_jailed_escapist(esc)
+		break
+	_update_survival_jail_state()
+
+
+func _release_survival_jailed_escapist(escapist: Escapist) -> void:
+	_survival_jailed_escapists.erase(escapist.player_index)
+	escapist.set_meta("survival_jailed", false)
+	if arena and arena.has_method("get_survival_jail_release_position"):
+		escapist.global_position = arena.call("get_survival_jail_release_position") as Vector2
+	escapist.input_locked = false
+	if escapist.movement:
+		escapist.movement.unfreeze()
+	escapist.notify_trap_status("LIBRE", Color(0.45, 1.0, 0.72), 0.9)
+
+
+func _update_survival_jail_state() -> void:
+	if arena and arena.has_method("set_survival_jail_has_prisoner"):
+		arena.call("set_survival_jail_has_prisoner", not _survival_jailed_escapists.is_empty())
 
 
 func _set_survival_zombies_active(active: bool) -> void:
@@ -866,6 +995,7 @@ func _spawn_characters() -> void:
 	_cleanup_round()
 
 	var escapist_idx := 0
+	var map_bounds := _get_character_map_bounds()
 
 	for pi in _active_player_indices:
 		var t: Enums.Team = GameManager.get_player_team(pi)
@@ -878,6 +1008,7 @@ func _spawn_characters() -> void:
 			esc.escapist_animal = GameManager.get_player_escapist_animal(pi)
 			esc.player_color = Enums.escapist_animal_color(esc.escapist_animal)
 			esc.position = arena.get_spawn(escapist_idx)
+			esc.set_meta("map_bounds", map_bounds)
 			esc.aim_direction = Vector2.RIGHT
 			if pi >= 100:
 				esc.configure_official_route_bot(_build_official_escapist_bot_route(esc.position))
@@ -894,6 +1025,7 @@ func _spawn_characters() -> void:
 			trapper.player_color = Enums.role_color(Enums.Role.TRAPPER)
 			trapper.trapper_character = GameManager.get_player_character(pi)
 			trapper.position = arena.get_map_center()
+			trapper.set_meta("map_bounds", map_bounds)
 			trapper.setup(arena.get_map_size())
 			if pi >= 100:
 				_configure_official_trapper_bot(trapper)
@@ -906,6 +1038,7 @@ func _spawn_survival_characters() -> void:
 	_cleanup_round()
 	var escapist_idx := 0
 	var trapper_idx := 0
+	var map_bounds := _get_character_map_bounds()
 
 	for pi in _active_player_indices:
 		var t: Enums.Team = GameManager.get_player_team(pi)
@@ -918,9 +1051,16 @@ func _spawn_survival_characters() -> void:
 			esc.escapist_animal = GameManager.get_player_escapist_animal(pi)
 			esc.player_color = Enums.escapist_animal_color(esc.escapist_animal)
 			esc.position = _get_survival_escapist_spawn(escapist_idx)
+			esc.set_meta("map_bounds", map_bounds)
+			esc.set_meta("survival_safe_zone", false)
+			esc.set_meta("survival_jailed", false)
 			esc.spawn_position = esc.position
 			esc.aim_direction = Vector2.RIGHT
 			escapist_idx += 1
+			if pi >= 100 and not _survival_bots_static() and esc.has_method("configure_survival_objective_bot"):
+				esc.call("configure_survival_objective_bot", _build_survival_escapist_bot_route(esc.position, escapist_idx - 1))
+			esc.respawning.connect(_on_survival_escapist_respawning)
+			esc.died.connect(_on_survival_escapist_died)
 			character_container.add_child(esc)
 			characters.append(esc)
 			GameManager.register_player_character(pi, esc)
@@ -931,8 +1071,11 @@ func _spawn_survival_characters() -> void:
 			trapper.trapper_character = GameManager.get_player_character(pi)
 			trapper.player_color = Enums.trapper_character_color(trapper.trapper_character)
 			trapper.position = _get_survival_trapper_spawn(trapper_idx)
+			trapper.set_meta("map_bounds", map_bounds)
 			trapper.aim_direction = Vector2.LEFT
 			trapper_idx += 1
+			if pi >= 100 and not _survival_bots_static() and trapper.has_method("configure_survival_bot"):
+				trapper.call("configure_survival_bot")
 			character_container.add_child(trapper)
 			characters.append(trapper)
 			GameManager.register_player_character(pi, trapper)
@@ -950,6 +1093,49 @@ func _get_survival_trapper_spawn(index: int) -> Vector2:
 	if index < spawns.size():
 		return spawns[index] as Vector2
 	return arena.get_map_center() if arena else Vector2.ZERO
+
+
+func _get_character_map_bounds() -> Rect2:
+	if arena == null:
+		return Rect2(Vector2.ZERO, Vector2.ZERO)
+	return Rect2(Vector2.ZERO, arena.get_map_size()).grow(-Constants.CHARACTER_RADIUS - 2.0)
+
+
+func _get_survival_format_size() -> int:
+	var role_max := maxi(_get_survival_escapist_total(), _get_survival_trapper_total())
+	return clampi(maxi(role_max, 1), 1, 4)
+
+
+func _survival_bots_static() -> bool:
+	return GameManager.settings_overrides.get(&"survival_static_bots", true) as bool
+
+
+func _apply_survival_bot_static_setting() -> void:
+	if not GameManager.is_survival_context():
+		return
+	var make_static := _survival_bots_static()
+	var escapist_bot_order := 0
+	for c in characters:
+		if not is_instance_valid(c) or not c is BaseCharacter:
+			continue
+		var character := c as BaseCharacter
+		if character.player_index < 100:
+			continue
+		if c is Escapist:
+			var esc := c as Escapist
+			if make_static:
+				if esc.has_method("set_survival_bot_static"):
+					esc.call("set_survival_bot_static", true)
+			elif esc.has_method("configure_survival_objective_bot"):
+				esc.call("configure_survival_objective_bot",
+					_build_survival_escapist_bot_route(esc.global_position, escapist_bot_order))
+			escapist_bot_order += 1
+		elif character.role == Enums.Role.TRAPPER:
+			if make_static:
+				if c.has_method("set_survival_bot_static"):
+					c.call("set_survival_bot_static", true)
+			elif c.has_method("configure_survival_bot"):
+				c.call("configure_survival_bot")
 
 
 func _get_survival_escapist_total() -> int:
@@ -1003,6 +1189,82 @@ func _build_official_escapist_bot_route(spawn_position: Vector2) -> Array[Vector
 		arena.get_goal_center(),
 	])
 	return route
+
+
+func _build_survival_escapist_bot_route(spawn_position: Vector2, bot_order: int) -> Array[Dictionary]:
+	var route: Array[Dictionary] = []
+	_add_survival_bot_waypoint(route, spawn_position + _scale_survival_route_point(Vector2(90.0, 0.0)))
+	var locks: Array = _survival_map_data.get("survival_locks", []) as Array
+	if locks.is_empty():
+		if arena:
+			_add_survival_bot_waypoint(route, arena.get_goal_center())
+		return route
+	var lock_count := locks.size()
+	for offset in range(lock_count):
+		var lock_def := locks[(bot_order + offset) % lock_count] as Dictionary
+		_add_survival_bot_lock_route(route, lock_def)
+	if arena:
+		_add_survival_bot_waypoint(route, arena.get_goal_center())
+	return route
+
+
+func _add_survival_bot_lock_route(route: Array[Dictionary], lock_def: Dictionary) -> void:
+	var lock_id := lock_def.get("id", "") as String
+	var key_rect: Rect2 = lock_def.get("key_rect", Rect2()) as Rect2
+	var gate_rect: Rect2 = lock_def.get("gate_rect", Rect2()) as Rect2
+	var button_rect: Rect2 = lock_def.get("button_rect", Rect2()) as Rect2
+	if key_rect.size.x <= 0.0 or gate_rect.size.x <= 0.0:
+		return
+	_add_survival_bot_approach_to_key(route, lock_id)
+	_add_survival_bot_waypoint(route, key_rect.get_center(), 3.25, 32.0)
+	_add_survival_bot_approach_to_gate(route, lock_id)
+	_add_survival_bot_waypoint(route, gate_rect.get_center(), 3.25, 58.0)
+	if button_rect.size.x > 0.0:
+		_add_survival_bot_waypoint(route, button_rect.get_center(), 0.35, 24.0)
+
+
+func _add_survival_bot_approach_to_key(route: Array[Dictionary], lock_id: String) -> void:
+	match lock_id:
+		"yellow":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(210.0, 430.0)))
+		"red":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(455.0, 430.0)))
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 430.0)))
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1110.0, 420.0)))
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1110.0, 210.0)))
+		"blue":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 760.0)))
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1265.0, 760.0)))
+		_:
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(760.0, 430.0)))
+
+
+func _add_survival_bot_approach_to_gate(route: Array[Dictionary], lock_id: String) -> void:
+	match lock_id:
+		"blue":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 430.0)))
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(425.0, 430.0)))
+		"red":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 760.0)))
+		"yellow":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 430.0)))
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1265.0, 430.0)))
+		_:
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(760.0, 430.0)))
+
+
+func _scale_survival_route_point(point: Vector2) -> Vector2:
+	var scale: float = _survival_map_data.get("survival_team_scale", 1.0) as float
+	return point * scale
+
+
+func _add_survival_bot_waypoint(route: Array[Dictionary], position: Vector2, hold_time: float = 0.0,
+		arrival_radius: float = 24.0) -> void:
+	route.append({
+		"position": position,
+		"hold_time": hold_time,
+		"arrival_radius": arrival_radius,
+	})
 
 
 func _configure_official_trapper_bot(trapper: Trapper) -> void:
@@ -1402,7 +1664,7 @@ func _process(delta: float) -> void:
 	if state == Enums.GameState.SURVIVAL:
 		_update_survival_escape(delta)
 		_update_survival_waves(delta)
-		_check_survival_return_input()
+		_check_pause_input()
 		return
 
 	if state == Enums.GameState.OBSERVATION \
@@ -1590,6 +1852,9 @@ func _resume_from_pause() -> void:
 
 
 func _restart_current_round() -> void:
+	if GameManager.is_survival_context():
+		_restart_survival_escape_session()
+		return
 	if GameManager.practice_mode:
 		return
 	get_tree().paused = false
@@ -1598,6 +1863,19 @@ func _restart_current_round() -> void:
 	GameManager.restart_current_round()
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
+
+
+func _restart_survival_escape_session() -> void:
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	_hide_survival_hud()
+	_start_survival_escape_session()
 
 
 func _on_practice_obstacles_toggled(enabled: bool) -> void:
@@ -1755,6 +2033,11 @@ func _clear_practice_bots() -> void:
 
 
 func _reset_to_team_setup() -> void:
+	if GameManager.is_survival_context() or _is_survival_flow:
+		_start_survival_escape_setup()
+		_prime_start_button_state()
+		InputManager.suppress_edge_detection(3)
+		return
 	get_tree().paused = false
 	_clear_pause_menu()
 	GameManager.reset_match()
@@ -1797,6 +2080,7 @@ func _open_settings() -> void:
 	ui_layer.move_child(settings_menu, ui_layer.get_child_count() - 1)
 	if get_tree().paused or GameManager.current_state == Enums.GameState.PAUSED:
 		_hide_pause_menu_behind_subscreen()
+	settings_menu.set_survival_context(_is_survival_flow or GameManager.is_survival_context())
 	push_view(settings_menu)
 	settings_menu.open()
 
@@ -1811,10 +2095,21 @@ func _on_setting_changed(key: String, value: Variant) -> void:
 	match key:
 		"bot_fill":
 			team_setup.auto_fill_bots = (int(value) == 0)  # 0 = "On"
+			if survival_escape_setup:
+				survival_escape_setup.auto_fill_bots = (int(value) == 0)
+				survival_escape_setup.queue_redraw()
 		"bot_ai":
 			GameManager.settings_overrides[&"bot_ai"] = (int(value) == 1)  # 1 = "On"
+		"survival_static_bots":
+			GameManager.settings_overrides[&"survival_static_bots"] = (int(value) == 0)  # 0 = "On"
+			_apply_survival_bot_static_setting()
 		"hunt_duration":
 			GameManager.settings_overrides[&"hunt_duration"] = value
+		"survival_escape_duration":
+			GameManager.settings_overrides[&"survival_escape_duration"] = value
+			if GameManager.is_survival_context():
+				_survival_time_total = float(value)
+				_survival_time_remaining = minf(_survival_time_remaining, _survival_time_total)
 		"observation_duration":
 			GameManager.settings_overrides[&"observation_duration"] = value
 		"hunt_countdown_duration":
@@ -1823,6 +2118,8 @@ func _on_setting_changed(key: String, value: Variant) -> void:
 			GameManager.settings_overrides[&"score_to_win"] = value
 		"team_size":
 			GameManager.settings_overrides[&"team_size"] = value
+			if survival_escape_setup:
+				survival_escape_setup.queue_redraw()
 		"escapist_speed":
 			GameManager.settings_overrides[&"escapist_speed"] = value
 		"trapper_speed":

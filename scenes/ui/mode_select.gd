@@ -10,11 +10,12 @@ signal back_requested
 var input_blocked: bool = false
 
 var _selected_index: int = 0
-var _nav_cooldown: float = 0.0
+var _nav_axis_locked: bool = false
 var _prev_keyboard_confirm: bool = false
 
-const NAV_COOLDOWN: float = 0.2
-const OPTIONS: Array[String] = ["Partida oficial", "Modo práctica", "Survival Escape", "Cómo jugar"]
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
+const OPTIONS: Array[String] = ["Survival Escape", "Partida oficial", "Modo práctica", "Cómo jugar"]
 
 
 func _ready() -> void:
@@ -23,25 +24,44 @@ func _ready() -> void:
 
 func open() -> void:
 	_selected_index = 0
-	_nav_cooldown = 0.0
+	_nav_axis_locked = _is_any_navigation_axis_active()
 	_prev_keyboard_confirm = Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
 	show()
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func _is_any_navigation_axis_active() -> bool:
+	for device_id: int in Input.get_connected_joypads():
+		if absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE \
+				or absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)) > NAV_AXIS_RELEASE:
+			return true
+	return false
+
+
+func _process(_delta: float) -> void:
 	if not visible or input_blocked:
 		return
 
-	_nav_cooldown = maxf(_nav_cooldown - delta, 0.0)
-
+	var axis_direction := 0
+	var axis_neutral := true
 	for device_id: int in Input.get_connected_joypads():
 		var move_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
 		var move_y := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_Y)
-		if _nav_cooldown <= 0.0 and (absf(move_x) > 0.5 or absf(move_y) > 0.5):
-			var direction := 1 if move_x > 0.5 or move_y > 0.5 else -1
-			_selected_index = (_selected_index + direction + OPTIONS.size()) % OPTIONS.size()
-			_nav_cooldown = NAV_COOLDOWN
+		var abs_x := absf(move_x)
+		var abs_y := absf(move_y)
+		if abs_x > NAV_AXIS_RELEASE or abs_y > NAV_AXIS_RELEASE:
+			axis_neutral = false
+		if not _nav_axis_locked and axis_direction == 0:
+			if abs_x >= abs_y:
+				if move_x > NAV_AXIS_THRESHOLD:
+					axis_direction = 1
+				elif move_x < -NAV_AXIS_THRESHOLD:
+					axis_direction = -1
+			else:
+				if move_y > NAV_AXIS_THRESHOLD:
+					axis_direction = 1
+				elif move_y < -NAV_AXIS_THRESHOLD:
+					axis_direction = -1
 
 		if InputManager.is_menu_confirm_just_pressed(device_id):
 			_confirm_selection()
@@ -49,6 +69,12 @@ func _process(delta: float) -> void:
 		if InputManager.is_menu_back_just_pressed(device_id):
 			back_requested.emit()
 			return
+
+	if _nav_axis_locked and axis_neutral:
+		_nav_axis_locked = false
+	if not _nav_axis_locked and axis_direction != 0:
+		_selected_index = (_selected_index + axis_direction + OPTIONS.size()) % OPTIONS.size()
+		_nav_axis_locked = true
 
 	var keyboard_confirm := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
 	if keyboard_confirm and not _prev_keyboard_confirm:
@@ -62,11 +88,11 @@ func _process(delta: float) -> void:
 func _confirm_selection() -> void:
 	match _selected_index:
 		0:
-			official_requested.emit()
-		1:
-			practice_requested.emit()
-		2:
 			survival_requested.emit()
+		1:
+			official_requested.emit()
+		2:
+			practice_requested.emit()
 		_:
 			rules_requested.emit()
 
@@ -85,7 +111,7 @@ func _draw() -> void:
 	draw_string(font, Vector2(cx - title_width / 2.0, cy - 150.0),
 		title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, Color.WHITE)
 
-	var sub := "Juega una partida, entrena libremente, prueba survival o revisa las reglas."
+	var sub := "Prueba survival, juega una partida oficial, entrena libremente o revisa las reglas."
 	var sub_width := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 	draw_string(font, Vector2(cx - sub_width / 2.0, cy - 112.0),
 		sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.65, 0.65, 0.65))
@@ -100,7 +126,7 @@ func _draw() -> void:
 			Vector2(option_w, option_h))
 		var selected := i == _selected_index
 		var is_help := i == 3
-		var is_survival := i == 2
+		var is_survival := i == 0
 		var border_color := Color.YELLOW if selected else Color(0.45, 0.45, 0.45)
 		var bg_color := Color(0.16, 0.16, 0.16) if selected else Color(0.1, 0.1, 0.1)
 		if is_help and not selected:
@@ -128,8 +154,10 @@ func _draw() -> void:
 
 		var detail := "Equipos, puntaje, rondas"
 		if i == 1:
-			detail = "Sala libre, sin puntaje"
+			detail = "Equipos, puntaje, rondas"
 		elif i == 2:
+			detail = "Sala libre, sin puntaje"
+		elif i == 0:
 			detail = "Roles fijos y oleadas"
 		elif i == 3:
 			detail = "Reglas, puntaje, habilidades"

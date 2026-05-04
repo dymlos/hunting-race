@@ -8,20 +8,21 @@ var input_blocked: bool = false
 
 var _player_joined: Dictionary = {}
 var _player_roles: Dictionary = {}
-var _nav_cooldowns: Dictionary = {}
+var _nav_axis_locks: Dictionary = {}
 
-const NAV_COOLDOWN: float = 0.2
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 
 
 func setup() -> void:
 	_player_joined.clear()
 	_player_roles.clear()
-	_nav_cooldowns.clear()
+	_nav_axis_locks.clear()
 	show()
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not visible or input_blocked:
 		queue_redraw()
 		return
@@ -34,28 +35,30 @@ func _process(delta: float) -> void:
 	for device_id: int in stale_devices:
 		_player_joined.erase(device_id)
 		_player_roles.erase(device_id)
-		_nav_cooldowns.erase(device_id)
-
-	for device_id: int in _nav_cooldowns:
-		_nav_cooldowns[device_id] = maxf(0.0, _nav_cooldowns[device_id] - delta)
+		_nav_axis_locks.erase(device_id)
 
 	var joined_this_frame := false
 	for device_id: int in connected_pads:
+		if not _nav_axis_locks.has(device_id):
+			_nav_axis_locks[device_id] = absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE
+
 		if _player_joined.get(device_id, false):
 			if InputManager.is_menu_back_just_pressed(device_id):
 				back_requested.emit()
 				return
 
-			if _nav_cooldowns.get(device_id, 0.0) <= 0.0:
-				var move_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-				if absf(move_x) > 0.5:
+			var move_x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
+			if _nav_axis_locks.get(device_id, false):
+				if absf(move_x) <= NAV_AXIS_RELEASE:
+					_nav_axis_locks[device_id] = false
+			else:
+				if absf(move_x) > NAV_AXIS_THRESHOLD:
 					_toggle_role(device_id)
-					_nav_cooldowns[device_id] = NAV_COOLDOWN
+					_nav_axis_locks[device_id] = true
 		else:
 			if InputManager.is_menu_confirm_just_pressed(device_id):
 				_player_joined[device_id] = true
 				_player_roles[device_id] = Enums.Role.ESCAPIST
-				_nav_cooldowns[device_id] = NAV_COOLDOWN
 				joined_this_frame = true
 			elif InputManager.is_menu_back_just_pressed(device_id):
 				back_requested.emit()

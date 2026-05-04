@@ -8,10 +8,11 @@ signal back_requested
 
 var _stages: Array[Dictionary] = []
 var _selected_index: int = 0
-var _nav_cooldown: float = 0.0
+var _nav_axis_locked: bool = false
 var input_blocked: bool = false
 
-const NAV_COOLDOWN: float = 0.2
+const NAV_AXIS_THRESHOLD: float = 0.84
+const NAV_AXIS_RELEASE: float = 0.42
 const LOCKED_STAGE_NAMES: Array[String] = ["Jardín tóxico", "Madriguera mecánica"]
 const LOCKED_STAGE_COLORS: Array[Color] = [
 	Color(0.24, 0.78, 0.34),
@@ -22,31 +23,43 @@ const LOCKED_STAGE_COLORS: Array[Color] = [
 func setup() -> void:
 	_stages = MapData.get_all()
 	_selected_index = 0
-	_nav_cooldown = 0.0
+	_nav_axis_locked = _is_any_assigned_navigation_axis_active()
 	show()
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func _is_any_assigned_navigation_axis_active() -> bool:
+	for device_id: int in Input.get_connected_joypads():
+		if not InputManager.is_assigned_device(device_id):
+			continue
+		if absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE:
+			return true
+	return false
+
+
+func _process(_delta: float) -> void:
 	if not visible or input_blocked:
 		queue_redraw()
 		return
-
-	_nav_cooldown = maxf(0.0, _nav_cooldown - delta)
+	if _stages.is_empty():
+		queue_redraw()
+		return
 
 	var pads := Input.get_connected_joypads()
+	var axis_direction := 0
+	var axis_neutral := true
 	for device_id: int in pads:
 		if not InputManager.is_assigned_device(device_id):
 			continue
 
-		if _nav_cooldown <= 0.0:
-			var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
-			if x > 0.5:
-				_selected_index = (_selected_index + 1) % _stages.size()
-				_nav_cooldown = NAV_COOLDOWN
-			elif x < -0.5:
-				_selected_index = (_selected_index - 1 + _stages.size()) % _stages.size()
-				_nav_cooldown = NAV_COOLDOWN
+		var x := Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)
+		if absf(x) > NAV_AXIS_RELEASE:
+			axis_neutral = false
+		if not _nav_axis_locked and axis_direction == 0:
+			if x > NAV_AXIS_THRESHOLD:
+				axis_direction = 1
+			elif x < -NAV_AXIS_THRESHOLD:
+				axis_direction = -1
 
 		if InputManager.is_menu_confirm_just_pressed(device_id):
 			stage_selected.emit(_selected_index)
@@ -55,6 +68,12 @@ func _process(delta: float) -> void:
 		if InputManager.is_menu_back_just_pressed(device_id):
 			back_requested.emit()
 			return
+
+	if _nav_axis_locked and axis_neutral:
+		_nav_axis_locked = false
+	if not _nav_axis_locked and axis_direction != 0:
+		_selected_index = (_selected_index + axis_direction + _stages.size()) % _stages.size()
+		_nav_axis_locked = true
 
 	queue_redraw()
 
