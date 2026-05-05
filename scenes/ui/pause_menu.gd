@@ -10,6 +10,8 @@ signal practice_bots_toggled(enabled: bool)
 signal how_to_play_requested
 signal reset_requested
 signal round_reset_requested
+signal next_survival_map_requested
+signal survival_map_requested(map_index: int)
 
 var input_blocked: bool = false
 
@@ -21,7 +23,8 @@ const NAV_AXIS_THRESHOLD: float = 0.84
 const NAV_AXIS_RELEASE: float = 0.42
 const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Restart Round", "Practice Mode", "Return to Setup"]
 const PRACTICE_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
-const SURVIVAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Cooldowns", "Restart Survival", "Return to Survival Setup"]
+const SURVIVAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Cooldowns", "Next Survival Map", "Restart Survival", "Return to Survival Setup"]
+const SURVIVAL_MAP_OPTION_PREFIX: String = "Survival Map "
 
 
 func _ready() -> void:
@@ -172,13 +175,22 @@ func _draw_ability_guide(font: Font, screen: Vector2) -> void:
 
 func _get_options() -> Array[String]:
 	if GameManager.is_survival_context():
-		return SURVIVAL_OPTIONS
+		var options: Array[String] = []
+		for option in SURVIVAL_OPTIONS:
+			options.append(option)
+			if option == "Next Survival Map":
+				for map_index in range(MapData.get_survival_map_count()):
+					options.append("%s%d" % [SURVIVAL_MAP_OPTION_PREFIX, map_index + 1])
+		return options
 	if GameManager.practice_mode:
 		return PRACTICE_OPTIONS
 	return OFFICIAL_OPTIONS
 
 
 func _get_option_label(option: String) -> String:
+	if option.begins_with(SURVIVAL_MAP_OPTION_PREFIX):
+		var map_number := option.substr(SURVIVAL_MAP_OPTION_PREFIX.length()).to_int()
+		return "Ir al mapa %d" % map_number
 	match option:
 		"Cooldowns":
 			var enabled := GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
@@ -201,6 +213,8 @@ func _get_option_label(option: String) -> String:
 			return "Reiniciar ronda"
 		"Restart Survival":
 			return "Reiniciar survival"
+		"Next Survival Map":
+			return "Ir a mapa siguiente"
 		"Practice Mode":
 			return "Modo práctica"
 		"Return to Setup":
@@ -215,6 +229,10 @@ func _get_option_label(option: String) -> String:
 
 
 func _activate_option(option: String) -> void:
+	if option.begins_with(SURVIVAL_MAP_OPTION_PREFIX):
+		var map_number := option.substr(SURVIVAL_MAP_OPTION_PREFIX.length()).to_int()
+		survival_map_requested.emit(maxi(map_number - 1, 0))
+		return
 	match option:
 		"Resume":
 			resume_requested.emit()
@@ -233,6 +251,8 @@ func _activate_option(option: String) -> void:
 			round_reset_requested.emit()
 		"Restart Survival":
 			round_reset_requested.emit()
+		"Next Survival Map":
+			next_survival_map_requested.emit()
 		"Practice Obstacles":
 			_toggle_practice_obstacles()
 		"Practice Bots":

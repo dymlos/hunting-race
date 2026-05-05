@@ -29,6 +29,7 @@ var _survival_opened_gates: Dictionary = {}
 var _survival_pressed_buttons: Dictionary = {}
 var _survival_key_progress: Dictionary = {}
 var _survival_gate_progress: Dictionary = {}
+var _survival_reveal_objectives: bool = false
 var _survival_jail_bodies: Array[StaticBody2D] = []
 var _survival_jail_area: Area2D = null
 var _survival_jail_rect: Rect2 = Rect2()
@@ -172,6 +173,7 @@ func _clear_survival_objectives() -> void:
 	_survival_pressed_buttons.clear()
 	_survival_key_progress.clear()
 	_survival_gate_progress.clear()
+	_survival_reveal_objectives = false
 	for body in _survival_jail_bodies:
 		if is_instance_valid(body):
 			body.queue_free()
@@ -346,6 +348,11 @@ func get_survival_objective_status() -> Dictionary:
 		"buttons_total": total,
 		"exit_unlocked": _survival_exit_unlocked,
 	}
+
+
+func reveal_survival_objectives() -> void:
+	_survival_reveal_objectives = true
+	queue_redraw()
 
 
 func get_survival_jail_spawn_position() -> Vector2:
@@ -1804,8 +1811,8 @@ func _draw_survival_objectives(time: float) -> void:
 		var key_is_available := not _survival_key_holders.has(lock_id) and not _survival_opened_gates.has(lock_id)
 		if key_rect.size.x > 0.0 and key_rect.size.y > 0.0 and key_is_available:
 			var hidden: bool = lock_def.get("key_hidden", false) as bool
-			if not hidden or _survival_key_dropped.has(lock_id):
-				_draw_survival_key_visual(key_rect, color, false, time)
+			if _survival_reveal_objectives or not hidden or _survival_key_dropped.has(lock_id):
+				_draw_survival_key_visual(key_rect, color, hidden and _survival_reveal_objectives, time)
 			var key_progress := _get_survival_progress_ratio(_survival_key_progress, lock_id)
 			if key_progress > 0.0:
 				_draw_survival_progress_bar(

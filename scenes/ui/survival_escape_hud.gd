@@ -6,6 +6,9 @@ var input_blocked: bool = false
 var _escapist_total: int = 0
 var _trapper_total: int = 0
 var _escapists_in_exit: int = 0
+var _escapists_required_in_exit: int = 0
+var _exit_hold_time: float = 0.0
+var _exit_hold_duration: float = 0.0
 var _time_total: float = Constants.SURVIVAL_ESCAPE_DURATION
 var _time_remaining: float = Constants.SURVIVAL_ESCAPE_DURATION
 var _wave_number: int = 0
@@ -17,15 +20,26 @@ var _objective_keys_total: int = 0
 var _objective_buttons_pressed: int = 0
 var _objective_buttons_total: int = 0
 var _objective_exit_unlocked: bool = true
+var _map_name: String = "Mapa basico"
+var _map_number: int = 1
+var _map_total: int = 1
 var _result_text: String = ""
 var _result_hint: String = ""
+var _result_footer: String = "Start continuar"
 var _result_color: Color = Color.WHITE
+var _transition_text: String = ""
+var _transition_subtext: String = ""
+var _transition_timer: float = 0.0
+var _transition_duration: float = 0.0
 
 
 func open(escapist_total: int, trapper_total: int, duration: float = Constants.SURVIVAL_ESCAPE_DURATION) -> void:
 	_escapist_total = escapist_total
 	_trapper_total = trapper_total
 	_escapists_in_exit = 0
+	_escapists_required_in_exit = escapist_total
+	_exit_hold_time = 0.0
+	_exit_hold_duration = 0.0
 	_time_total = maxf(duration, 1.0)
 	_time_remaining = _time_total
 	_wave_number = 0
@@ -39,13 +53,28 @@ func open(escapist_total: int, trapper_total: int, duration: float = Constants.S
 	_objective_exit_unlocked = true
 	_result_text = ""
 	_result_hint = ""
+	_result_footer = "Start continuar"
 	_result_color = Color.WHITE
+	_transition_text = ""
+	_transition_subtext = ""
+	_transition_timer = 0.0
+	_transition_duration = 0.0
 	show()
 	queue_redraw()
 
 
-func set_exit_count(value: int) -> void:
+func set_map_info(map_name: String, map_number: int, map_total: int) -> void:
+	_map_name = map_name
+	_map_number = maxi(map_number, 1)
+	_map_total = maxi(map_total, _map_number)
+	queue_redraw()
+
+
+func set_exit_count(value: int, required: int = -1, hold_time: float = 0.0, hold_duration: float = 0.0) -> void:
 	_escapists_in_exit = clampi(value, 0, maxi(_escapist_total, 0))
+	_escapists_required_in_exit = clampi(required if required >= 0 else _escapist_total, 0, maxi(_escapist_total, 0))
+	_exit_hold_time = maxf(hold_time, 0.0)
+	_exit_hold_duration = maxf(hold_duration, 0.0)
 	queue_redraw()
 
 
@@ -71,14 +100,25 @@ func set_objective_status(status: Dictionary) -> void:
 	queue_redraw()
 
 
-func show_result(text: String, color: Color, hint: String = "") -> void:
+func show_result(text: String, color: Color, hint: String = "", footer: String = "Start continuar") -> void:
 	_result_text = text
 	_result_hint = hint
+	_result_footer = footer
 	_result_color = color
 	queue_redraw()
 
 
-func _process(_delta: float) -> void:
+func start_map_transition(from_map: int, to_map: int, next_map_name: String, duration: float) -> void:
+	_transition_text = "MAPA %d COMPLETADO" % from_map
+	_transition_subtext = "Entrando a mapa %d/%d - %s" % [to_map, _map_total, next_map_name]
+	_transition_duration = maxf(duration, 0.1)
+	_transition_timer = _transition_duration
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if _transition_timer > 0.0:
+		_transition_timer = maxf(_transition_timer - delta, 0.0)
 	if visible:
 		queue_redraw()
 
@@ -96,7 +136,7 @@ func _draw() -> void:
 	_draw_panel(Rect2(18.0, 18.0, 255.0, 62.0), Color(0.02, 0.035, 0.026, 0.82), Color(0.20, 0.85, 0.48, 0.72), 2.0)
 	draw_string(font, Vector2(34.0, 43.0), "SURVIVAL ESCAPE",
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 21, Color(0.72, 1.0, 0.78))
-	draw_string(font, Vector2(34.0, 66.0), "Mapa basico",
+	draw_string(font, Vector2(34.0, 66.0), "Mapa %d/%d - %s" % [_map_number, _map_total, _map_name],
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.66, 0.70, 0.68))
 
 	var timer_color := Color(1.0, 0.95, 0.18)
@@ -118,7 +158,7 @@ func _draw() -> void:
 	var objective_text := "Todos los escapistas deben entrar juntos en la zona verde antes de que termine el tiempo."
 	if _objective_keys_total > 0:
 		if _objective_exit_unlocked:
-			objective_text = "Puerta verde desbloqueada. Reunan al equipo en la salida."
+			objective_text = "Puerta verde desbloqueada. Mantengan la salida durante 3 segundos."
 		else:
 			objective_text = "Llaves %d/%d | Botones %d/%d | Zona verde segura" % [
 				_objective_keys_collected,
@@ -129,9 +169,12 @@ func _draw() -> void:
 	_draw_centered_text_in_rect(font, objective_text,
 		Rect2(objective_rect.position.x + 104.0, objective_rect.position.y + 6.0, objective_rect.size.x - 116.0, 20.0), 14, Color.WHITE)
 
-	var exit_text := "%d/%d en salida" % [_escapists_in_exit, _escapist_total]
+	var required_total := _escapists_required_in_exit if _escapists_required_in_exit > 0 else _escapist_total
+	var exit_text := "%d/%d en salida" % [_escapists_in_exit, required_total]
 	if _objective_keys_total > 0 and not _objective_exit_unlocked:
 		exit_text = "Segura"
+	elif _exit_hold_duration > 0.0 and _exit_hold_time > 0.0:
+		exit_text = "%.1fs" % maxf(_exit_hold_duration - _exit_hold_time, 0.0)
 	var exit_rect := Rect2(screen.x - 260.0, 18.0, 242.0, 62.0)
 	_draw_panel(exit_rect, Color(0.02, 0.035, 0.026, 0.82), Color(0.20, 0.85, 0.48, 0.76), 2.0)
 	_draw_centered_text_in_rect(font, "SALIDA",
@@ -155,7 +198,8 @@ func _draw() -> void:
 		footer, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.YELLOW)
 
 	if not _result_text.is_empty():
-		var panel_size := Vector2(560.0, 176.0)
+		var hint_lines := _get_result_hint_lines()
+		var panel_size := Vector2(620.0, 176.0 + maxf(0.0, float(hint_lines.size() - 1)) * 23.0)
 		var panel := Rect2(cx - panel_size.x * 0.5, screen.y * 0.5 - panel_size.y * 0.5, panel_size.x, panel_size.y)
 		_draw_panel(panel, Color(0.03, 0.035, 0.032, 0.96), Color(_result_color, 0.92), 2.5)
 		draw_rect(Rect2(panel.position, Vector2(panel.size.x, 6.0)), _result_color)
@@ -164,10 +208,13 @@ func _draw() -> void:
 		var hint := _result_hint
 		if hint.is_empty():
 			hint = "Etapa 4 completada: timer, salida grupal y oleadas de zombies."
-		_draw_centered_text_in_rect(font, hint,
-			Rect2(panel.position.x + 24.0, panel.position.y + 88.0, panel.size.x - 48.0, 24.0), 14, Color(0.78, 0.82, 0.80))
-		_draw_centered_text_in_rect(font, "Select para volver",
-			Rect2(panel.position.x, panel.position.y + 126.0, panel.size.x, 24.0), 16, Color.YELLOW)
+		_draw_centered_multiline_in_rect(font, hint,
+			Rect2(panel.position.x + 24.0, panel.position.y + 84.0, panel.size.x - 48.0, panel.size.y - 128.0), 14, Color(0.78, 0.82, 0.80), 22.0)
+		_draw_centered_text_in_rect(font, _result_footer,
+			Rect2(panel.position.x, panel.end.y - 44.0, panel.size.x, 24.0), 16, Color.YELLOW)
+
+	if _transition_timer > 0.0:
+		_draw_transition_overlay(font, screen)
 
 
 func _draw_panel(rect: Rect2, fill: Color, outline: Color, outline_width: float = 2.0) -> void:
@@ -183,6 +230,41 @@ func _draw_centered_text_in_rect(font: Font, text: String, rect: Rect2, font_siz
 	var shadow := Color(0.0, 0.0, 0.0, 0.72 * color.a)
 	draw_string(font, pos + Vector2(2.0, 2.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, shadow)
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+
+
+func _draw_centered_multiline_in_rect(font: Font, text: String, rect: Rect2, font_size: int, color: Color,
+		line_height: float) -> void:
+	var lines := text.split("\n", false)
+	if lines.is_empty():
+		return
+	var total_h := float(lines.size()) * line_height
+	var start_y := rect.position.y + maxf(0.0, (rect.size.y - total_h) * 0.5)
+	for i in lines.size():
+		_draw_centered_text_in_rect(
+			font,
+			lines[i],
+			Rect2(rect.position.x, start_y + float(i) * line_height, rect.size.x, line_height),
+			font_size,
+			color
+		)
+
+
+func _get_result_hint_lines() -> PackedStringArray:
+	if _result_hint.is_empty():
+		return PackedStringArray()
+	return _result_hint.split("\n", false)
+
+
+func _draw_transition_overlay(font: Font, screen: Vector2) -> void:
+	var progress := 1.0 - clampf(_transition_timer / maxf(_transition_duration, 0.1), 0.0, 1.0)
+	var wave := sin(progress * PI)
+	draw_rect(Rect2(Vector2.ZERO, screen), Color(0.0, 0.0, 0.0, 0.42 + wave * 0.34))
+	var wipe_w := screen.x * clampf(progress, 0.0, 1.0)
+	draw_rect(Rect2(0.0, screen.y * 0.5 - 3.0, wipe_w, 6.0), Color(0.20, 0.95, 0.50, 0.92))
+	_draw_centered_text_in_rect(font, _transition_text,
+		Rect2(0.0, screen.y * 0.5 - 58.0, screen.x, 44.0), 34, Color(0.72, 1.0, 0.78))
+	_draw_centered_text_in_rect(font, _transition_subtext,
+		Rect2(0.0, screen.y * 0.5 + 18.0, screen.x, 28.0), 18, Color.WHITE)
 
 
 func _format_time(seconds: float) -> String:

@@ -13,25 +13,29 @@ var _player_roles: Dictionary = {}
 var _role_cursor: Dictionary = {}
 var _nav_axis_locks: Dictionary = {}
 var _assigned_roles: Dictionary = {}
+var _preferred_player_indices: Dictionary = {}
 var _showing_placeholder: bool = false
 var _message_timer: float = 0.0
 var _message_text: String = ""
 
 const MAX_PLAYERS: int = 4
 const BOT_START_INDEX: int = 100
+const DEFAULT_SEEDED_PLAYER_INDEX: int = 0
 const NAV_AXIS_THRESHOLD: float = 0.84
 const NAV_AXIS_RELEASE: float = 0.42
 
 
-func setup() -> void:
+func setup(seed_device_id: int = -1) -> void:
 	_player_joined.clear()
 	_player_roles.clear()
 	_role_cursor.clear()
 	_nav_axis_locks.clear()
 	_assigned_roles.clear()
+	_preferred_player_indices.clear()
 	_showing_placeholder = false
 	_message_timer = 0.0
 	_message_text = ""
+	_seed_initial_user(seed_device_id)
 	show()
 	queue_redraw()
 
@@ -94,6 +98,7 @@ func _process(delta: float) -> void:
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_B):
 				_player_joined.erase(device_id)
 				_player_roles.erase(device_id)
+				_preferred_player_indices.erase(device_id)
 				continue
 			if InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_A):
 				_player_roles[device_id] = _role_cursor[device_id]
@@ -101,10 +106,31 @@ func _process(delta: float) -> void:
 			if _get_joined_devices().size() >= MAX_PLAYERS:
 				_show_message("Survival Escape permite hasta %d usuarios por ahora." % MAX_PLAYERS)
 				continue
-			_player_joined[device_id] = true
-			_player_roles[device_id] = _role_cursor[device_id]
+			_join_device(device_id, _role_cursor[device_id] as Enums.Role)
 
 	queue_redraw()
+
+
+func _seed_initial_user(preferred_device_id: int = -1) -> void:
+	var devices := Input.get_connected_joypads()
+	if devices.is_empty():
+		return
+	devices.sort()
+	var device_id: int = preferred_device_id
+	if not devices.has(device_id):
+		device_id = devices[0]
+	_join_device(device_id, Enums.Role.ESCAPIST, DEFAULT_SEEDED_PLAYER_INDEX)
+	_nav_axis_locks[device_id] = absf(Input.get_joy_axis(device_id, JOY_AXIS_LEFT_X)) > NAV_AXIS_RELEASE
+
+
+func _join_device(device_id: int, role: Enums.Role, preferred_player_index: int = -1) -> void:
+	_role_cursor[device_id] = role
+	_player_joined[device_id] = true
+	_player_roles[device_id] = role
+	if preferred_player_index >= 0:
+		_preferred_player_indices[device_id] = preferred_player_index
+	else:
+		_preferred_player_indices.erase(device_id)
 
 
 func _process_placeholder_input() -> void:
@@ -132,6 +158,7 @@ func _prune_disconnected_devices() -> void:
 		_player_roles.erase(device_id)
 		_role_cursor.erase(device_id)
 		_nav_axis_locks.erase(device_id)
+		_preferred_player_indices.erase(device_id)
 
 
 func _set_role_cursor(device_id: int, role: Enums.Role) -> void:
@@ -195,20 +222,52 @@ func _get_total_role_count(role: Enums.Role) -> int:
 
 
 func _get_player_number_for_device(device_id: int) -> int:
-	return _get_joined_devices().find(device_id) + 1
+	return _get_preview_player_index_for_device(device_id) + 1
 
 
 func _enter_placeholder() -> void:
 	_assigned_roles.clear()
 	var devices := _get_joined_devices()
+	var preview_indices := _get_preview_player_indices()
 	for player_index in range(8):
 		InputManager.unassign_device(player_index)
-	for i in devices.size():
-		var device_id: int = devices[i]
-		InputManager.assign_device(i, device_id)
-		_assigned_roles[i] = _player_roles.get(device_id, Enums.Role.ESCAPIST)
+	for device_id: int in devices:
+		var player_index: int = preview_indices.get(device_id, 0) as int
+		InputManager.assign_device(player_index, device_id)
+		_assigned_roles[player_index] = _player_roles.get(device_id, Enums.Role.ESCAPIST)
 	_add_survival_bots_to_assignments()
 	_showing_placeholder = true
+
+
+func _get_preview_player_index_for_device(device_id: int) -> int:
+	var preview_indices := _get_preview_player_indices()
+	return preview_indices.get(device_id, _get_joined_devices().find(device_id)) as int
+
+
+func _get_preview_player_indices() -> Dictionary:
+	var preview_indices: Dictionary = {}
+	var used_indices: Dictionary = {}
+	var devices := _get_joined_devices()
+	for device_id: int in devices:
+		var preferred_index: int = _preferred_player_indices.get(device_id, -1) as int
+		if preferred_index < 0 or preferred_index >= MAX_PLAYERS or used_indices.has(preferred_index):
+			continue
+		preview_indices[device_id] = preferred_index
+		used_indices[preferred_index] = true
+	for device_id: int in devices:
+		if preview_indices.has(device_id):
+			continue
+		var player_index := _get_first_free_player_index(used_indices)
+		preview_indices[device_id] = player_index
+		used_indices[player_index] = true
+	return preview_indices
+
+
+func _get_first_free_player_index(used_indices: Dictionary) -> int:
+	for player_index in range(MAX_PLAYERS):
+		if not used_indices.has(player_index):
+			return player_index
+	return MAX_PLAYERS - 1
 
 
 func _add_survival_bots_to_assignments() -> void:

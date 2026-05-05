@@ -597,7 +597,7 @@ func _return_to_spawn_with_death_message() -> void:
 	controls_inverted = false
 	_inversion_timer = 0.0
 	AudioManager.play_effect(&"DeathRespawn")
-	_show_floating_text("¡Moriste!", Color.WHITE, Constants.FLOATING_TEXT_DURATION, 20)
+	_show_floating_text("Fuiste atrapado!", Color.WHITE, Constants.FLOATING_TEXT_DURATION, 20)
 
 
 func _show_floating_text(text: String, text_color: Color, duration: float = Constants.FLOATING_TEXT_DURATION,

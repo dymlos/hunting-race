@@ -128,6 +128,27 @@ func set_survival_context(enabled: bool) -> void:
 	queue_redraw()
 
 
+func set_setting_value(key: String, value: Variant) -> void:
+	for setting: Dictionary in _all_settings:
+		if (setting["key"] as String) != key:
+			continue
+		var type: String = setting["type"] as String
+		match type:
+			"options":
+				var options: Array = setting["options"] as Array
+				setting["value"] = clampi(int(value), 0, options.size() - 1)
+			"int":
+				setting["value"] = clampi(int(value), setting["min"] as int, setting["max"] as int)
+			"number":
+				setting["value"] = clampf(float(value),
+					setting["min_mult"] as float, setting["max_mult"] as float)
+			"volume":
+				setting["value"] = clampi(int(value), setting["min"] as int, setting["max"] as int)
+		_refresh_visible_settings()
+		queue_redraw()
+		return
+
+
 func _is_any_axis_active(axis: int, release_threshold: float) -> bool:
 	for device_id: int in Input.get_connected_joypads():
 		if absf(Input.get_joy_axis(device_id, axis as JoyAxis)) > release_threshold:

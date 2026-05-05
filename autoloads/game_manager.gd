@@ -17,6 +17,7 @@ var escapist_selections: Dictionary = {}       # {player_index: Enums.EscapistAn
 var player_characters: Dictionary = {}         # {player_index: Node2D}
 var settings_overrides: Dictionary = {}        # {StringName: Variant} — from settings menu
 var player_score_history: Dictionary = {}
+var survival_score_records: Array = []
 var _round_stats: Dictionary = {}
 var practice_mode: bool = false
 
@@ -405,6 +406,7 @@ func reset_match() -> void:
 	escapist_team = Enums.Team.TEAM_1
 	player_characters.clear()
 	player_score_history.clear()
+	survival_score_records.clear()
 	_round_stats.clear()
 	_round_start_match_scores = [0, 0]
 	_round_start_player_score_history.clear()
@@ -463,6 +465,14 @@ func start_survival() -> void:
 	_round_stats.clear()
 	player_characters.clear()
 	_change_state(Enums.GameState.SURVIVAL)
+
+
+func set_survival_score_records(records: Array) -> void:
+	survival_score_records = records.duplicate(true)
+
+
+func get_survival_score_records() -> Array:
+	return survival_score_records.duplicate(true)
 
 
 func _change_state(new_state: Enums.GameState) -> void:

@@ -3,7 +3,7 @@ extends Control
 
 signal official_requested
 signal practice_requested
-signal survival_requested
+signal survival_requested(device_id: int)
 signal rules_requested
 signal back_requested
 
@@ -64,7 +64,7 @@ func _process(_delta: float) -> void:
 					axis_direction = -1
 
 		if InputManager.is_menu_confirm_just_pressed(device_id):
-			_confirm_selection()
+			_confirm_selection(device_id)
 			return
 		if InputManager.is_menu_back_just_pressed(device_id):
 			back_requested.emit()
@@ -85,10 +85,10 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-func _confirm_selection() -> void:
+func _confirm_selection(device_id: int = -1) -> void:
 	match _selected_index:
 		0:
-			survival_requested.emit()
+			survival_requested.emit(device_id)
 		1:
 			official_requested.emit()
 		2:

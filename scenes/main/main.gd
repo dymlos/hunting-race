@@ -43,6 +43,14 @@ const PRACTICE_BOT_INDICES := [
 	PRACTICE_OCTOPUS_BOT_INDEX,
 ]
 const GAMEPLAY_TOP_MARGIN: float = 168.0
+const SURVIVAL_DEFAULT_TEAM_SIZE: int = 3
+const SURVIVAL_DEFAULT_BOT_FILL_VALUE: int = 0
+const SURVIVAL_DEFAULT_USER_PLAYER_INDEX: int = 0
+const SURVIVAL_EXIT_HOLD_DURATION: float = 3.0
+const SURVIVAL_MAP_TRANSITION_DURATION: float = 1.25
+const SURVIVAL_RESULT_ADVANCE_DELAY: float = 4.5
+const SURVIVAL_COMPLETION_SCORE_BONUS: int = 10000
+const SURVIVAL_TIME_SCORE_MULTIPLIER: float = 10.0
 
 var arena: Arena
 var characters: Array[Node2D] = []  # Mix of Escapist and Trapper nodes
@@ -90,9 +98,11 @@ var menu_music: MenuMusicPlayer
 var _is_first_round: bool = true  # Tracks if this is the initial pre-game select
 var _is_practice_flow: bool = false
 var _is_survival_flow: bool = false
+var _survival_map_index: int = 0
 var _survival_map_data: Dictionary = {}
 var _survival_goal_escapists: Dictionary = {}
 var _survival_match_finished: bool = false
+var _survival_exit_hold_time: float = 0.0
 var _survival_time_remaining: float = 0.0
 var _survival_time_total: float = Constants.SURVIVAL_ESCAPE_DURATION
 var _survival_zombies: Array[Node2D] = []
@@ -103,6 +113,17 @@ var _survival_spawn_step_timer: float = 0.0
 var _survival_death_count: int = 0
 var _survival_zombie_spawn_index: int = 0
 var _survival_jailed_escapists: Dictionary = {}
+var _survival_carryover_jailed: Dictionary = {}
+var _survival_transition_timer: float = 0.0
+var _survival_transition_target_map_index: int = -1
+var _survival_transition_carryover_jailed: Dictionary = {}
+var _survival_leg_elapsed: float = 0.0
+var _survival_leg_time_budget: float = 0.0
+var _survival_series_records: Array[Dictionary] = []
+var _survival_series_initial_roles: Dictionary = {}
+var _survival_series_leg_index: int = 0
+var _survival_result_auto_advance_timer: float = 0.0
+var _survival_final_series_complete: bool = false
 
 
 func _ready() -> void:
@@ -199,6 +220,8 @@ func _ready() -> void:
 	pause_menu.practice_character_select_requested.connect(_restart_practice_character_select)
 	pause_menu.practice_obstacles_toggled.connect(_on_practice_obstacles_toggled)
 	pause_menu.practice_bots_toggled.connect(_on_practice_bots_toggled)
+	pause_menu.next_survival_map_requested.connect(_go_to_next_survival_map_from_pause)
+	pause_menu.survival_map_requested.connect(_go_to_survival_map_from_pause)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
@@ -367,7 +390,7 @@ func _start_practice_setup() -> void:
 	push_view(practice_setup)
 
 
-func _start_survival_escape_setup() -> void:
+func _start_survival_escape_setup(seed_device_id: int = -1) -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
 	_cleanup_round()
@@ -376,8 +399,10 @@ func _start_survival_escape_setup() -> void:
 	GameManager.reset_match()
 	if not GameManager.settings_overrides.has(&"survival_static_bots"):
 		GameManager.settings_overrides[&"survival_static_bots"] = true
+	_apply_survival_setup_defaults()
 	_is_practice_flow = false
 	_is_survival_flow = true
+	_reset_survival_series_state()
 	if arena:
 		arena.queue_free()
 		arena = null
@@ -390,8 +415,40 @@ func _start_survival_escape_setup() -> void:
 	while not _view_stack.is_empty():
 		pop_view()
 
-	survival_escape_setup.setup()
+	survival_escape_setup.setup(seed_device_id)
 	push_view(survival_escape_setup)
+
+
+func _reset_survival_series_state() -> void:
+	_survival_map_index = 0
+	_survival_leg_elapsed = 0.0
+	_survival_leg_time_budget = 0.0
+	_survival_series_records.clear()
+	_survival_series_initial_roles.clear()
+	_survival_series_leg_index = 0
+	_survival_result_auto_advance_timer = 0.0
+	_survival_final_series_complete = false
+	_survival_transition_timer = 0.0
+	_survival_transition_target_map_index = -1
+	_survival_transition_carryover_jailed.clear()
+	GameManager.set_survival_score_records([])
+
+
+func _apply_survival_setup_defaults() -> void:
+	if not GameManager.settings_overrides.has(&"bot_fill"):
+		GameManager.settings_overrides[&"bot_fill"] = SURVIVAL_DEFAULT_BOT_FILL_VALUE
+	if not GameManager.settings_overrides.has(&"team_size"):
+		GameManager.settings_overrides[&"team_size"] = SURVIVAL_DEFAULT_TEAM_SIZE
+	var bot_fill_value: int = GameManager.settings_overrides.get(
+		&"bot_fill",
+		SURVIVAL_DEFAULT_BOT_FILL_VALUE
+	) as int
+	survival_escape_setup.auto_fill_bots = bot_fill_value == 0
+	settings_menu.set_setting_value("bot_fill", bot_fill_value)
+	settings_menu.set_setting_value("team_size", GameManager.settings_overrides.get(
+		&"team_size",
+		SURVIVAL_DEFAULT_TEAM_SIZE
+	))
 
 
 func _on_practice_ready(team_assignments: Dictionary, role_assignments: Dictionary) -> void:
@@ -407,12 +464,43 @@ func _on_practice_ready(team_assignments: Dictionary, role_assignments: Dictiona
 func _on_survival_escape_ready(role_assignments: Dictionary) -> void:
 	_is_practice_flow = false
 	_is_survival_flow = true
-	var team_assignments: Dictionary = {}
+	_reset_survival_series_state()
+	_survival_series_initial_roles = role_assignments.duplicate()
+	_survival_series_leg_index = 0
+	_apply_survival_role_assignments(role_assignments)
+
+	while not _view_stack.is_empty():
+		pop_view()
+
+	_begin_survival_leg()
+	_start_survival_escape_session()
+
+
+func _apply_survival_role_assignments(role_assignments: Dictionary) -> void:
+	var team_assignments := _build_survival_team_assignments(role_assignments)
 	_active_player_indices.clear()
+	_assign_survival_character_choices(role_assignments)
+	var assignment_indices: Array[int] = []
+	for pi: int in role_assignments:
+		assignment_indices.append(pi)
+	assignment_indices.sort()
+	for pi: int in assignment_indices:
+		_active_player_indices.append(pi)
+	GameManager.set_survival_assignments(team_assignments, role_assignments)
+
+
+func _build_survival_team_assignments(role_assignments: Dictionary) -> Dictionary:
+	var team_assignments: Dictionary = {}
+	for pi: int in role_assignments:
+		var role: Enums.Role = role_assignments[pi] as Enums.Role
+		team_assignments[pi] = Enums.Team.TEAM_1 if role == Enums.Role.ESCAPIST else Enums.Team.TEAM_2
+	return team_assignments
+
+
+func _assign_survival_character_choices(role_assignments: Dictionary) -> void:
 	var escapist_order := 0
 	var trapper_order := 0
 	var escapist_animals: Array[Enums.EscapistAnimal] = [
-		Enums.EscapistAnimal.RABBIT,
 		Enums.EscapistAnimal.RAT,
 		Enums.EscapistAnimal.SQUIRREL,
 		Enums.EscapistAnimal.FLY,
@@ -423,23 +511,47 @@ func _on_survival_escape_ready(role_assignments: Dictionary) -> void:
 		Enums.TrapperCharacter.ESCORPION,
 		Enums.TrapperCharacter.PULPO,
 	]
+	var rabbit_player_index := _get_survival_rabbit_player_index(role_assignments)
+	var assignment_indices: Array[int] = []
 	for pi: int in role_assignments:
+		assignment_indices.append(pi)
+	assignment_indices.sort()
+	for pi: int in assignment_indices:
 		var role: Enums.Role = role_assignments[pi] as Enums.Role
-		team_assignments[pi] = Enums.Team.TEAM_1 if role == Enums.Role.ESCAPIST else Enums.Team.TEAM_2
+		GameManager.escapist_selections.erase(pi)
+		GameManager.character_selections.erase(pi)
 		if role == Enums.Role.ESCAPIST:
-			GameManager.escapist_selections[pi] = escapist_animals[escapist_order % escapist_animals.size()]
-			escapist_order += 1
+			if pi == rabbit_player_index:
+				GameManager.escapist_selections[pi] = Enums.EscapistAnimal.RABBIT
+			else:
+				GameManager.escapist_selections[pi] = escapist_animals[escapist_order % escapist_animals.size()]
+				escapist_order += 1
 		else:
 			GameManager.character_selections[pi] = trapper_characters[trapper_order % trapper_characters.size()]
 			trapper_order += 1
-		_active_player_indices.append(pi)
-	_active_player_indices.sort()
-	GameManager.set_survival_assignments(team_assignments, role_assignments)
 
-	while not _view_stack.is_empty():
-		pop_view()
 
-	_start_survival_escape_session()
+func _begin_survival_leg() -> void:
+	_survival_leg_elapsed = 0.0
+	_survival_leg_time_budget = 0.0
+	_survival_result_auto_advance_timer = 0.0
+	_survival_final_series_complete = false
+	_survival_transition_timer = 0.0
+	_survival_transition_target_map_index = -1
+	_survival_transition_carryover_jailed.clear()
+
+
+func _get_survival_rabbit_player_index(role_assignments: Dictionary) -> int:
+	if (role_assignments.get(SURVIVAL_DEFAULT_USER_PLAYER_INDEX, Enums.Role.NONE) as Enums.Role) == Enums.Role.ESCAPIST:
+		return SURVIVAL_DEFAULT_USER_PLAYER_INDEX
+	var escapist_indices: Array[int] = []
+	for pi: int in role_assignments:
+		if (role_assignments[pi] as Enums.Role) == Enums.Role.ESCAPIST:
+			escapist_indices.append(pi)
+	if escapist_indices.is_empty():
+		return -1
+	escapist_indices.sort()
+	return escapist_indices[0]
 
 
 func _start_team_setup() -> void:
@@ -624,7 +736,8 @@ func _setup_survival_arena() -> void:
 		arena.queue_free()
 	arena = ArenaScene.instantiate() as Arena
 	arena_container.add_child(arena)
-	_survival_map_data = MapData.get_survival_test_map(_get_survival_format_size())
+	_survival_map_index = clampi(_survival_map_index, 0, MapData.get_survival_map_count() - 1)
+	_survival_map_data = MapData.get_survival_map(_survival_map_index, _get_survival_format_size())
 	if not _survival_jail_enabled():
 		_survival_map_data.erase("survival_jail")
 	arena.load_map(_survival_map_data)
@@ -636,17 +749,31 @@ func _setup_survival_arena() -> void:
 	_setup_camera()
 
 
-func _start_survival_escape_session() -> void:
+func _start_survival_escape_session(start_map_index: int = 0, carryover_jailed: Dictionary = {}) -> void:
+	_survival_map_index = clampi(start_map_index, 0, MapData.get_survival_map_count() - 1)
+	_survival_carryover_jailed = carryover_jailed.duplicate()
+	_survival_transition_timer = 0.0
+	_survival_transition_target_map_index = -1
+	_survival_transition_carryover_jailed.clear()
 	_setup_survival_arena()
 	_survival_goal_escapists.clear()
 	_survival_jailed_escapists.clear()
 	_survival_match_finished = false
+	_survival_exit_hold_time = 0.0
 	_survival_time_total = _get_survival_duration()
 	_survival_time_remaining = _survival_time_total
+	_survival_leg_time_budget += _survival_time_total
 	_reset_survival_waves()
 	game_hud.hide()
 	if survival_hud:
 		survival_hud.open(_get_survival_escapist_total(), _get_survival_trapper_total(), _survival_time_total)
+		if survival_hud.has_method("set_map_info"):
+			survival_hud.call(
+				"set_map_info",
+				_survival_map_data.get("name", "Mapa survival") as String,
+				_survival_map_data.get("survival_map_number", _survival_map_index + 1) as int,
+				_survival_map_data.get("survival_map_total", MapData.get_survival_map_count()) as int
+			)
 		_update_survival_objective_hud()
 		_update_survival_wave_hud()
 	menu_music.use_round_volume()
@@ -689,6 +816,8 @@ func _on_survival_goal_body_entered(body: Node2D) -> void:
 	var esc := body as Escapist
 	if esc.is_dead:
 		return
+	if esc.get_meta("survival_jailed", false) as bool:
+		return
 	esc.set_meta("survival_safe_zone", true)
 	_survival_goal_escapists[esc.player_index] = true
 	_update_survival_exit_hud()
@@ -703,12 +832,18 @@ func _on_survival_goal_body_exited(body: Node2D) -> void:
 	var esc := body as Escapist
 	esc.set_meta("survival_safe_zone", false)
 	_survival_goal_escapists.erase(esc.player_index)
+	_survival_exit_hold_time = 0.0
 	_update_survival_exit_hud()
 
 
 func _update_survival_exit_hud() -> void:
 	if survival_hud:
-		survival_hud.set_exit_count(_survival_goal_escapists.size())
+		survival_hud.set_exit_count(
+			_survival_goal_escapists.size(),
+			_get_survival_required_exit_count(),
+			_survival_exit_hold_time,
+			SURVIVAL_EXIT_HOLD_DURATION
+		)
 
 
 func _on_survival_objective_changed(_status: Dictionary) -> void:
@@ -724,13 +859,108 @@ func _update_survival_objective_hud() -> void:
 
 
 func _check_survival_escape_complete() -> void:
+	if _survival_can_hold_exit():
+		return
+	if _survival_exit_hold_time > 0.0:
+		_survival_exit_hold_time = 0.0
+		_update_survival_exit_hud()
+
+
+func _process_survival_exit_hold(delta: float) -> void:
+	if not _survival_can_hold_exit():
+		if _survival_exit_hold_time > 0.0:
+			_survival_exit_hold_time = 0.0
+			_update_survival_exit_hud()
+		return
+	_survival_exit_hold_time = minf(_survival_exit_hold_time + delta, SURVIVAL_EXIT_HOLD_DURATION)
+	_update_survival_exit_hud()
+	if _survival_exit_hold_time >= SURVIVAL_EXIT_HOLD_DURATION:
+		_complete_survival_map_escape()
+
+
+func _survival_can_hold_exit() -> bool:
+	var required := _get_survival_required_exit_count()
+	if required <= 0:
+		return false
+	if not _survival_objectives_complete():
+		return false
+	return _survival_goal_escapists.size() >= required
+
+
+func _get_survival_required_exit_count() -> int:
 	var total := _get_survival_escapist_total()
 	if total <= 0:
+		return 0
+	var jailed := _get_survival_jailed_count()
+	if jailed > 0 and jailed < total:
+		return total - jailed
+	return total
+
+
+func _get_survival_jailed_count() -> int:
+	var count := 0
+	var stale_keys: Array = []
+	for player_index in _survival_jailed_escapists.keys():
+		var esc := _survival_jailed_escapists[player_index] as Escapist
+		if is_instance_valid(esc) and (esc.get_meta("survival_jailed", false) as bool):
+			count += 1
+		else:
+			stale_keys.append(player_index)
+	for player_index in stale_keys:
+		_survival_jailed_escapists.erase(player_index)
+	return count
+
+
+func _complete_survival_map_escape() -> void:
+	if _survival_match_finished:
 		return
-	if not _survival_objectives_complete():
+	var next_map_index := _survival_map_index + 1
+	if next_map_index >= MapData.get_survival_map_count():
+		_finish_survival_escape(true, "Completaron los 5 mapas.")
 		return
-	if _survival_goal_escapists.size() >= total:
-		_finish_survival_escape(true)
+	_begin_survival_map_transition(next_map_index, _get_survival_jailed_player_set())
+
+
+func _begin_survival_map_transition(next_map_index: int, carryover_jailed: Dictionary) -> void:
+	if _survival_transition_timer > 0.0:
+		return
+	_survival_transition_target_map_index = clampi(next_map_index, 0, MapData.get_survival_map_count() - 1)
+	_survival_transition_carryover_jailed = carryover_jailed.duplicate()
+	_survival_transition_timer = SURVIVAL_MAP_TRANSITION_DURATION
+	_survival_exit_hold_time = 0.0
+	_freeze_all()
+	_set_survival_zombies_active(false)
+	if survival_hud and survival_hud.has_method("start_map_transition"):
+		var next_map := MapData.get_survival_map(_survival_transition_target_map_index, _get_survival_format_size())
+		survival_hud.call(
+			"start_map_transition",
+			_survival_map_index + 1,
+			_survival_transition_target_map_index + 1,
+			next_map.get("name", "Mapa survival") as String,
+			SURVIVAL_MAP_TRANSITION_DURATION
+		)
+
+
+func _update_survival_map_transition(delta: float) -> void:
+	if _survival_transition_timer <= 0.0:
+		return
+	_survival_transition_timer = maxf(_survival_transition_timer - delta, 0.0)
+	if _survival_transition_timer > 0.0:
+		return
+	var target_map_index := _survival_transition_target_map_index
+	var carryover_jailed := _survival_transition_carryover_jailed.duplicate()
+	_survival_transition_target_map_index = -1
+	_survival_transition_carryover_jailed.clear()
+	_start_survival_escape_session(target_map_index, carryover_jailed)
+
+
+func _get_survival_jailed_player_set() -> Dictionary:
+	var jailed: Dictionary = {}
+	for player_index in _survival_jailed_escapists.keys():
+		var esc := _survival_jailed_escapists[player_index] as Escapist
+		if is_instance_valid(esc) and (esc.get_meta("survival_jailed", false) as bool):
+			jailed[player_index] = true
+	return jailed
 
 
 func _survival_objectives_complete() -> bool:
@@ -740,19 +970,37 @@ func _survival_objectives_complete() -> bool:
 	return status.get("exit_unlocked", true) as bool
 
 
-func _finish_survival_escape(escapists_won: bool) -> void:
+func _finish_survival_escape(escapists_won: bool, reason: String = "") -> void:
 	if _survival_match_finished:
 		return
 	_survival_match_finished = true
+	_survival_transition_timer = 0.0
 	_freeze_all()
 	_set_survival_zombies_active(false)
+	if not escapists_won and arena and arena.has_method("reveal_survival_objectives"):
+		arena.call("reveal_survival_objectives")
+	var record := _record_survival_leg_result(escapists_won, reason)
 	if survival_hud:
 		var text := "ESCAPISTAS ESCAPARON" if escapists_won else "CAZADORES GANARON"
 		var color := Enums.role_color(Enums.Role.ESCAPIST) if escapists_won else Enums.role_color(Enums.Role.TRAPPER)
-		var hint := "Todos llegaron a la salida con %.0f segundos restantes." % maxf(_survival_time_remaining, 0.0)
-		if not escapists_won:
-			hint = "Se termino el tiempo antes de que todos llegaran a la salida."
-		survival_hud.show_result(text, color, hint)
+		var required := _get_survival_required_exit_count()
+		var total := _get_survival_escapist_total()
+		var hint := _get_survival_result_hint(record, escapists_won, reason)
+		if escapists_won and required < total:
+			hint = "%s\n%d escapistas avanzaron; %d quedaron en carcel." % [hint, required, total - required]
+		var footer := "Start continua"
+		if _survival_series_records.size() >= 2:
+			text = "IDA Y VUELTA COMPLETADA"
+			color = Color(1.0, 0.88, 0.22)
+			hint = _get_survival_series_summary()
+			footer = "Start volver a setup"
+		else:
+			hint = "%s\nCambio de roles en %.0fs." % [hint, SURVIVAL_RESULT_ADVANCE_DELAY]
+		survival_hud.show_result(text, color, hint, footer)
+	_survival_final_series_complete = _survival_series_records.size() >= 2
+	_survival_result_auto_advance_timer = 0.0
+	if not _survival_final_series_complete:
+		_survival_result_auto_advance_timer = SURVIVAL_RESULT_ADVANCE_DELAY
 
 
 func _get_survival_duration() -> float:
@@ -760,14 +1008,115 @@ func _get_survival_duration() -> float:
 	return GameManager.settings_overrides.get(&"survival_escape_duration", map_duration) as float
 
 
+func _record_survival_leg_result(escapists_won: bool, reason: String) -> Dictionary:
+	var time_remaining := maxf(_survival_leg_time_budget - _survival_leg_elapsed, 0.0)
+	var score := 0
+	if escapists_won:
+		score = SURVIVAL_COMPLETION_SCORE_BONUS + int(round(time_remaining * SURVIVAL_TIME_SCORE_MULTIPLIER))
+	var record := {
+		"leg": _survival_series_leg_index + 1,
+		"side": _survival_series_leg_index,
+		"label": _get_survival_series_side_label(_survival_series_leg_index),
+		"completed": escapists_won,
+		"elapsed": _survival_leg_elapsed,
+		"time_budget": _survival_leg_time_budget,
+		"score": score,
+		"map_reached": _survival_map_index + 1,
+		"reason": reason,
+	}
+	_survival_series_records.append(record)
+	GameManager.set_survival_score_records(_survival_series_records)
+	return record
+
+
+func _get_survival_result_hint(record: Dictionary, escapists_won: bool, reason: String) -> String:
+	var label := record.get("label", "Equipo") as String
+	if escapists_won:
+		return "%s completo el set en %s. Puntaje: %d." % [
+			label,
+			_format_survival_time(record.get("elapsed", 0.0) as float),
+			record.get("score", 0) as int,
+		]
+	if reason.is_empty():
+		reason = "Los escapistas no lograron completar el set."
+	return "%s: %s" % [label, reason]
+
+
+func _get_survival_series_summary() -> String:
+	var lines: Array[String] = []
+	for record in _survival_series_records:
+		lines.append(_format_survival_record(record))
+	if _survival_series_records.size() >= 2:
+		lines.append(_get_survival_series_winner_line())
+	var summary := ""
+	for i in lines.size():
+		if i > 0:
+			summary += "\n"
+		summary += lines[i]
+	return summary
+
+
+func _format_survival_record(record: Dictionary) -> String:
+	var label := record.get("label", "Equipo") as String
+	var completed := record.get("completed", false) as bool
+	if completed:
+		return "%s: %d pts | %s" % [
+			label,
+			record.get("score", 0) as int,
+			_format_survival_time(record.get("elapsed", 0.0) as float),
+		]
+	return "%s: derrota en mapa %d" % [
+		label,
+		record.get("map_reached", 1) as int,
+	]
+
+
+func _get_survival_series_winner_line() -> String:
+	var first := _survival_series_records[0]
+	var second := _survival_series_records[1]
+	var first_completed := first.get("completed", false) as bool
+	var second_completed := second.get("completed", false) as bool
+	if first_completed and second_completed:
+		var first_score := first.get("score", 0) as int
+		var second_score := second.get("score", 0) as int
+		if first_score == second_score:
+			return "Resultado: empate."
+		var score_winner := first if first_score > second_score else second
+		return "Gana %s por mejor tiempo." % (score_winner.get("label", "Equipo") as String)
+	if first_completed != second_completed:
+		var completed_winner := first if first_completed else second
+		return "Gana %s por completar el set." % (completed_winner.get("label", "Equipo") as String)
+	return "Resultado: ningun equipo completo los 5 mapas."
+
+
+func _get_survival_series_side_label(side_index: int) -> String:
+	return "Equipo A" if side_index == 0 else "Equipo B"
+
+
+func _format_survival_time(seconds: float) -> String:
+	var whole := int(ceilf(maxf(seconds, 0.0)))
+	var minutes := int(floorf(float(whole) / 60.0))
+	var secs := whole % 60
+	return "%d:%02d" % [minutes, secs]
+
+
+func _get_survival_timeout_reason() -> String:
+	if _survival_map_index >= MapData.get_survival_map_count() - 1:
+		return "Se termino el tiempo antes de completar el mapa final."
+	return "Se termino el tiempo y nadie avanzo al siguiente mapa."
+
+
 func _update_survival_escape(delta: float) -> void:
 	if _survival_match_finished:
 		return
+	_survival_leg_elapsed += delta
 	_survival_time_remaining = maxf(_survival_time_remaining - delta, 0.0)
 	if survival_hud:
 		survival_hud.set_time_remaining(_survival_time_remaining)
 	if _survival_time_remaining <= 0.0:
-		_finish_survival_escape(false)
+		_finish_survival_escape(false, _get_survival_timeout_reason())
+		return
+	_process_survival_exit_hold(delta)
 
 
 func _reset_survival_waves() -> void:
@@ -874,6 +1223,7 @@ func _on_survival_zombie_caught(escapist: Escapist, _zombie: Node) -> void:
 		return
 	_survival_death_count += 1
 	_survival_goal_escapists.erase(escapist.player_index)
+	_survival_exit_hold_time = 0.0
 	escapist.set_meta("survival_safe_zone", false)
 	escapist.notify_trap_status("ZOMBIE", Color(0.60, 1.0, 0.42), 0.9)
 	if arena and arena.has_method("drop_survival_keys_for_escapist"):
@@ -892,6 +1242,7 @@ func _on_survival_escapist_respawning(escapist: Escapist, death_position: Vector
 	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
 		return
 	_survival_goal_escapists.erase(escapist.player_index)
+	_survival_exit_hold_time = 0.0
 	escapist.set_meta("survival_safe_zone", false)
 	if arena and arena.has_method("drop_survival_keys_for_escapist_at"):
 		arena.call("drop_survival_keys_for_escapist_at", escapist, death_position)
@@ -904,6 +1255,7 @@ func _on_survival_escapist_died(escapist: Escapist) -> void:
 	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
 		return
 	_survival_goal_escapists.erase(escapist.player_index)
+	_survival_exit_hold_time = 0.0
 	escapist.set_meta("survival_safe_zone", false)
 	if arena and arena.has_method("drop_survival_keys_for_escapist"):
 		arena.call("drop_survival_keys_for_escapist", escapist)
@@ -936,11 +1288,16 @@ func _lock_survival_jailed_escapist(escapist: Escapist) -> void:
 	if not is_instance_valid(escapist) or not (escapist.get_meta("survival_jailed", false) as bool):
 		return
 	_survival_jailed_escapists[escapist.player_index] = escapist
+	_survival_goal_escapists.erase(escapist.player_index)
+	_survival_exit_hold_time = 0.0
+	escapist.set_meta("survival_safe_zone", false)
 	escapist.input_locked = true
 	if escapist.movement:
 		escapist.movement.freeze()
 	escapist.notify_trap_status("CARCEL", Color(0.45, 0.85, 1.0), 0.9)
 	_update_survival_jail_state()
+	_update_survival_exit_hud()
+	_check_survival_all_jailed_defeat()
 
 
 func _on_survival_jail_release_completed(_rescuer: Escapist) -> void:
@@ -963,11 +1320,23 @@ func _release_survival_jailed_escapist(escapist: Escapist) -> void:
 	if escapist.movement:
 		escapist.movement.unfreeze()
 	escapist.notify_trap_status("LIBRE", Color(0.45, 1.0, 0.72), 0.9)
+	_survival_exit_hold_time = 0.0
+	_update_survival_exit_hud()
 
 
 func _update_survival_jail_state() -> void:
 	if arena and arena.has_method("set_survival_jail_has_prisoner"):
 		arena.call("set_survival_jail_has_prisoner", not _survival_jailed_escapists.is_empty())
+
+
+func _check_survival_all_jailed_defeat() -> void:
+	if _survival_match_finished or _survival_transition_timer > 0.0:
+		return
+	var total := _get_survival_escapist_total()
+	if total <= 0:
+		return
+	if _get_survival_jailed_count() >= total:
+		_finish_survival_escape(false, "Todos los escapistas quedaron encerrados en la carcel.")
 
 
 func _set_survival_zombies_active(active: bool) -> void:
@@ -1050,10 +1419,13 @@ func _spawn_survival_characters() -> void:
 			esc.team = t
 			esc.escapist_animal = GameManager.get_player_escapist_animal(pi)
 			esc.player_color = Enums.escapist_animal_color(esc.escapist_animal)
+			var starts_jailed := _survival_carryover_jailed.has(pi) and _survival_jail_enabled()
 			esc.position = _get_survival_escapist_spawn(escapist_idx)
+			if starts_jailed and arena and arena.has_method("get_survival_jail_spawn_position"):
+				esc.position = arena.call("get_survival_jail_spawn_position") as Vector2
 			esc.set_meta("map_bounds", map_bounds)
 			esc.set_meta("survival_safe_zone", false)
-			esc.set_meta("survival_jailed", false)
+			esc.set_meta("survival_jailed", starts_jailed)
 			esc.spawn_position = esc.position
 			esc.aim_direction = Vector2.RIGHT
 			escapist_idx += 1
@@ -1064,6 +1436,8 @@ func _spawn_survival_characters() -> void:
 			character_container.add_child(esc)
 			characters.append(esc)
 			GameManager.register_player_character(pi, esc)
+			if starts_jailed:
+				call_deferred("_lock_survival_jailed_escapist", esc)
 		elif r == Enums.Role.TRAPPER:
 			var trapper = SurvivalTrapperScene.new()
 			trapper.player_index = pi
@@ -1079,6 +1453,7 @@ func _spawn_survival_characters() -> void:
 			character_container.add_child(trapper)
 			characters.append(trapper)
 			GameManager.register_player_character(pi, trapper)
+	_survival_carryover_jailed.clear()
 
 
 func _get_survival_escapist_spawn(index: int) -> Vector2:
@@ -1220,10 +1595,121 @@ func _add_survival_bot_lock_route(route: Array[Dictionary], lock_def: Dictionary
 	_add_survival_bot_approach_to_gate(route, lock_id)
 	_add_survival_bot_waypoint(route, gate_rect.get_center(), 3.25, 58.0)
 	if button_rect.size.x > 0.0:
+		_add_survival_bot_approach_to_button(route, lock_id)
 		_add_survival_bot_waypoint(route, button_rect.get_center(), 0.35, 24.0)
 
 
 func _add_survival_bot_approach_to_key(route: Array[Dictionary], lock_id: String) -> void:
+	if _survival_map_index == 4:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(232.0, 368.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(368.0, 384.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(536.0, 392.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(624.0, 304.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(672.0, 240.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(320.0, 568.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(360.0, 632.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(480.0, 808.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(480.0, 912.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1408.0, 920.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1480.0, 888.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(232.0, 368.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(368.0, 384.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(560.0, 544.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(672.0, 544.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(768.0, 520.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(232.0, 368.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(368.0, 384.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(656.0, 392.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(736.0, 368.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(888.0, 520.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1072.0, 560.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1192.0, 512.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1280.0, 488.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1448.0, 424.0)))
+			"orange":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(192.0, 384.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(376.0, 400.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(528.0, 528.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(600.0, 592.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(600.0, 760.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1040.0, 768.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1112.0, 808.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 520.0)))
+		return
+	if _survival_map_index == 3:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(345.0, 350.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(500.0, 350.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(610.0, 250.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(345.0, 710.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(560.0, 740.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 740.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1180.0, 740.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1380.0, 780.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(345.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(540.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(700.0, 490.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(345.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(660.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1020.0, 480.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1220.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1360.0, 400.0)))
+			"orange":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(345.0, 710.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(650.0, 720.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(940.0, 740.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(840.0, 500.0)))
+		return
+	if _survival_map_index == 2:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(340.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(470.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(590.0, 350.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(340.0, 635.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(650.0, 660.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(970.0, 650.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1230.0, 650.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(340.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(545.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(690.0, 470.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(340.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(650.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1035.0, 460.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1245.0, 420.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(820.0, 470.0)))
+		return
+	if _survival_map_index == 1:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(285.0, 260.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(430.0, 260.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(285.0, 620.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(930.0, 655.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1245.0, 760.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(285.0, 620.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(520.0, 520.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(735.0, 500.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(720.0, 450.0)))
+		return
 	match lock_id:
 		"yellow":
 			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(210.0, 430.0)))
@@ -1240,6 +1726,108 @@ func _add_survival_bot_approach_to_key(route: Array[Dictionary], lock_id: String
 
 
 func _add_survival_bot_approach_to_gate(route: Array[Dictionary], lock_id: String) -> void:
+	if _survival_map_index == 4:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(928.0, 256.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(992.0, 352.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1064.0, 360.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1064.0, 448.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1136.0, 456.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1200.0, 520.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1400.0, 920.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(488.0, 920.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(464.0, 848.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(432.0, 776.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(880.0, 520.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1072.0, 560.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1160.0, 512.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1344.0, 520.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1416.0, 496.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1448.0, 656.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1448.0, 488.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1272.0, 496.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1200.0, 520.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1136.0, 456.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1064.0, 448.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1064.0, 360.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(968.0, 328.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(928.0, 256.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(840.0, 256.0)))
+			"orange":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1192.0, 768.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1240.0, 576.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1320.0, 544.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1552.0, 496.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1624.0, 528.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 520.0)))
+		return
+	if _survival_map_index == 3:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(800.0, 350.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1050.0, 440.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1160.0, 450.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1180.0, 740.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(800.0, 720.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(500.0, 700.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 530.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1160.0, 610.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1300.0, 640.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1300.0, 450.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1060.0, 360.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(840.0, 250.0)))
+			"orange":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1180.0, 740.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1380.0, 640.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1530.0, 540.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(840.0, 500.0)))
+		return
+	if _survival_map_index == 2:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(760.0, 470.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(950.0, 435.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1230.0, 650.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(960.0, 650.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(650.0, 660.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(455.0, 650.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(720.0, 430.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(980.0, 330.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1120.0, 430.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1260.0, 430.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1260.0, 580.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1245.0, 420.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1035.0, 460.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(840.0, 360.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(720.0, 250.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(820.0, 470.0)))
+		return
+	if _survival_map_index == 1:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(930.0, 455.0)))
+			"red":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(930.0, 655.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(380.0, 645.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(950.0, 520.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1218.0, 627.0)))
+			_:
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(720.0, 450.0)))
+		return
 	match lock_id:
 		"blue":
 			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(900.0, 430.0)))
@@ -1251,6 +1839,43 @@ func _add_survival_bot_approach_to_gate(route: Array[Dictionary], lock_id: Strin
 			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1265.0, 430.0)))
 		_:
 			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(760.0, 430.0)))
+
+
+func _add_survival_bot_approach_to_button(route: Array[Dictionary], lock_id: String) -> void:
+	if _survival_map_index == 4:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1440.0, 496.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1464.0, 408.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1536.0, 672.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(808.0, 240.0)))
+			"orange":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1760.0, 552.0)))
+		return
+	if _survival_map_index == 3:
+		match lock_id:
+			"blue":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1300.0, 430.0)))
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1400.0, 350.0)))
+			"yellow":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1400.0, 640.0)))
+			"violet":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(830.0, 230.0)))
+			"orange":
+				_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1625.0, 530.0)))
+		return
+	if _survival_map_index != 2:
+		return
+	match lock_id:
+		"blue":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1210.0, 420.0)))
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1325.0, 355.0)))
+		"yellow":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(1300.0, 630.0)))
+		"violet":
+			_add_survival_bot_waypoint(route, _scale_survival_route_point(Vector2(800.0, 220.0)))
 
 
 func _scale_survival_route_point(point: Vector2) -> Vector2:
@@ -1646,6 +2271,69 @@ func _clear_round_replay() -> void:
 		round_replay.stop()
 
 
+func _update_survival_result_flow(delta: float) -> void:
+	if _survival_final_series_complete:
+		return
+	if _survival_result_auto_advance_timer <= 0.0:
+		return
+	_survival_result_auto_advance_timer = maxf(_survival_result_auto_advance_timer - delta, 0.0)
+	if _survival_result_auto_advance_timer <= 0.0:
+		_advance_after_survival_result()
+
+
+func _check_survival_result_input() -> void:
+	for pi in _active_player_indices:
+		var device_id := InputManager.get_device_id(pi)
+		if device_id < 0:
+			continue
+		var start_pressed := InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_START)
+		var back_pressed := InputManager.is_button_just_pressed_on_device(device_id, JOY_BUTTON_BACK)
+		if start_pressed or back_pressed:
+			_advance_after_survival_result()
+			return
+
+
+func _advance_after_survival_result() -> void:
+	if _survival_final_series_complete:
+		_start_survival_escape_setup()
+		_prime_start_button_state()
+		InputManager.suppress_edge_detection(3)
+		return
+	if _survival_series_records.size() <= 0:
+		return
+	_start_survival_return_leg()
+
+
+func _start_survival_return_leg() -> void:
+	if _survival_series_initial_roles.is_empty():
+		_start_survival_escape_setup()
+		return
+	get_tree().paused = false
+	_clear_pause_menu()
+	_cleanup_round()
+	if arena:
+		arena.queue_free()
+		arena = null
+	phase_overlay.clear()
+	game_hud.hide()
+	_hide_survival_hud()
+	_survival_series_leg_index = 1
+	var swapped_roles := _build_swapped_survival_roles(_survival_series_initial_roles)
+	_apply_survival_role_assignments(swapped_roles)
+	_begin_survival_leg()
+	_start_survival_escape_session()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _build_swapped_survival_roles(source_roles: Dictionary) -> Dictionary:
+	var swapped: Dictionary = {}
+	for pi: int in source_roles:
+		var role: Enums.Role = source_roles[pi] as Enums.Role
+		swapped[pi] = Enums.Role.TRAPPER if role == Enums.Role.ESCAPIST else Enums.Role.ESCAPIST
+	return swapped
+
+
 func _process(delta: float) -> void:
 	_update_round_replay_recording(delta)
 	var state := GameManager.current_state
@@ -1662,6 +2350,13 @@ func _process(delta: float) -> void:
 		phase_overlay.show_hunt_countdown(GameManager.get_observation_time())
 
 	if state == Enums.GameState.SURVIVAL:
+		if _survival_transition_timer > 0.0:
+			_update_survival_map_transition(delta)
+			return
+		if _survival_match_finished:
+			_update_survival_result_flow(delta)
+			_check_survival_result_input()
+			return
 		_update_survival_escape(delta)
 		_update_survival_waves(delta)
 		_check_pause_input()
@@ -1711,6 +2406,7 @@ func _return_to_survival_placeholder() -> void:
 	_survival_match_finished = false
 	_survival_time_remaining = 0.0
 	_reset_survival_waves()
+	_reset_survival_series_state()
 
 	while not _view_stack.is_empty():
 		pop_view()
@@ -1865,6 +2561,27 @@ func _restart_current_round() -> void:
 	InputManager.suppress_edge_detection(3)
 
 
+func _go_to_next_survival_map_from_pause() -> void:
+	if not GameManager.is_survival_context():
+		return
+	get_tree().paused = false
+	_clear_pause_menu()
+	var next_map_index := mini(_survival_map_index + 1, MapData.get_survival_map_count() - 1)
+	_start_survival_escape_session(next_map_index, _get_survival_jailed_player_set())
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _go_to_survival_map_from_pause(map_index: int) -> void:
+	if not GameManager.is_survival_context():
+		return
+	get_tree().paused = false
+	_clear_pause_menu()
+	_start_survival_escape_session(clampi(map_index, 0, MapData.get_survival_map_count() - 1))
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
 func _restart_survival_escape_session() -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
@@ -1875,6 +2592,7 @@ func _restart_survival_escape_session() -> void:
 	phase_overlay.clear()
 	game_hud.hide()
 	_hide_survival_hud()
+	_begin_survival_leg()
 	_start_survival_escape_session()
 
 
@@ -2094,6 +2812,7 @@ func _close_settings() -> void:
 func _on_setting_changed(key: String, value: Variant) -> void:
 	match key:
 		"bot_fill":
+			GameManager.settings_overrides[&"bot_fill"] = value
 			team_setup.auto_fill_bots = (int(value) == 0)  # 0 = "On"
 			if survival_escape_setup:
 				survival_escape_setup.auto_fill_bots = (int(value) == 0)
