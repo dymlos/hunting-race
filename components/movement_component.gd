@@ -162,7 +162,10 @@ func apply_movement(input_vector: Vector2) -> void:
 
 
 func set_speed_modifier(key: StringName, value: float) -> void:
-	if key != &"fly_boost" and body is Escapist and (body as Escapist).is_effect_immune():
+	if key != &"fly_boost" \
+			and key != &"rat_survival_rescue_speed" \
+			and body is Escapist \
+			and (body as Escapist).is_effect_immune():
 		return
 	_speed_modifiers[key] = value
 

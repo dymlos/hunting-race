@@ -564,6 +564,8 @@ func _complete_survival_key_pickup(esc: Escapist, lock_id: String) -> void:
 	_survival_key_progress.erase(lock_id)
 	_set_survival_key_area_enabled(lock_id, false)
 	_update_survival_key_badge_for_escapist(esc)
+	if esc.has_method("unlock_survival_ability_from_key"):
+		esc.call("unlock_survival_ability_from_key")
 	esc.notify_trap_status("LLAVE %s" % _get_survival_lock_label(lock_id), _get_survival_lock_color(lock_id), 0.85)
 	_emit_survival_objective_changed()
 	queue_redraw()
@@ -588,6 +590,8 @@ func _complete_survival_gate_open(esc: Escapist, lock_id: String) -> void:
 	_survival_gate_progress.erase(lock_id)
 	_open_survival_gate(lock_id)
 	_update_survival_key_badge_for_escapist(esc)
+	if esc.has_method("secure_survival_ability_for_map"):
+		esc.call("secure_survival_ability_for_map")
 	esc.notify_trap_status("COMPUERTA %s" % _get_survival_lock_label(lock_id), _get_survival_lock_color(lock_id), 0.85)
 	_emit_survival_objective_changed()
 	queue_redraw()
@@ -817,6 +821,8 @@ func drop_survival_keys_for_escapist_at(escapist: Escapist, drop_position: Vecto
 	if not dropped_any:
 		return
 	_update_survival_key_badge_for_escapist(escapist)
+	if escapist.has_method("lose_survival_ability_from_key_drop"):
+		escapist.call("lose_survival_ability_from_key_drop")
 	_emit_survival_objective_changed()
 	queue_redraw()
 

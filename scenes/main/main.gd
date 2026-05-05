@@ -1244,6 +1244,8 @@ func _on_survival_escapist_respawning(escapist: Escapist, death_position: Vector
 	_survival_goal_escapists.erase(escapist.player_index)
 	_survival_exit_hold_time = 0.0
 	escapist.set_meta("survival_safe_zone", false)
+	if escapist.has_method("lose_survival_ability_from_death"):
+		escapist.call("lose_survival_ability_from_death")
 	if arena and arena.has_method("drop_survival_keys_for_escapist_at"):
 		arena.call("drop_survival_keys_for_escapist_at", escapist, death_position)
 	if _survival_jail_enabled():
@@ -1257,6 +1259,8 @@ func _on_survival_escapist_died(escapist: Escapist) -> void:
 	_survival_goal_escapists.erase(escapist.player_index)
 	_survival_exit_hold_time = 0.0
 	escapist.set_meta("survival_safe_zone", false)
+	if escapist.has_method("lose_survival_ability_from_death"):
+		escapist.call("lose_survival_ability_from_death")
 	if arena and arena.has_method("drop_survival_keys_for_escapist"):
 		arena.call("drop_survival_keys_for_escapist", escapist)
 	if _survival_jail_enabled():

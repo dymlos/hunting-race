@@ -19,6 +19,11 @@ const ESCAPIST_DEFAULT_ANIMATION_FPS: float = 8.0
 const RABBIT_SPRITE_BASE_OFFSET := Vector2(0.0, -5.0)
 const ABILITY_READY_FLASH_DURATION: float = 0.85
 const ABILITY_READY_IDLE_PULSE_MS: float = 190.0
+const RAT_SURVIVAL_RESCUE_SPEED_KEY := &"rat_survival_rescue_speed"
+const SURVIVAL_ABILITY_SLEEPING := &"sleeping"
+const SURVIVAL_ABILITY_KEY_HELD := &"key_held"
+const SURVIVAL_ABILITY_MAP_UNLOCKED := &"map_unlocked"
+const SURVIVAL_ABILITY_LOST_FOR_MAP := &"lost_for_map"
 
 var is_dead: bool = false
 var has_scored: bool = false
@@ -35,6 +40,7 @@ var _inversion_timer: float = 0.0
 
 var _ability_available: bool = true
 var _ability_cooldown_remaining: float = 0.0
+var _survival_ability_state: StringName = SURVIVAL_ABILITY_SLEEPING
 var _rabbit_charging: bool = false
 var _rabbit_charge_time: float = 0.0
 var _fly_counter_timer: float = 0.0
@@ -48,6 +54,7 @@ var _floating_text_duration: float = Constants.FLOATING_TEXT_DURATION
 var _floating_text_size: int = 18
 var _floating_text_color: Color = Color.WHITE
 var _active_rat_tail: Node = null
+var _rat_survival_rescue_count: int = 0
 var _rat_tail_visual_timer: float = 0.0
 var _rat_tail_visual_elapsed: float = 0.0
 var _rat_tail_visual_direction: Vector2 = Vector2.RIGHT
@@ -400,14 +407,15 @@ func _physics_process(delta: float) -> void:
 		_rat_tail_visual_elapsed += delta
 		if _rat_tail_visual_timer <= 0.0 and _rat_tail_cooldown_pending:
 			_rat_tail_cooldown_pending = false
-			if _uses_timed_ability_cooldowns() and escapist_animal == Enums.EscapistAnimal.RAT:
+			if _rat_tail_should_start_cooldown_after_finish():
 				_start_ability_cooldown()
 		queue_redraw()
 	if _ability_cooldown_remaining > 0.0:
 		_ability_cooldown_remaining = maxf(_ability_cooldown_remaining - delta, 0.0)
 		if _ability_cooldown_remaining <= 0.0:
-			_ability_available = true
-			_notify_ability_recharged()
+			_ability_available = _survival_ability_state_allows_use()
+			if _ability_available:
+				_notify_ability_recharged()
 	_update_floating_text(delta)
 	if _process_survival_objective_bot(delta):
 		super._physics_process(delta)
@@ -594,6 +602,7 @@ func _return_to_spawn_with_death_message() -> void:
 	movement.velocity = Vector2.ZERO
 	movement.slippery = false
 	movement.clear_speed_modifiers()
+	_apply_survival_rat_rescue_speed_bonus()
 	controls_inverted = false
 	_inversion_timer = 0.0
 	AudioManager.play_effect(&"DeathRespawn")
@@ -688,15 +697,18 @@ func _use_rat_rescue() -> void:
 	tail.finished.connect(_on_rat_tail_finished)
 	AudioManager.play_skill(&"RatWhipOut")
 	if _ability_consumption_enabled():
-		_ability_available = false
+		if _is_survival_ability_tuning_active() and _uses_timed_ability_cooldowns():
+			_start_ability_cooldown()
+		else:
+			_ability_available = false
 
 
 func _on_rat_tail_finished(tail: Node) -> void:
 	if _active_rat_tail == tail:
 		_active_rat_tail = null
 		if _rat_tail_visual_timer > 0.0:
-			_rat_tail_cooldown_pending = true
-		elif _uses_timed_ability_cooldowns() and escapist_animal == Enums.EscapistAnimal.RAT:
+			_rat_tail_cooldown_pending = _rat_tail_should_start_cooldown_after_finish()
+		elif _rat_tail_should_start_cooldown_after_finish():
 			_start_ability_cooldown()
 
 
@@ -705,6 +717,9 @@ func _complete_rat_rescue(ally: Escapist) -> void:
 		return
 	var pull_vector := global_position - ally.global_position
 	var pull_distance := maxf(pull_vector.length() - Constants.RAT_RESCUE_PULL_STOP_DISTANCE, 0.0)
+	if _is_survival_ability_tuning_active():
+		_release_survival_zombies_from_ally(ally)
+		_grant_survival_rat_rescue_speed()
 	if pull_distance <= 0.0:
 		return
 	var direction := pull_vector.normalized()
@@ -716,13 +731,42 @@ func _complete_rat_rescue(ally: Escapist) -> void:
 	ally.movement.start_dash_ghost_pull(direction, pull_distance, Callable(), duration)
 
 
+func _release_survival_zombies_from_ally(ally: Escapist) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for node: Node in tree.get_nodes_in_group("survival_zombies"):
+		if is_instance_valid(node) and node.has_method("release_if_attached_to"):
+			node.call("release_if_attached_to", ally)
+
+
+func _grant_survival_rat_rescue_speed() -> void:
+	if escapist_animal != Enums.EscapistAnimal.RAT or movement == null:
+		return
+	_rat_survival_rescue_count += 1
+	_apply_survival_rat_rescue_speed_bonus()
+	_show_floating_text("+VEL %d" % _rat_survival_rescue_count, Color(0.95, 0.82, 0.36), 0.8, 18)
+
+
+func _apply_survival_rat_rescue_speed_bonus() -> void:
+	if movement == null or escapist_animal != Enums.EscapistAnimal.RAT:
+		return
+	if _rat_survival_rescue_count <= 0:
+		movement.remove_speed_modifier(RAT_SURVIVAL_RESCUE_SPEED_KEY)
+		return
+	var multiplier := 1.0 + Constants.SURVIVAL_RAT_RESCUE_SPEED_BONUS_PER_RESCUE \
+		* float(_rat_survival_rescue_count)
+	movement.set_speed_modifier(RAT_SURVIVAL_RESCUE_SPEED_KEY, multiplier)
+
+
 func _start_rat_tail_visual(direction: Vector2) -> void:
 	_rat_tail_visual_direction = direction.normalized()
 	if _rat_tail_visual_direction.length_squared() < 0.01:
 		_rat_tail_visual_direction = Vector2.RIGHT
-	_rat_tail_visual_anchor = global_position + _rat_tail_visual_direction * Constants.RAT_RESCUE_RANGE
+	var rescue_range := _get_rat_rescue_range()
+	_rat_tail_visual_anchor = global_position + _rat_tail_visual_direction * rescue_range
 	_rat_tail_visual_elapsed = 0.0
-	_rat_tail_visual_timer = Constants.RAT_RESCUE_RANGE / Constants.RAT_RESCUE_HOOK_SPEED \
+	_rat_tail_visual_timer = rescue_range / Constants.RAT_RESCUE_HOOK_SPEED \
 		+ Constants.RAT_RESCUE_HOLD_DURATION \
 		+ 0.32
 	queue_redraw()
@@ -737,7 +781,7 @@ func _use_squirrel_acorn() -> void:
 
 
 func _use_fly_counter() -> void:
-	_fly_counter_timer = Constants.FLY_COUNTER_DURATION
+	_fly_counter_timer = _get_fly_counter_duration()
 	_consume_ability_after_use()
 	AudioManager.play_skill(&"FlyCounter")
 
@@ -765,6 +809,56 @@ func set_survival_key_badges(key_colors: Array) -> void:
 	queue_redraw()
 
 
+func unlock_survival_ability_from_key() -> void:
+	if not _is_survival_ability_tuning_active():
+		return
+	if _survival_ability_state == SURVIVAL_ABILITY_LOST_FOR_MAP:
+		queue_redraw()
+		return
+	if _survival_ability_state == SURVIVAL_ABILITY_MAP_UNLOCKED:
+		queue_redraw()
+		return
+	_survival_ability_state = SURVIVAL_ABILITY_KEY_HELD
+	if _ability_cooldown_remaining <= 0.0:
+		_ability_available = true
+		_notify_ability_recharged()
+	queue_redraw()
+
+
+func secure_survival_ability_for_map() -> void:
+	if not _is_survival_ability_tuning_active():
+		return
+	if _survival_ability_state == SURVIVAL_ABILITY_LOST_FOR_MAP:
+		queue_redraw()
+		return
+	_survival_ability_state = SURVIVAL_ABILITY_MAP_UNLOCKED
+	if _ability_cooldown_remaining <= 0.0:
+		_ability_available = true
+	queue_redraw()
+
+
+func lose_survival_ability_from_key_drop() -> void:
+	if not _is_survival_ability_tuning_active():
+		return
+	if _survival_ability_state == SURVIVAL_ABILITY_KEY_HELD:
+		_survival_ability_state = SURVIVAL_ABILITY_SLEEPING
+	if _survival_ability_is_locked():
+		_force_survival_ability_unavailable()
+	queue_redraw()
+
+
+func lose_survival_ability_from_death() -> void:
+	if not _is_survival_ability_tuning_active():
+		return
+	if _survival_ability_state == SURVIVAL_ABILITY_MAP_UNLOCKED:
+		_survival_ability_state = SURVIVAL_ABILITY_LOST_FOR_MAP
+	elif _survival_ability_state == SURVIVAL_ABILITY_KEY_HELD:
+		_survival_ability_state = SURVIVAL_ABILITY_SLEEPING
+	if _survival_ability_is_locked():
+		_force_survival_ability_unavailable()
+	queue_redraw()
+
+
 func is_effect_immune() -> bool:
 	if get_meta("survival_safe_zone", false) as bool:
 		return true
@@ -774,7 +868,7 @@ func is_effect_immune() -> bool:
 
 
 func _reset_ability() -> void:
-	_ability_available = true
+	_ability_available = _survival_ability_state_allows_use()
 	_ability_cooldown_remaining = 0.0
 	_rabbit_charging = false
 	_rabbit_charge_time = 0.0
@@ -795,7 +889,7 @@ func _reset_ability() -> void:
 
 func recharge_ability_after_death() -> void:
 	_reset_ability()
-	if not is_dead and not has_scored:
+	if not is_dead and not has_scored and _ability_available:
 		_notify_ability_recharged()
 
 
@@ -812,7 +906,49 @@ func _ability_consumption_enabled() -> bool:
 
 
 func _ability_usage_is_locked() -> bool:
-	return _ability_consumption_enabled()
+	return _ability_consumption_enabled() or _survival_ability_is_locked()
+
+
+func _rat_tail_should_start_cooldown_after_finish() -> bool:
+	return _uses_timed_ability_cooldowns() \
+		and escapist_animal == Enums.EscapistAnimal.RAT \
+		and not _ability_available \
+		and _ability_cooldown_remaining <= 0.0
+
+
+func _is_survival_ability_tuning_active() -> bool:
+	return GameManager.is_survival_context()
+
+
+func _survival_ability_state_allows_use() -> bool:
+	if not _is_survival_ability_tuning_active():
+		return true
+	return _survival_ability_state == SURVIVAL_ABILITY_KEY_HELD \
+		or _survival_ability_state == SURVIVAL_ABILITY_MAP_UNLOCKED
+
+
+func _survival_ability_is_locked() -> bool:
+	if not _is_survival_ability_tuning_active():
+		return false
+	return not _survival_ability_state_allows_use()
+
+
+func _force_survival_ability_unavailable() -> void:
+	_ability_available = false
+	_ability_cooldown_remaining = 0.0
+	_rabbit_charging = false
+	_rabbit_charge_time = 0.0
+	_fly_counter_timer = 0.0
+	_fly_boost_timer = 0.0
+	_effect_immunity_timer = 0.0
+	_rat_tail_visual_timer = 0.0
+	_rat_tail_visual_elapsed = 0.0
+	_rat_tail_cooldown_pending = false
+	if is_instance_valid(_active_rat_tail):
+		_active_rat_tail.queue_free()
+	_active_rat_tail = null
+	if movement:
+		movement.remove_speed_modifier(&"fly_boost")
 
 
 func _consume_ability_after_use() -> void:
@@ -827,8 +963,11 @@ func _consume_ability_after_use() -> void:
 func get_hud_ability_entry() -> Dictionary:
 	var animal_data := EscapistAnimals.get_by_id(escapist_animal)
 	var ability: Dictionary = animal_data.get("ability", {}) as Dictionary
-	var state := "LISTA"
-	if _rabbit_charging:
+	var survival_state := _get_survival_ability_state_label()
+	var state := survival_state if not survival_state.is_empty() else "LISTA"
+	if _survival_ability_is_locked():
+		pass
+	elif _rabbit_charging:
 		state = "CARGANDO"
 	elif _ability_cooldown_remaining > 0.0:
 		state = "%.1fs" % _ability_cooldown_remaining
@@ -858,12 +997,32 @@ func _get_ability_direction() -> Vector2:
 	return direction.normalized()
 
 
+func _get_rat_rescue_range() -> float:
+	if _is_survival_ability_tuning_active():
+		if has_meta("map_bounds"):
+			var bounds := get_meta("map_bounds") as Rect2
+			if bounds.size.x > 0.0:
+				return maxf(
+					Constants.RAT_RESCUE_RANGE,
+					bounds.size.x * Constants.SURVIVAL_RAT_RESCUE_RANGE_MAP_RATIO
+				)
+	return Constants.RAT_RESCUE_RANGE
+
+
+func _get_fly_counter_duration() -> float:
+	if _is_survival_ability_tuning_active():
+		return Constants.SURVIVAL_FLY_COUNTER_DURATION
+	return Constants.FLY_COUNTER_DURATION
+
+
 func _start_ability_cooldown() -> void:
 	_ability_available = false
 	_ability_cooldown_remaining = _get_ability_cooldown_duration()
 
 
 func _get_ability_cooldown_duration() -> float:
+	if _is_survival_ability_tuning_active():
+		return Constants.SURVIVAL_ESCAPIST_ABILITY_COOLDOWN
 	match escapist_animal:
 		Enums.EscapistAnimal.RABBIT:
 			return Constants.RABBIT_ABILITY_COOLDOWN
@@ -889,6 +1048,8 @@ func _get_animal_mark_alpha() -> float:
 func _notify_ability_denied() -> void:
 	_ability_denied_flash_timer = 0.22
 	var text := "USADA" if GameManager.escapists_have_single_ability_use_per_life() else "RECARGA"
+	if _survival_ability_is_locked():
+		text = "BUSCA LLAVE" if _survival_ability_state == SURVIVAL_ABILITY_SLEEPING else "PERDIDA"
 	_show_floating_text(text, Color(1.0, 0.18, 0.12), 0.75, 20)
 	AudioManager.play_effect(&"CooldownDenied")
 	queue_redraw()
@@ -903,10 +1064,39 @@ func _notify_ability_recharged() -> void:
 func _should_show_ability_ready_indicator() -> bool:
 	return _ability_consumption_enabled() \
 		and _ability_available \
+		and not _survival_ability_is_locked() \
 		and not is_dead \
 		and not has_scored \
 		and not _rabbit_charging \
 		and not is_instance_valid(_active_rat_tail)
+
+
+func _get_survival_ability_state_label() -> String:
+	if not _is_survival_ability_tuning_active():
+		return ""
+	match _survival_ability_state:
+		SURVIVAL_ABILITY_SLEEPING:
+			return "DORMIDA"
+		SURVIVAL_ABILITY_KEY_HELD:
+			return "LLAVE"
+		SURVIVAL_ABILITY_MAP_UNLOCKED:
+			return "SEGURA"
+		SURVIVAL_ABILITY_LOST_FOR_MAP:
+			return "PERDIDA"
+	return ""
+
+
+func _get_survival_ability_state_color() -> Color:
+	match _survival_ability_state:
+		SURVIVAL_ABILITY_SLEEPING:
+			return Color(0.64, 0.70, 0.78)
+		SURVIVAL_ABILITY_KEY_HELD:
+			return Color(1.0, 0.86, 0.26)
+		SURVIVAL_ABILITY_MAP_UNLOCKED:
+			return Color(0.34, 1.0, 0.68)
+		SURVIVAL_ABILITY_LOST_FOR_MAP:
+			return Color(1.0, 0.25, 0.20)
+	return Color.WHITE
 
 
 func _get_ability_ready_idle_pulse() -> float:
@@ -1066,10 +1256,35 @@ func _draw_survival_key_badges() -> void:
 		draw_line(center + Vector2(7.0, -0.7), center + Vector2(7.0, 2.3), Color(0.04, 0.04, 0.03, 0.78), 1.8)
 
 
+func _draw_survival_ability_state_indicator() -> void:
+	if not _is_survival_ability_tuning_active() or is_dead or has_scored:
+		return
+	var state_label := _get_survival_ability_state_label()
+	if state_label.is_empty():
+		return
+	var text := "HAB %s" % state_label
+	var font_size := 10
+	var text_width := ThemeDB.fallback_font.get_string_size(
+		text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var text_pos := Vector2(-text_width * 0.5, Constants.CHARACTER_RADIUS + 24.0)
+	var state_color := _get_survival_ability_state_color()
+	for offset in [
+		Vector2(-1.0, 0.0),
+		Vector2(1.0, 0.0),
+		Vector2(0.0, -1.0),
+		Vector2(0.0, 1.0),
+	]:
+		draw_string(ThemeDB.fallback_font, text_pos + offset,
+			text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.0, 0.0, 0.0, 0.82))
+	draw_string(ThemeDB.fallback_font, text_pos,
+		text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, state_color)
+
+
 func _draw_rat_tail_visual(base_color: Color) -> void:
 	if _rat_tail_visual_timer <= 0.0:
 		return
-	var extend_duration := maxf(Constants.RAT_RESCUE_RANGE / Constants.RAT_RESCUE_HOOK_SPEED, 0.01)
+	var rescue_range := _get_rat_rescue_range()
+	var extend_duration := maxf(rescue_range / Constants.RAT_RESCUE_HOOK_SPEED, 0.01)
 	var extend_ratio := clampf(_rat_tail_visual_elapsed / extend_duration, 0.0, 1.0)
 	var fade_ratio := clampf(_rat_tail_visual_timer / 0.26, 0.0, 1.0)
 	var alpha := 0.92 * fade_ratio
@@ -1174,6 +1389,7 @@ func _draw() -> void:
 		label = "BOT"
 	_draw_player_label(label, Vector2(-10, -Constants.CHARACTER_RADIUS - 8), 14, team_color)
 	_draw_survival_key_badges()
+	_draw_survival_ability_state_indicator()
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / maxf(_floating_text_duration, 0.01), 0.0, 1.0)
 		var text_size := _floating_text_size
@@ -1216,7 +1432,7 @@ func _draw() -> void:
 			-PI / 2.0, -PI / 2.0 + TAU * ratio, 18, Color(1.0, 1.0, 0.2), 2.0)
 	if _fly_counter_timer > 0.0:
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 10.0,
-			-PI / 2.0, -PI / 2.0 + TAU * (_fly_counter_timer / Constants.FLY_COUNTER_DURATION),
+			-PI / 2.0, -PI / 2.0 + TAU * (_fly_counter_timer / _get_fly_counter_duration()),
 			18, Color(0.3, 0.9, 0.85), 2.0)
 	if escapist_animal == Enums.EscapistAnimal.RAT and _rat_tail_visual_timer > 0.0:
 		_draw_rat_tail_visual(animal_color)
@@ -1282,14 +1498,15 @@ class RatTailHook extends Node2D:
 			return
 
 		var previous_distance := _distance
-		_distance = minf(_distance + Constants.RAT_RESCUE_HOOK_SPEED * delta, Constants.RAT_RESCUE_RANGE)
+		var rescue_range := _owner_rat._get_rat_rescue_range()
+		_distance = minf(_distance + Constants.RAT_RESCUE_HOOK_SPEED * delta, rescue_range)
 		var hook_start := _owner_rat.global_position + _direction * previous_distance
 		_hook_end_position = _owner_rat.global_position + _direction * _distance
 		var ally := _find_hooked_ally_between(hook_start, _hook_end_position)
 		if ally != null:
 			_hook_ally(ally)
 			return
-		if _distance >= Constants.RAT_RESCUE_RANGE:
+		if _distance >= rescue_range:
 			_is_holding = true
 		queue_redraw()
 
@@ -1463,11 +1680,15 @@ class AcornProjectile extends Node2D:
 
 		var from := global_position
 		var to := from + _velocity * delta
+		var zombie_hit := _find_survival_zombie_hit_between(from, to)
 		var query := PhysicsRayQueryParameters2D.create(from, to)
 		query.collision_mask = Constants.LAYER_WALLS | Constants.LAYER_TRAPS
 		query.collide_with_areas = true
 		query.collide_with_bodies = true
 		var hit := get_world_2d().direct_space_state.intersect_ray(query)
+		if not zombie_hit.is_empty() and _is_zombie_hit_before_obstacle(zombie_hit, hit, from):
+			_destroy_zombie_hit(zombie_hit)
+			return
 		if hit.is_empty():
 			global_position = to
 		else:
@@ -1490,6 +1711,56 @@ class AcornProjectile extends Node2D:
 			global_position += normal * 2.0
 
 		queue_redraw()
+
+	func _find_survival_zombie_hit_between(segment_start: Vector2, segment_end: Vector2) -> Dictionary:
+		var tree := get_tree()
+		if tree == null:
+			return {}
+		var segment := segment_end - segment_start
+		var segment_length_sq := segment.length_squared()
+		var hit_radius := Constants.SQUIRREL_ACORN_RADIUS + Constants.CHARACTER_RADIUS * 0.86
+		var best_zombie: Node2D = null
+		var best_position := Vector2.ZERO
+		var best_progress := INF
+		for node: Node in tree.get_nodes_in_group("survival_zombies"):
+			if not is_instance_valid(node) or node.is_queued_for_deletion() or not node is Node2D:
+				continue
+			var zombie := node as Node2D
+			var progress := 0.0
+			if segment_length_sq > 0.01:
+				progress = clampf(
+					(zombie.global_position - segment_start).dot(segment) / segment_length_sq,
+					0.0,
+					1.0
+				)
+			var closest := segment_start + segment * progress
+			if zombie.global_position.distance_squared_to(closest) > hit_radius * hit_radius:
+				continue
+			if progress < best_progress:
+				best_progress = progress
+				best_position = closest
+				best_zombie = zombie
+		if best_zombie == null:
+			return {}
+		return {
+			"zombie": best_zombie,
+			"position": best_position,
+		}
+
+	func _is_zombie_hit_before_obstacle(zombie_hit: Dictionary, obstacle_hit: Dictionary,
+			origin: Vector2) -> bool:
+		if obstacle_hit.is_empty():
+			return true
+		var zombie_position: Vector2 = zombie_hit["position"] as Vector2
+		var obstacle_position: Vector2 = obstacle_hit["position"] as Vector2
+		return origin.distance_squared_to(zombie_position) <= origin.distance_squared_to(obstacle_position)
+
+	func _destroy_zombie_hit(zombie_hit: Dictionary) -> void:
+		global_position = zombie_hit["position"] as Vector2
+		var zombie := zombie_hit["zombie"] as Node
+		if is_instance_valid(zombie):
+			zombie.queue_free()
+		queue_free()
 
 	func _stick_to_wall(stick_position: Vector2) -> void:
 		global_position = stick_position
