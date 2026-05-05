@@ -88,6 +88,8 @@ class SporeZone extends Area2D:
 			if body is Escapist:
 				var esc := body as Escapist
 				if not esc.is_dead and not esc.has_scored and esc.team != owner_team:
+					if esc.is_effect_immune():
+						return
 					esc.notify_trap_status("ENVENENADO", Color(0.15, 0.95, 0.2), 0.9)
 					esc.poison.apply_poison()
 

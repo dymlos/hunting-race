@@ -315,11 +315,11 @@ func escapists_have_single_ability_use_per_life() -> bool:
 
 
 func is_trap_interaction_active() -> bool:
-	return hunt_active or is_skill_test_context_active()
+	return hunt_active or current_state == Enums.GameState.SURVIVAL or is_skill_test_context_active()
 
 
 func is_trap_lifetime_active() -> bool:
-	return trap_lifetime_active or is_skill_test_context_active()
+	return trap_lifetime_active or current_state == Enums.GameState.SURVIVAL or is_skill_test_context_active()
 
 
 func register_respawn_penalty(player_index: int, reason: StringName) -> void:

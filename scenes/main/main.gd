@@ -1241,6 +1241,7 @@ func _on_survival_zombie_caught(escapist: Escapist, _zombie: Node) -> void:
 func _on_survival_escapist_respawning(escapist: Escapist, death_position: Vector2) -> void:
 	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
 		return
+	_refill_survival_trapper_abilities()
 	_survival_goal_escapists.erase(escapist.player_index)
 	_survival_exit_hold_time = 0.0
 	escapist.set_meta("survival_safe_zone", false)
@@ -1256,6 +1257,7 @@ func _on_survival_escapist_respawning(escapist: Escapist, death_position: Vector
 func _on_survival_escapist_died(escapist: Escapist) -> void:
 	if GameManager.current_state != Enums.GameState.SURVIVAL or _survival_match_finished:
 		return
+	_refill_survival_trapper_abilities()
 	_survival_goal_escapists.erase(escapist.player_index)
 	_survival_exit_hold_time = 0.0
 	escapist.set_meta("survival_safe_zone", false)
@@ -1266,6 +1268,13 @@ func _on_survival_escapist_died(escapist: Escapist) -> void:
 	if _survival_jail_enabled():
 		_prepare_survival_escapist_jail_respawn(escapist)
 	call_deferred("_revive_survival_dead_escapist", escapist)
+
+
+func _refill_survival_trapper_abilities() -> void:
+	for character in characters:
+		if is_instance_valid(character) and character is SurvivalTrapper \
+				and character.has_method("refill_all_abilities"):
+			character.call("refill_all_abilities", true)
 
 
 func _survival_jail_enabled() -> bool:
