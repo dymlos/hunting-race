@@ -124,6 +124,7 @@ var _survival_series_initial_roles: Dictionary = {}
 var _survival_series_leg_index: int = 0
 var _survival_result_auto_advance_timer: float = 0.0
 var _survival_final_series_complete: bool = false
+var _survival_selector_allow_back: bool = true
 
 
 func _ready() -> void:
@@ -222,6 +223,7 @@ func _ready() -> void:
 	pause_menu.practice_bots_toggled.connect(_on_practice_bots_toggled)
 	pause_menu.next_survival_map_requested.connect(_go_to_next_survival_map_from_pause)
 	pause_menu.survival_map_requested.connect(_go_to_survival_map_from_pause)
+	pause_menu.survival_return_leg_requested.connect(_go_to_survival_return_leg_from_pause)
 
 	phase_overlay = PhaseOverlayScene.instantiate() as PhaseOverlay
 	ui_layer.add_child(phase_overlay)
@@ -362,6 +364,12 @@ func _hide_survival_hud() -> void:
 		survival_hud.hide()
 
 
+func _is_survival_character_selection_visible() -> bool:
+	return _is_survival_flow \
+		and ((escapist_select != null and escapist_select.visible) \
+			or (character_select != null and character_select.visible))
+
+
 func _start_practice_setup() -> void:
 	get_tree().paused = false
 	_clear_pause_menu()
@@ -428,6 +436,7 @@ func _reset_survival_series_state() -> void:
 	_survival_series_leg_index = 0
 	_survival_result_auto_advance_timer = 0.0
 	_survival_final_series_complete = false
+	_survival_selector_allow_back = true
 	_survival_transition_timer = 0.0
 	_survival_transition_target_map_index = -1
 	_survival_transition_carryover_jailed.clear()
@@ -468,12 +477,12 @@ func _on_survival_escape_ready(role_assignments: Dictionary) -> void:
 	_survival_series_initial_roles = role_assignments.duplicate()
 	_survival_series_leg_index = 0
 	_apply_survival_role_assignments(role_assignments)
+	_survival_selector_allow_back = true
 
 	while not _view_stack.is_empty():
 		pop_view()
 
-	_begin_survival_leg()
-	_start_survival_escape_session()
+	_show_escapist_select(true, true)
 
 
 func _apply_survival_role_assignments(role_assignments: Dictionary) -> void:
@@ -602,26 +611,29 @@ func _on_stage_back() -> void:
 	_start_team_setup()
 
 
-func _show_escapist_select(allow_back: bool) -> void:
+func _show_escapist_select(allow_back: bool, survival_mode: bool = false) -> void:
 	if _view_stack.is_empty():
 		push_view(escapist_select)
 	else:
 		replace_view(escapist_select)
 	escapist_select.setup(_active_player_indices, GameManager.team_assignments,
-		GameManager.escapist_team, allow_back)
+		GameManager.escapist_team, allow_back, survival_mode)
 
 
-func _show_character_select(allow_back: bool) -> void:
+func _show_character_select(allow_back: bool, survival_mode: bool = false) -> void:
 	if _view_stack.is_empty():
 		push_view(character_select)
 	else:
 		replace_view(character_select)
 	character_select.setup(_active_player_indices, GameManager.team_assignments,
-		GameManager.get_trapping_team(), allow_back)
+		GameManager.get_trapping_team(), allow_back, survival_mode)
 
 
 func _on_escapists_ready(selections: Dictionary) -> void:
 	GameManager.set_escapist_selections(selections)
+	if _is_survival_flow:
+		_show_character_select(_survival_selector_allow_back, true)
+		return
 	_show_character_select(_is_practice_flow or _is_first_round)
 
 
@@ -636,6 +648,11 @@ func _on_characters_ready(selections: Dictionary) -> void:
 
 	if _is_practice_flow:
 		_start_practice_session()
+		return
+
+	if _is_survival_flow:
+		_begin_survival_leg()
+		_start_survival_escape_session()
 		return
 
 	if _is_first_round:
@@ -678,12 +695,18 @@ func _on_official_briefing_back() -> void:
 
 
 func _on_character_back() -> void:
+	if _is_survival_flow:
+		_show_escapist_select(_survival_selector_allow_back, true)
+		return
 	_show_escapist_select(true)
 
 
 func _on_escapist_back() -> void:
 	if _is_practice_flow:
 		_start_practice_setup()
+		return
+	if _is_survival_flow:
+		_start_survival_escape_setup()
 		return
 	replace_view(stage_select)
 	stage_select.setup()
@@ -2330,11 +2353,13 @@ func _start_survival_return_leg() -> void:
 	phase_overlay.clear()
 	game_hud.hide()
 	_hide_survival_hud()
+	menu_music.use_menu_volume()
+	menu_music.start_music()
 	_survival_series_leg_index = 1
 	var swapped_roles := _build_swapped_survival_roles(_survival_series_initial_roles)
 	_apply_survival_role_assignments(swapped_roles)
-	_begin_survival_leg()
-	_start_survival_escape_session()
+	_survival_selector_allow_back = false
+	_show_escapist_select(false, true)
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
 
@@ -2357,6 +2382,9 @@ func _process(delta: float) -> void:
 
 	if _round_replay_active:
 		_check_round_replay_skip_input()
+		return
+
+	if _is_survival_character_selection_visible():
 		return
 
 	if state == Enums.GameState.HUNT:
@@ -2593,6 +2621,37 @@ func _go_to_survival_map_from_pause(map_index: int) -> void:
 	_start_survival_escape_session(clampi(map_index, 0, MapData.get_survival_map_count() - 1))
 	_prime_start_button_state()
 	InputManager.suppress_edge_detection(3)
+
+
+func _go_to_survival_return_leg_from_pause() -> void:
+	if not GameManager.is_survival_context():
+		return
+	get_tree().paused = false
+	_clear_pause_menu()
+	if GameManager.current_state == Enums.GameState.PAUSED:
+		GameManager.unpause_game()
+	_record_skipped_survival_first_leg_if_needed()
+	_start_survival_return_leg()
+	_prime_start_button_state()
+	InputManager.suppress_edge_detection(3)
+
+
+func _record_skipped_survival_first_leg_if_needed() -> void:
+	if _survival_series_leg_index != 0 or not _survival_series_records.is_empty():
+		return
+	var record := {
+		"leg": 1,
+		"side": 0,
+		"label": _get_survival_series_side_label(0),
+		"completed": false,
+		"elapsed": _survival_leg_elapsed,
+		"time_budget": _survival_leg_time_budget,
+		"score": 0,
+		"map_reached": _survival_map_index + 1,
+		"reason": "Saltado desde pausa.",
+	}
+	_survival_series_records.append(record)
+	GameManager.set_survival_score_records(_survival_series_records)
 
 
 func _restart_survival_escape_session() -> void:

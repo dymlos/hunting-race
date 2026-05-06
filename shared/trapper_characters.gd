@@ -59,6 +59,62 @@ static func get_by_id(tc: Enums.TrapperCharacter) -> Dictionary:
 	return {}
 
 
+static func get_survival_all() -> Array[Dictionary]:
+	return [
+		{
+			"id": Enums.TrapperCharacter.ARANA,
+			"name": "ARAÃ‘A",
+			"subtitle": "Una carga, tres formas",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ARANA),
+			"abilities": [
+				{"name": "Veneno", "desc": "Mantener A en el primer punto coloca veneno persistente.", "button": "A mant."},
+				{"name": "ElÃ¡stica", "desc": "Toca un punto y mantÃ©n A en el segundo para tender la telaraÃ±a elÃ¡stica.", "button": "A x2"},
+				{"name": "Expansiva", "desc": "Toca dos puntos y coloca un tercero para crear la zona de telaraÃ±a expansiva.", "button": "A x3"},
+			],
+		},
+		{
+			"id": Enums.TrapperCharacter.HONGO,
+			"name": "HONGO",
+			"subtitle": "Combo fungal con A",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.HONGO),
+			"abilities": [
+				{"name": "Confusor", "desc": "Mantener A una vez planta el hongo que invierte controles.", "button": "A mant."},
+				{"name": "Portal", "desc": "Toca un punto y mantÃ©n A en el segundo para unir dos portales.", "button": "A x2"},
+				{"name": "Esporas", "desc": "Toca dos puntos y mantÃ©n A en el tercero para crear esporas tÃ³xicas.", "button": "A x3"},
+			],
+		},
+		{
+			"id": Enums.TrapperCharacter.ESCORPION,
+			"name": "ESCORPIÃ“N",
+			"subtitle": "Control letal con A",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.ESCORPION),
+			"abilities": [
+				{"name": "AguijÃ³n", "desc": "Mantener A una vez entierra un aguijÃ³n que se revela al acercarse.", "button": "A mant."},
+				{"name": "Pinzas", "desc": "Toca un punto y mantÃ©n A en el segundo para cerrar las pinzas trituradoras.", "button": "A x2"},
+				{"name": "Arenas", "desc": "Toca dos puntos y mantÃ©n A en el tercero para formar arenas movedizas triangulares.", "button": "A x3"},
+			],
+		},
+		{
+			"id": Enums.TrapperCharacter.PULPO,
+			"name": "PULPO",
+			"subtitle": "Zona y arrastre con A",
+			"color": Enums.trapper_character_color(Enums.TrapperCharacter.PULPO),
+			"abilities": [
+				{"name": "TentÃ¡culo", "desc": "Mantener A una vez planta un tentÃ¡culo que engancha escapistas cercanos.", "button": "A mant."},
+				{"name": "Corriente", "desc": "Toca un punto y mantÃ©n A en el segundo para crear una corriente de agua.", "button": "A x2"},
+				{"name": "Tinta", "desc": "Toca dos puntos y mantÃ©n A en el tercero para cubrir una zona con tinta.", "button": "A x3"},
+			],
+		},
+	]
+
+
+static func get_survival_by_id(tc: Enums.TrapperCharacter) -> Dictionary:
+	for data: Dictionary in get_survival_all():
+		if (data["id"] as Enums.TrapperCharacter) == tc:
+			return data
+	return {}
+
+
 static func get_ids() -> Array[Enums.TrapperCharacter]:
 	return [
 		Enums.TrapperCharacter.ARANA,

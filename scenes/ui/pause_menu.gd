@@ -12,6 +12,7 @@ signal reset_requested
 signal round_reset_requested
 signal next_survival_map_requested
 signal survival_map_requested(map_index: int)
+signal survival_return_leg_requested
 
 var input_blocked: bool = false
 
@@ -23,7 +24,7 @@ const NAV_AXIS_THRESHOLD: float = 0.84
 const NAV_AXIS_RELEASE: float = 0.42
 const OFFICIAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Restart Round", "Practice Mode", "Return to Setup"]
 const PRACTICE_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Ability Guide", "Cooldowns", "Practice Obstacles", "Practice Bots", "Change Characters", "Restart Practice Setup"]
-const SURVIVAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Cooldowns", "Next Survival Map", "Restart Survival", "Return to Survival Setup"]
+const SURVIVAL_OPTIONS: Array[String] = ["Resume", "Settings", "How to Play", "Cooldowns", "Next Survival Map", "Go to Return Leg", "Restart Survival", "Return to Survival Setup"]
 const SURVIVAL_MAP_OPTION_PREFIX: String = "Survival Map "
 
 
@@ -215,6 +216,8 @@ func _get_option_label(option: String) -> String:
 			return "Reiniciar survival"
 		"Next Survival Map":
 			return "Ir a mapa siguiente"
+		"Go to Return Leg":
+			return "Ir a la vuelta"
 		"Practice Mode":
 			return "Modo práctica"
 		"Return to Setup":
@@ -253,6 +256,8 @@ func _activate_option(option: String) -> void:
 			round_reset_requested.emit()
 		"Next Survival Map":
 			next_survival_map_requested.emit()
+		"Go to Return Leg":
+			survival_return_leg_requested.emit()
 		"Practice Obstacles":
 			_toggle_practice_obstacles()
 		"Practice Bots":

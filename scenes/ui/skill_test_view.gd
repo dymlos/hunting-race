@@ -8,6 +8,8 @@ extends SubViewportContainer
 const ArenaScene := preload("res://scenes/arena/arena.tscn")
 const EscapistScene := preload("res://scenes/characters/escapist/escapist.tscn")
 const TrapperScene := preload("res://scenes/characters/trapper/trapper.tscn")
+const SurvivalTrapperScene := preload("res://scenes/characters/trapper/survival_trapper.gd")
+const SurvivalZombieScene := preload("res://scenes/characters/enemies/survival_zombie.gd")
 
 const TEST_SIZE := Vector2(560.0, 300.0)
 const TEST_TEAM := Enums.Team.TEAM_1
@@ -30,10 +32,22 @@ func setup_escapist(player_index: int, animal: Enums.EscapistAnimal) -> void:
 	_spawn_escapist_context(animal)
 
 
+func setup_escapist_survival(player_index: int, animal: Enums.EscapistAnimal) -> void:
+	_prepare(player_index, "survival_escapist_%d_%d" % [player_index, Time.get_ticks_msec()])
+	var esc := _spawn_escapist_player(animal, true)
+	_spawn_survival_escapist_context(animal, esc)
+
+
 func setup_trapper(player_index: int, character: Enums.TrapperCharacter) -> void:
 	_prepare(player_index, "trapper_%d_%d" % [player_index, Time.get_ticks_msec()])
 	_spawn_trapper_player(character)
 	_spawn_trapper_context(character)
+
+
+func setup_trapper_survival(player_index: int, character: Enums.TrapperCharacter) -> void:
+	_prepare(player_index, "survival_trapper_%d_%d" % [player_index, Time.get_ticks_msec()])
+	_spawn_survival_trapper_player(character)
+	_spawn_survival_trapper_context(character)
 
 
 func set_view_rect(rect: Rect2) -> void:
@@ -59,7 +73,6 @@ func _prepare(player_index: int, skill_test_id: String) -> void:
 	_skill_test_id = skill_test_id
 	_had_previous_player_character = GameManager.player_characters.has(player_index)
 	_previous_player_character = GameManager.player_characters.get(player_index, null) as Node2D
-	GameManager.settings_overrides[&"skill_cooldowns_enabled"] = true
 	GameManager.begin_skill_test_context()
 	_ensure_viewport()
 	_clear_root()
@@ -131,7 +144,7 @@ func _get_skill_test_map() -> Dictionary:
 	}
 
 
-func _spawn_escapist_player(animal: Enums.EscapistAnimal) -> Escapist:
+func _spawn_escapist_player(animal: Enums.EscapistAnimal, survival_mode: bool = false) -> Escapist:
 	var esc := EscapistScene.instantiate() as Escapist
 	esc.player_index = _player_index
 	esc.team = TEST_TEAM
@@ -140,8 +153,13 @@ func _spawn_escapist_player(animal: Enums.EscapistAnimal) -> Escapist:
 	esc.position = Vector2(98.0, 150.0)
 	esc.aim_direction = Vector2.RIGHT
 	esc.set_meta("skill_test_id", _skill_test_id)
+	if survival_mode:
+		esc.set_meta("skill_test_survival", true)
+		esc.set_meta("map_bounds", Rect2(Vector2.ZERO, TEST_SIZE))
 	_root.add_child(esc)
 	esc.unfreeze_character()
+	if survival_mode:
+		esc.unlock_survival_ability_from_key()
 	GameManager.player_characters[_player_index] = esc
 	return esc
 
@@ -158,7 +176,27 @@ func _spawn_escapist_context(animal: Enums.EscapistAnimal) -> void:
 			_spawn_breakable_trap(Vector2(410.0, 150.0), Vector2(30.0, 30.0))
 
 
-func _spawn_ally_escapist(pos: Vector2) -> void:
+func _spawn_survival_escapist_context(animal: Enums.EscapistAnimal, esc: Escapist) -> void:
+	match animal:
+		Enums.EscapistAnimal.RAT:
+			var ally := _spawn_ally_escapist(Vector2(406.0, 150.0), true)
+			_spawn_survival_zombie(Vector2(430.0, 140.0), Constants.SURVIVAL_ZOMBIE_SPEED * 0.35)
+			_spawn_survival_zombie(Vector2(430.0, 162.0), Constants.SURVIVAL_ZOMBIE_SPEED * 0.35)
+			ally.notify_trap_status("ALIADO EN PELIGRO", Color(0.65, 0.95, 1.0), 1.2)
+		Enums.EscapistAnimal.SQUIRREL:
+			_spawn_survival_zombie(Vector2(325.0, 150.0), Constants.SURVIVAL_ZOMBIE_SPEED * 0.18)
+			_spawn_breakable_trap(Vector2(438.0, 150.0), Vector2(30.0, 30.0))
+		Enums.EscapistAnimal.FLY:
+			_spawn_survival_zombie(Vector2(392.0, 150.0), Constants.SURVIVAL_ZOMBIE_SPEED * 0.42)
+			_spawn_pulse_trap(Vector2(352.0, 150.0), Vector2(468.0, 150.0))
+		_:
+			_spawn_breakable_trap(Vector2(360.0, 150.0), Vector2(30.0, 30.0))
+			_spawn_survival_zombie(Vector2(458.0, 150.0), Constants.SURVIVAL_ZOMBIE_SPEED * 0.22)
+	if is_instance_valid(esc):
+		esc.notify_trap_status("LLAVE TOMADA", Color(1.0, 0.86, 0.26), 1.2)
+
+
+func _spawn_ally_escapist(pos: Vector2, survival_mode: bool = false) -> Escapist:
 	var ally := EscapistScene.instantiate() as Escapist
 	ally.player_index = 9001
 	ally.team = TEST_TEAM
@@ -167,8 +205,12 @@ func _spawn_ally_escapist(pos: Vector2) -> void:
 	ally.position = pos
 	ally.aim_direction = Vector2.LEFT
 	ally.set_meta("skill_test_id", _skill_test_id)
+	if survival_mode:
+		ally.set_meta("skill_test_survival", true)
+		ally.set_meta("map_bounds", Rect2(Vector2.ZERO, TEST_SIZE))
 	_root.add_child(ally)
 	ally.freeze_character()
+	return ally
 
 
 func _spawn_trapper_player(character: Enums.TrapperCharacter) -> Trapper:
@@ -186,6 +228,22 @@ func _spawn_trapper_player(character: Enums.TrapperCharacter) -> Trapper:
 	return trapper
 
 
+func _spawn_survival_trapper_player(character: Enums.TrapperCharacter) -> SurvivalTrapper:
+	var trapper := SurvivalTrapperScene.new() as SurvivalTrapper
+	trapper.player_index = _player_index
+	trapper.team = OPPONENT_TEAM
+	trapper.player_color = Enums.trapper_character_color(character)
+	trapper.trapper_character = character
+	trapper.position = Vector2(132.0, 150.0)
+	trapper.aim_direction = Vector2.RIGHT
+	trapper.set_meta("skill_test_id", _skill_test_id)
+	trapper.set_meta("map_bounds", Rect2(Vector2.ZERO, TEST_SIZE))
+	_root.add_child(trapper)
+	trapper.unfreeze_character()
+	GameManager.player_characters[_player_index] = trapper
+	return trapper
+
+
 func _spawn_trapper_context(character: Enums.TrapperCharacter) -> void:
 	var enemy := _spawn_enemy_escapist(Vector2(430.0, 150.0))
 	enemy.configure_patrol_bot(Vector2(370.0, 150.0), Vector2(488.0, 150.0))
@@ -193,6 +251,22 @@ func _spawn_trapper_context(character: Enums.TrapperCharacter) -> void:
 		_spawn_breakable_trap(Vector2(430.0, 96.0), Vector2(30.0, 30.0))
 	elif character == Enums.TrapperCharacter.PULPO:
 		enemy.configure_patrol_bot(Vector2(386.0, 112.0), Vector2(492.0, 188.0))
+
+
+func _spawn_survival_trapper_context(character: Enums.TrapperCharacter) -> void:
+	var enemy := _spawn_enemy_escapist(Vector2(430.0, 150.0))
+	enemy.set_meta("skill_test_survival", true)
+	enemy.set_meta("map_bounds", Rect2(Vector2.ZERO, TEST_SIZE))
+	enemy.configure_patrol_bot(Vector2(360.0, 150.0), Vector2(500.0, 150.0))
+	match character:
+		Enums.TrapperCharacter.ARANA:
+			_spawn_enemy_escapist(Vector2(430.0, 108.0)).configure_patrol_bot(Vector2(370.0, 108.0), Vector2(500.0, 108.0))
+		Enums.TrapperCharacter.HONGO:
+			_spawn_breakable_trap(Vector2(446.0, 104.0), Vector2(30.0, 30.0))
+		Enums.TrapperCharacter.ESCORPION:
+			_spawn_breakable_trap(Vector2(430.0, 96.0), Vector2(30.0, 30.0))
+		Enums.TrapperCharacter.PULPO:
+			enemy.configure_patrol_bot(Vector2(386.0, 112.0), Vector2(492.0, 188.0))
 
 
 func _spawn_enemy_escapist(pos: Vector2) -> Escapist:
@@ -226,6 +300,14 @@ func _spawn_pulse_trap(a: Vector2, b: Vector2) -> void:
 	var trap := SkillTestPulseTrap.new()
 	trap.setup(a, b, OPPONENT_TEAM, _skill_test_id)
 	_root.add_child(trap)
+
+
+func _spawn_survival_zombie(pos: Vector2, speed: float) -> SurvivalZombie:
+	var zombie := SurvivalZombieScene.new() as SurvivalZombie
+	zombie.setup(randi() % 10000, pos, speed)
+	zombie.set_meta("skill_test_id", _skill_test_id)
+	_root.add_child(zombie)
+	return zombie
 
 
 class SkillTestBreakableTrap extends Area2D:

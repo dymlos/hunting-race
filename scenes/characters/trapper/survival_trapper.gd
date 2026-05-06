@@ -15,6 +15,31 @@ const WaterCurrentAbility := preload("res://scenes/characters/trapper/abilities/
 const SURVIVAL_ABILITY_HOLD_THRESHOLD: float = 0.34
 const SURVIVAL_ABILITY_READY := &"ready"
 const SURVIVAL_ABILITY_USED := &"used"
+const TRAPPER_SPRITE_FORWARD_ROTATION_OFFSET := PI * 0.5
+const SCORPION_SPRITE_BASE_PATH := "res://assets/characters/scorpion"
+const SCORPION_SPRITE_FRAME_SIZE := Vector2i(64, 64)
+const SCORPION_MOVE_FRAME_COUNT := 4
+const SCORPION_ATTACK_FRAME_COUNT := 8
+const SCORPION_DEATH_FRAME_COUNT := 8
+const SCORPION_MOVE_FPS := 8.0
+const SCORPION_ATTACK_FPS := 12.0
+const SCORPION_DEATH_FPS := 10.0
+const SCORPION_ATTACK_DURATION := 0.68
+const SCORPION_SPRITE_SCALE := Vector2(0.72, 0.72)
+const SCORPION_SPRITE_BASE_OFFSET := Vector2.ZERO
+const SPIDER_SPRITE_BASE_PATH := "res://assets/characters/spider"
+const SPIDER_SPRITE_FRAME_SIZE := Vector2i(256, 256)
+const SPIDER_IDLE_FRAME_COUNT := 20
+const SPIDER_WALK_FRAME_COUNT := 20
+const SPIDER_ATTACK_FRAME_COUNT := 24
+const SPIDER_DEATH_FRAME_COUNT := 30
+const SPIDER_IDLE_FPS := 8.0
+const SPIDER_WALK_FPS := 11.0
+const SPIDER_ATTACK_FPS := 16.0
+const SPIDER_DEATH_FPS := 12.0
+const SPIDER_ATTACK_DURATION := 0.72
+const SPIDER_SPRITE_SCALE := Vector2(0.22, 0.22)
+const SPIDER_SPRITE_BASE_OFFSET := Vector2.ZERO
 
 var trapper_character: Enums.TrapperCharacter = Enums.TrapperCharacter.ARANA
 var bot_ai_enabled: bool = false
@@ -32,6 +57,16 @@ var _floating_text_timer: float = 0.0
 var _floating_text_duration: float = 0.85
 var _floating_text_color: Color = Color.WHITE
 var _ability_ready_flash_timer: float = 0.0
+var _trapper_sprite: AnimatedSprite2D = null
+var _trapper_last_animation: String = ""
+var _trapper_attack_timer: float = 0.0
+static var _shared_scorpion_sprite_frames: SpriteFrames = null
+static var _shared_spider_sprite_frames: SpriteFrames = null
+
+
+func _ready() -> void:
+	super._ready()
+	_setup_trapper_sprite()
 
 
 func _setup_role() -> void:
@@ -66,6 +101,260 @@ func _physics_process(delta: float) -> void:
 	if bot_ai_enabled:
 		_process_survival_bot(delta)
 	super._physics_process(delta)
+	_update_trapper_sprite(delta)
+
+
+func _setup_trapper_sprite() -> void:
+	if not _character_uses_trapper_sprite():
+		return
+	_trapper_sprite = AnimatedSprite2D.new()
+	_trapper_sprite.name = "%sSprite" % _get_trapper_sprite_asset_name()
+	_trapper_sprite.sprite_frames = _build_trapper_sprite_frames()
+	_trapper_last_animation = _get_trapper_move_animation(false)
+	_trapper_sprite.animation = _trapper_last_animation
+	_trapper_sprite.centered = true
+	_trapper_sprite.scale = _get_trapper_sprite_base_scale()
+	_trapper_sprite.position = _get_trapper_sprite_offset()
+	_trapper_sprite.z_index = 1
+	_trapper_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_trapper_sprite.visible = _uses_trapper_sprite()
+	add_child(_trapper_sprite)
+
+
+func _character_uses_trapper_sprite() -> bool:
+	return trapper_character == Enums.TrapperCharacter.ARANA \
+		or trapper_character == Enums.TrapperCharacter.ESCORPION
+
+
+func _build_trapper_sprite_frames() -> SpriteFrames:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return _build_spider_sprite_frames()
+		Enums.TrapperCharacter.ESCORPION:
+			return _build_scorpion_sprite_frames()
+	return SpriteFrames.new()
+
+
+func _build_scorpion_sprite_frames() -> SpriteFrames:
+	if _shared_scorpion_sprite_frames != null:
+		return _shared_scorpion_sprite_frames
+	var sprite_frames := SpriteFrames.new()
+	if sprite_frames.has_animation("default"):
+		sprite_frames.remove_animation("default")
+	_add_scorpion_sheet_animation(sprite_frames, "scorpion_move",
+		"scorpion-move.png", SCORPION_MOVE_FRAME_COUNT, SCORPION_MOVE_FPS, true)
+	_add_scorpion_sheet_animation(sprite_frames, "scorpion_move_wounded",
+		"scorpion-move-wounded.png", SCORPION_MOVE_FRAME_COUNT, SCORPION_MOVE_FPS, true)
+	_add_scorpion_sheet_animation(sprite_frames, "scorpion_attack",
+		"scorpion-attack.png", SCORPION_ATTACK_FRAME_COUNT, SCORPION_ATTACK_FPS, false)
+	_add_scorpion_sheet_animation(sprite_frames, "scorpion_attack_wounded",
+		"scorpion-attack-wounded.png", SCORPION_ATTACK_FRAME_COUNT, SCORPION_ATTACK_FPS, false)
+	_add_scorpion_sheet_animation(sprite_frames, "scorpion_death_0",
+		"scorpion-death-0.png", SCORPION_DEATH_FRAME_COUNT, SCORPION_DEATH_FPS, false)
+	_add_scorpion_sheet_animation(sprite_frames, "scorpion_death_1",
+		"scorpion-death-1.png", SCORPION_DEATH_FRAME_COUNT, SCORPION_DEATH_FPS, false)
+	_shared_scorpion_sprite_frames = sprite_frames
+	return sprite_frames
+
+
+func _build_spider_sprite_frames() -> SpriteFrames:
+	if _shared_spider_sprite_frames != null:
+		return _shared_spider_sprite_frames
+	var sprite_frames := SpriteFrames.new()
+	if sprite_frames.has_animation("default"):
+		sprite_frames.remove_animation("default")
+	_add_grid_sheet_animation(sprite_frames, "spider_idle", SPIDER_SPRITE_BASE_PATH,
+		"Idle.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_IDLE_FRAME_COUNT, SPIDER_IDLE_FPS, true)
+	_add_grid_sheet_animation(sprite_frames, "spider_walk", SPIDER_SPRITE_BASE_PATH,
+		"Walk.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_WALK_FRAME_COUNT, SPIDER_WALK_FPS, true)
+	_add_grid_sheet_animation(sprite_frames, "spider_attack", SPIDER_SPRITE_BASE_PATH,
+		"Attack1.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_ATTACK_FRAME_COUNT, SPIDER_ATTACK_FPS, false)
+	_add_grid_sheet_animation(sprite_frames, "spider_death_1", SPIDER_SPRITE_BASE_PATH,
+		"Death1.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_DEATH_FRAME_COUNT, SPIDER_DEATH_FPS, false)
+	_add_grid_sheet_animation(sprite_frames, "spider_death_2", SPIDER_SPRITE_BASE_PATH,
+		"Death2.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_DEATH_FRAME_COUNT, SPIDER_DEATH_FPS, false)
+	_shared_spider_sprite_frames = sprite_frames
+	return sprite_frames
+
+
+func _add_scorpion_sheet_animation(sprite_frames: SpriteFrames, animation_name: String,
+		file_name: String, frame_count: int, fps: float, loops: bool) -> void:
+	sprite_frames.add_animation(animation_name)
+	sprite_frames.set_animation_loop(animation_name, loops)
+	sprite_frames.set_animation_speed(animation_name, fps)
+	var image := Image.new()
+	if image.load("%s/%s" % [SCORPION_SPRITE_BASE_PATH, file_name]) != OK:
+		return
+	for frame_index in range(frame_count):
+		var frame_rect := Rect2i(
+			Vector2i(frame_index * SCORPION_SPRITE_FRAME_SIZE.x, 0),
+			SCORPION_SPRITE_FRAME_SIZE
+		)
+		var frame_image := image.get_region(frame_rect)
+		var texture := ImageTexture.create_from_image(frame_image)
+		if texture:
+			sprite_frames.add_frame(animation_name, texture)
+
+
+func _add_grid_sheet_animation(sprite_frames: SpriteFrames, animation_name: String,
+		base_path: String, file_name: String, frame_size: Vector2i,
+		frame_count: int, fps: float, loops: bool) -> void:
+	sprite_frames.add_animation(animation_name)
+	sprite_frames.set_animation_loop(animation_name, loops)
+	sprite_frames.set_animation_speed(animation_name, fps)
+	var image := Image.new()
+	if image.load("%s/%s" % [base_path, file_name]) != OK:
+		return
+	var columns := maxi(int(image.get_width() / frame_size.x), 1)
+	for frame_index in range(frame_count):
+		var column := frame_index % columns
+		var row := int(frame_index / columns)
+		var frame_position := Vector2i(column * frame_size.x, row * frame_size.y)
+		if frame_position.x + frame_size.x > image.get_width() \
+				or frame_position.y + frame_size.y > image.get_height():
+			break
+		var frame_image := image.get_region(Rect2i(frame_position, frame_size))
+		var texture := ImageTexture.create_from_image(frame_image)
+		if texture:
+			sprite_frames.add_frame(animation_name, texture)
+
+
+func _uses_trapper_sprite() -> bool:
+	return _character_uses_trapper_sprite() \
+		and _trapper_sprite != null \
+		and _trapper_sprite.sprite_frames != null \
+		and _trapper_sprite.sprite_frames.has_animation(_trapper_last_animation) \
+		and _trapper_sprite.sprite_frames.get_frame_count(_trapper_last_animation) > 0
+
+
+func _update_trapper_sprite(delta: float) -> void:
+	if _trapper_sprite == null:
+		return
+	if _trapper_attack_timer > 0.0:
+		_trapper_attack_timer = maxf(_trapper_attack_timer - delta, 0.0)
+	var should_show := _character_uses_trapper_sprite()
+	_trapper_sprite.visible = should_show and _uses_trapper_sprite()
+	if not _trapper_sprite.visible:
+		return
+
+	var move_vector := velocity
+	if movement != null and movement.velocity.length() > move_vector.length():
+		move_vector = movement.velocity
+	var moving := move_vector.length() > 8.0
+	var direction := move_vector.normalized() if moving else aim_direction
+	if direction.length() <= 0.1:
+		direction = Vector2.UP
+
+	var animation_name := _get_trapper_attack_animation() if _trapper_attack_timer > 0.0 \
+		else _get_trapper_move_animation(moving)
+	_trapper_last_animation = animation_name
+	if not _uses_trapper_sprite():
+		_trapper_sprite.visible = false
+		return
+
+	_trapper_sprite.rotation = direction.angle() + TRAPPER_SPRITE_FORWARD_ROTATION_OFFSET
+	_trapper_sprite.scale = _get_trapper_sprite_base_scale() * _get_trapper_sprite_scale_multiplier()
+	_trapper_sprite.position = _get_trapper_sprite_offset()
+	_trapper_sprite.modulate = _get_trapper_sprite_tint()
+	if _trapper_sprite.animation != animation_name:
+		_trapper_sprite.play(animation_name)
+	if moving or _trapper_attack_timer > 0.0 or animation_name == "spider_idle":
+		if not _trapper_sprite.is_playing():
+			_trapper_sprite.play(animation_name)
+	else:
+		_trapper_sprite.stop()
+		_trapper_sprite.frame = 0
+
+
+func _play_trapper_attack_sprite() -> void:
+	if not _character_uses_trapper_sprite():
+		return
+	_trapper_attack_timer = _get_trapper_attack_duration()
+	if _trapper_sprite == null or _trapper_sprite.sprite_frames == null:
+		return
+	var attack_animation := _get_trapper_attack_animation()
+	if not _trapper_sprite.sprite_frames.has_animation(attack_animation):
+		return
+	if _trapper_sprite.sprite_frames.get_frame_count(attack_animation) <= 0:
+		return
+	_trapper_last_animation = attack_animation
+	_trapper_sprite.animation = attack_animation
+	_trapper_sprite.frame = 0
+	_trapper_sprite.play(attack_animation)
+
+
+func _get_trapper_sprite_asset_name() -> String:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return "Spider"
+		Enums.TrapperCharacter.ESCORPION:
+			return "Scorpion"
+	return "Trapper"
+
+
+func _get_trapper_move_animation(moving: bool) -> String:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return "spider_walk" if moving else "spider_idle"
+		Enums.TrapperCharacter.ESCORPION:
+			return "scorpion_move"
+	return ""
+
+
+func _get_trapper_attack_animation() -> String:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return "spider_attack"
+		Enums.TrapperCharacter.ESCORPION:
+			return "scorpion_attack"
+	return ""
+
+
+func _get_trapper_attack_duration() -> float:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return SPIDER_ATTACK_DURATION
+		Enums.TrapperCharacter.ESCORPION:
+			return SCORPION_ATTACK_DURATION
+	return 0.0
+
+
+func _get_trapper_sprite_base_scale() -> Vector2:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return SPIDER_SPRITE_SCALE
+		Enums.TrapperCharacter.ESCORPION:
+			return SCORPION_SPRITE_SCALE
+	return Vector2.ONE
+
+
+func _get_trapper_sprite_offset() -> Vector2:
+	match trapper_character:
+		Enums.TrapperCharacter.ARANA:
+			return SPIDER_SPRITE_BASE_OFFSET
+		Enums.TrapperCharacter.ESCORPION:
+			return SCORPION_SPRITE_BASE_OFFSET
+	return Vector2.ZERO
+
+
+func _get_trapper_sprite_scale_multiplier() -> Vector2:
+	var scale_multiplier := 1.0
+	if _survival_ability_state == SURVIVAL_ABILITY_READY:
+		scale_multiplier += 0.02 * (0.5 + 0.5 * sin(Time.get_ticks_msec() / 170.0))
+	if _ability_ready_flash_timer > 0.0:
+		var flash := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
+		scale_multiplier += 0.05 * flash
+	return Vector2.ONE * scale_multiplier
+
+
+func _get_trapper_sprite_tint() -> Color:
+	var tint := Color.WHITE
+	if _survival_ability_state == SURVIVAL_ABILITY_USED:
+		tint = tint.lerp(Color(0.74, 0.74, 0.74), 0.22)
+	if _ability_ready_flash_timer > 0.0:
+		var flash := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
+		tint = tint.lerp(Color(1.35, 1.18, 0.58), 0.42 * flash)
+	return tint
 
 
 func _process_survival_bot(delta: float) -> void:
@@ -292,13 +581,19 @@ func _register_survival_ability_object(obj: Node2D, label: String, color: Color)
 		target_parent.add_child(obj)
 	else:
 		add_child(obj)
-	_survival_ability_state = SURVIVAL_ABILITY_USED
+	if not _uses_free_skill_test_abilities():
+		_survival_ability_state = SURVIVAL_ABILITY_USED
 	_survival_placement_points.clear()
 	_ability_button_held = false
 	_ability_button_hold_time = 0.0
+	_play_trapper_attack_sprite()
 	_show_survival_ability_status(label, color, 0.85)
 	InputManager.vibrate_player(player_index, 0.18, 0.48, 0.14)
 	queue_redraw()
+
+
+func _uses_free_skill_test_abilities() -> bool:
+	return has_meta("skill_test_id")
 
 
 func refill_all_abilities(show_feedback: bool = true) -> void:
@@ -448,26 +743,27 @@ func _draw() -> void:
 	var team_color := Enums.team_color(team)
 	var radius := Constants.CHARACTER_RADIUS
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 180.0)
+	var use_trapper_sprite := _uses_trapper_sprite()
 
-	draw_circle(Vector2.ZERO, radius + 6.0, Color(team_color, 0.16))
-	draw_circle(Vector2(0.0, 5.0), radius * 0.92, Color(0.0, 0.0, 0.0, 0.28))
-	draw_circle(Vector2.ZERO, radius, Color(character_color, 0.88))
-	draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 24, Color(team_color, 0.82), 2.2)
-	draw_arc(Vector2.ZERO, radius + 9.0, 0.0, TAU, 28, Color(character_color, 0.18 + pulse * 0.10), 1.4)
+	if not use_trapper_sprite:
+		draw_circle(Vector2.ZERO, radius + 6.0, Color(team_color, 0.16))
+		draw_circle(Vector2(0.0, 5.0), radius * 0.92, Color(0.0, 0.0, 0.0, 0.28))
+		draw_circle(Vector2.ZERO, radius, Color(character_color, 0.88))
+		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 24, Color(team_color, 0.82), 2.2)
+		draw_arc(Vector2.ZERO, radius + 9.0, 0.0, TAU, 28, Color(character_color, 0.18 + pulse * 0.10), 1.4)
+		var tip := aim_direction.normalized() * (radius + 8.0)
+		if tip.length_squared() <= 0.01:
+			tip = Vector2.LEFT * (radius + 8.0)
+		draw_line(Vector2.ZERO, tip, Color(0.0, 0.0, 0.0, 0.55), 4.0)
+		draw_line(Vector2.ZERO, tip, Color.WHITE, 1.4)
 
-	var tip := aim_direction.normalized() * (radius + 8.0)
-	if tip.length_squared() <= 0.01:
-		tip = Vector2.LEFT * (radius + 8.0)
-	draw_line(Vector2.ZERO, tip, Color(0.0, 0.0, 0.0, 0.55), 4.0)
-	draw_line(Vector2.ZERO, tip, Color.WHITE, 1.4)
-
-	var marker := _get_character_marker()
-	var marker_size := 18
-	var marker_width := ThemeDB.fallback_font.get_string_size(marker, HORIZONTAL_ALIGNMENT_LEFT, -1, marker_size).x
-	draw_string(ThemeDB.fallback_font, Vector2(-marker_width / 2.0, 7.0),
-		marker, HORIZONTAL_ALIGNMENT_LEFT, -1, marker_size, Color(0.04, 0.04, 0.05, 0.9))
-	draw_string(ThemeDB.fallback_font, Vector2(-marker_width / 2.0, 5.0),
-		marker, HORIZONTAL_ALIGNMENT_LEFT, -1, marker_size, Color.WHITE)
+		var marker := _get_character_marker()
+		var marker_size := 18
+		var marker_width := ThemeDB.fallback_font.get_string_size(marker, HORIZONTAL_ALIGNMENT_LEFT, -1, marker_size).x
+		draw_string(ThemeDB.fallback_font, Vector2(-marker_width / 2.0, 7.0),
+			marker, HORIZONTAL_ALIGNMENT_LEFT, -1, marker_size, Color(0.04, 0.04, 0.05, 0.9))
+		draw_string(ThemeDB.fallback_font, Vector2(-marker_width / 2.0, 5.0),
+			marker, HORIZONTAL_ALIGNMENT_LEFT, -1, marker_size, Color.WHITE)
 
 	var label := "P%d" % (player_index + 1)
 	_draw_player_label(label, Vector2(-10.0, -radius - 8.0), 14, team_color)

@@ -21,6 +21,7 @@ var _nav_axis_locks: Dictionary = {}         # {pi: bool}
 
 var _characters: Array[Dictionary] = []      # TrapperCharacters.get_all()
 var _allow_back: bool = true                 # false between rounds
+var _survival_mode: bool = false
 var input_blocked: bool = false
 var _preview_timers: Dictionary = {}         # {"card:button": remaining_time}
 var _demo_active: bool = false
@@ -51,12 +52,13 @@ const CARDS_Y: float = 154.0
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
-		trapping_team: Enums.Team, allow_back: bool = true) -> void:
+		trapping_team: Enums.Team, allow_back: bool = true, survival_mode: bool = false) -> void:
 	_player_indices = player_indices.duplicate()
 	_team_assignments = team_assignments.duplicate()
 	_trapping_team = trapping_team
 	_allow_back = allow_back
-	_characters = TrapperCharacters.get_all()
+	_survival_mode = survival_mode
+	_characters = TrapperCharacters.get_survival_all() if _survival_mode else TrapperCharacters.get_all()
 
 	_player_cursor.clear()
 	_player_confirmed.clear()
@@ -397,7 +399,10 @@ func _enter_demo(player_index: int) -> void:
 	var char_data: Dictionary = _characters[card_index]
 	var view := SkillTestViewScene.new()
 	add_child(view)
-	view.call("setup_trapper", player_index, char_data["id"] as Enums.TrapperCharacter)
+	if _survival_mode:
+		view.call("setup_trapper_survival", player_index, char_data["id"] as Enums.TrapperCharacter)
+	else:
+		view.call("setup_trapper", player_index, char_data["id"] as Enums.TrapperCharacter)
 	_skill_test_views[player_index] = view
 	_skill_test_cards[player_index] = card_index
 	_update_skill_test_layout()
@@ -751,15 +756,25 @@ func _draw() -> void:
 
 	# Title
 	var title := "ELIGE TU CAZADOR"
+	if _survival_mode:
+		title = "ELIGE TU CAZADOR SURVIVAL"
 	_draw_centered_text_in_rect(font, title, Rect2(cx - 260.0, 34.0, 520.0, 38.0), 30, Color.WHITE)
 
 	# Trapping team label
 	var team_name := Enums.team_name(_trapping_team)
 	var team_col := Enums.team_color(_trapping_team)
 	var sub := "%s elige cazadores" % team_name
+	if _survival_mode:
+		sub = "%s elige cazadores con habilidad única" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
 	_draw_centered_text_in_rect(font, "Menú: A elige, B deselecciona, Y testing. En partida usan A, X e Y. Start continúa y Select vuelve.",
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
+	if _survival_mode:
+		var survival_hint_rect := Rect2(cx - 520.0, 96.0, 1040.0, 18.0)
+		draw_rect(survival_hint_rect, Color(0.015, 0.015, 0.018, 1.0))
+		_draw_centered_text_in_rect(font,
+			"Survival: todos los cazadores usan solo A. Una carga, se recarga si muere un escapista.",
+			survival_hint_rect, 13, Color(0.62, 0.64, 0.66))
 	_draw_testing_prompt(font, Rect2(cx - 330.0, 118.0, 660.0, 24.0), team_col)
 
 	# Character cards — 4 cards in a row

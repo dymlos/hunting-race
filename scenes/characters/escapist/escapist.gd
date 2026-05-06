@@ -894,6 +894,8 @@ func recharge_ability_after_death() -> void:
 
 
 func _skills_cooldowns_enabled() -> bool:
+	if has_meta("skill_test_id"):
+		return false
 	return GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
 
 
@@ -917,7 +919,7 @@ func _rat_tail_should_start_cooldown_after_finish() -> bool:
 
 
 func _is_survival_ability_tuning_active() -> bool:
-	return GameManager.is_survival_context()
+	return GameManager.is_survival_context() or (get_meta("skill_test_survival", false) as bool)
 
 
 func _survival_ability_state_allows_use() -> bool:

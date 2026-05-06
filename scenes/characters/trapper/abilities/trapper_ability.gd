@@ -249,6 +249,8 @@ func notify_cooldown_denied() -> void:
 
 
 func _skills_cooldowns_enabled() -> bool:
+	if _is_skill_test_context():
+		return false
 	return GameManager.settings_overrides.get(&"skill_cooldowns_enabled", true) as bool
 
 

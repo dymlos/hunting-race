@@ -15,6 +15,7 @@ var _viewer_cursor: Dictionary = {}
 var _nav_axis_locks: Dictionary = {}
 var _animals: Array[Dictionary] = []
 var _allow_back: bool = true
+var _survival_mode: bool = false
 var input_blocked: bool = false
 var _preview_timers: Dictionary = {}         # {card_index: remaining_time}
 var _demo_active: bool = false
@@ -47,12 +48,13 @@ func _ready() -> void:
 
 
 func setup(player_indices: Array[int], team_assignments: Dictionary,
-		escapist_team: Enums.Team, allow_back: bool = true) -> void:
+		escapist_team: Enums.Team, allow_back: bool = true, survival_mode: bool = false) -> void:
 	_player_indices = player_indices.duplicate()
 	_team_assignments = team_assignments.duplicate()
 	_escapist_team = escapist_team
 	_allow_back = allow_back
-	_animals = EscapistAnimals.get_all()
+	_survival_mode = survival_mode
+	_animals = EscapistAnimals.get_survival_all() if _survival_mode else EscapistAnimals.get_all()
 
 	_player_cursor.clear()
 	_player_confirmed.clear()
@@ -364,7 +366,10 @@ func _enter_demo(player_index: int) -> void:
 	var animal_data: Dictionary = _animals[card_index]
 	var view := SkillTestViewScene.new()
 	add_child(view)
-	view.call("setup_escapist", player_index, animal_data["id"] as Enums.EscapistAnimal)
+	if _survival_mode:
+		view.call("setup_escapist_survival", player_index, animal_data["id"] as Enums.EscapistAnimal)
+	else:
+		view.call("setup_escapist", player_index, animal_data["id"] as Enums.EscapistAnimal)
 	_skill_test_views[player_index] = view
 	_skill_test_cards[player_index] = card_index
 	_update_skill_test_layout()
@@ -714,13 +719,20 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, Vector2(screen.x, 410.0)), Color(0.04, 0.05, 0.04, 0.18))
 
 	var title := "ELIGE TU ESCAPISTA"
+	if _survival_mode:
+		title = "ELIGE TU ESCAPISTA SURVIVAL"
 	_draw_centered_text_in_rect(font, title, Rect2(cx - 260.0, 34.0, 520.0, 38.0), 30, Color.WHITE)
 
 	var team_name := Enums.team_name(_escapist_team)
 	var team_col := Enums.team_color(_escapist_team)
 	var sub := "%s elige escapistas" % team_name
+	if _survival_mode:
+		sub = "%s elige escapistas con habilidades por llave" % team_name
 	_draw_centered_text_in_rect(font, sub, Rect2(cx - 260.0, 72.0, 520.0, 24.0), 16, team_col)
-	_draw_centered_text_in_rect(font, "Menú: A elige, B deselecciona, Y testing. En partida los escapistas usan A. Start continúa y Select vuelve.",
+	var menu_hint := "Menú: A elige, B deselecciona, Y testing. En partida los escapistas usan A. Start continúa y Select vuelve."
+	if _survival_mode:
+		menu_hint = "Survival: habilidades dormidas hasta llave, cooldown 20s. Y abre testing con zombies y trampas survival."
+	_draw_centered_text_in_rect(font, menu_hint,
 		Rect2(cx - 520.0, 96.0, 1040.0, 18.0), 13, Color(0.62, 0.64, 0.66))
 	_draw_testing_prompt(font, Rect2(cx - 330.0, 118.0, 660.0, 24.0), team_col)
 
