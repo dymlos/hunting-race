@@ -18,28 +18,60 @@ const SURVIVAL_ABILITY_USED := &"used"
 const TRAPPER_SPRITE_FORWARD_ROTATION_OFFSET := PI * 0.5
 const SCORPION_SPRITE_BASE_PATH := "res://assets/characters/scorpion"
 const SCORPION_SPRITE_FRAME_SIZE := Vector2i(64, 64)
-const SCORPION_MOVE_FRAME_COUNT := 4
+const SCORPION_MOVE_FRAME_COUNT := 8
 const SCORPION_ATTACK_FRAME_COUNT := 8
 const SCORPION_DEATH_FRAME_COUNT := 8
-const SCORPION_MOVE_FPS := 8.0
+const SCORPION_MOVE_FPS := 10.0
 const SCORPION_ATTACK_FPS := 12.0
 const SCORPION_DEATH_FPS := 10.0
 const SCORPION_ATTACK_DURATION := 0.68
-const SCORPION_SPRITE_SCALE := Vector2(0.72, 0.72)
+const SCORPION_SPRITE_SCALE := Vector2(0.66, 0.66)
 const SCORPION_SPRITE_BASE_OFFSET := Vector2.ZERO
 const SPIDER_SPRITE_BASE_PATH := "res://assets/characters/spider"
-const SPIDER_SPRITE_FRAME_SIZE := Vector2i(256, 256)
-const SPIDER_IDLE_FRAME_COUNT := 20
-const SPIDER_WALK_FRAME_COUNT := 20
-const SPIDER_ATTACK_FRAME_COUNT := 24
-const SPIDER_DEATH_FRAME_COUNT := 30
-const SPIDER_IDLE_FPS := 8.0
-const SPIDER_WALK_FPS := 11.0
-const SPIDER_ATTACK_FPS := 16.0
-const SPIDER_DEATH_FPS := 12.0
-const SPIDER_ATTACK_DURATION := 0.72
-const SPIDER_SPRITE_SCALE := Vector2(0.22, 0.22)
+const SPIDER_SPRITE_FILE := "spider06.png"
+const SPIDER_SPRITE_FRAME_SIZE := Vector2i(64, 64)
+const SPIDER_WALK_FRAME_COUNT := 10
+const SPIDER_ATTACK_FRAME_COUNT := 10
+const SPIDER_DEATH_FRAME_COUNT := 4
+const SPIDER_IDLE_FPS := 5.0
+const SPIDER_WALK_FPS := 9.0
+const SPIDER_ATTACK_FPS := 13.0
+const SPIDER_DEATH_FPS := 8.0
+const SPIDER_ATTACK_DURATION := 0.78
+const SPIDER_SPRITE_SCALE := Vector2(1.02, 1.02)
 const SPIDER_SPRITE_BASE_OFFSET := Vector2.ZERO
+const SPIDER_DIRECTION_NAMES: Array[String] = ["up", "left", "down", "right"]
+const MUSHROOM_SPRITE_BASE_PATH := "res://assets/characters/mushroom"
+const MUSHROOM_SPRITE_FILE := "Mushroom_spike.png"
+const MUSHROOM_SPRITE_FRAME_SIZE := Vector2i(32, 32)
+const MUSHROOM_SPRITE_COLUMNS := 10
+const MUSHROOM_IDLE_FPS := 5.0
+const MUSHROOM_WALK_FPS := 8.0
+const MUSHROOM_ATTACK_FPS := 11.0
+const MUSHROOM_ATTACK_DURATION := 0.58
+const MUSHROOM_SPRITE_SCALE := Vector2(1.96, 1.96)
+const MUSHROOM_SPRITE_BASE_OFFSET := Vector2(0.0, -2.0)
+const OCTOPUS_SPRITE_BASE_PATH := "res://assets/characters/octopus"
+const OCTOPUS_WALK_SPRITE_FILE := "kraken_walk_sheet.png"
+const OCTOPUS_WALK_FRAME_SIZE := Vector2i(49, 41)
+const OCTOPUS_WALK_SPRITE_COLUMNS := 61
+const OCTOPUS_IDLE_FPS := 5.0
+const OCTOPUS_MOVE_FPS := 8.0
+const OCTOPUS_ATTACK_FPS := 12.0
+const OCTOPUS_ATTACK_DURATION := 0.62
+const OCTOPUS_SPRITE_SCALE := Vector2(1.20, 1.20)
+const OCTOPUS_SPRITE_BASE_OFFSET := Vector2.ZERO
+const OCTOPUS_SPRITE_TINT := Color(1.16, 0.72, 1.42)
+const OCTOPUS_DIRECTION_NAMES: Array[String] = [
+	"down",
+	"down_right",
+	"right",
+	"up_right",
+	"up",
+	"up_left",
+	"left",
+	"down_left",
+]
 
 var trapper_character: Enums.TrapperCharacter = Enums.TrapperCharacter.ARANA
 var bot_ai_enabled: bool = false
@@ -62,6 +94,8 @@ var _trapper_last_animation: String = ""
 var _trapper_attack_timer: float = 0.0
 static var _shared_scorpion_sprite_frames: SpriteFrames = null
 static var _shared_spider_sprite_frames: SpriteFrames = null
+static var _shared_mushroom_sprite_frames: SpriteFrames = null
+static var _shared_octopus_sprite_frames: SpriteFrames = null
 
 
 func _ready() -> void:
@@ -110,7 +144,7 @@ func _setup_trapper_sprite() -> void:
 	_trapper_sprite = AnimatedSprite2D.new()
 	_trapper_sprite.name = "%sSprite" % _get_trapper_sprite_asset_name()
 	_trapper_sprite.sprite_frames = _build_trapper_sprite_frames()
-	_trapper_last_animation = _get_trapper_move_animation(false)
+	_trapper_last_animation = _get_trapper_move_animation(false, Vector2.DOWN)
 	_trapper_sprite.animation = _trapper_last_animation
 	_trapper_sprite.centered = true
 	_trapper_sprite.scale = _get_trapper_sprite_base_scale()
@@ -123,15 +157,21 @@ func _setup_trapper_sprite() -> void:
 
 func _character_uses_trapper_sprite() -> bool:
 	return trapper_character == Enums.TrapperCharacter.ARANA \
-		or trapper_character == Enums.TrapperCharacter.ESCORPION
+		or trapper_character == Enums.TrapperCharacter.HONGO \
+		or trapper_character == Enums.TrapperCharacter.ESCORPION \
+		or trapper_character == Enums.TrapperCharacter.PULPO
 
 
 func _build_trapper_sprite_frames() -> SpriteFrames:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
 			return _build_spider_sprite_frames()
+		Enums.TrapperCharacter.HONGO:
+			return _build_mushroom_sprite_frames()
 		Enums.TrapperCharacter.ESCORPION:
 			return _build_scorpion_sprite_frames()
+		Enums.TrapperCharacter.PULPO:
+			return _build_octopus_sprite_frames()
 	return SpriteFrames.new()
 
 
@@ -142,9 +182,9 @@ func _build_scorpion_sprite_frames() -> SpriteFrames:
 	if sprite_frames.has_animation("default"):
 		sprite_frames.remove_animation("default")
 	_add_scorpion_sheet_animation(sprite_frames, "scorpion_move",
-		"scorpion-move.png", SCORPION_MOVE_FRAME_COUNT, SCORPION_MOVE_FPS, true)
+		"scorpion-move-animated.png", SCORPION_MOVE_FRAME_COUNT, SCORPION_MOVE_FPS, true)
 	_add_scorpion_sheet_animation(sprite_frames, "scorpion_move_wounded",
-		"scorpion-move-wounded.png", SCORPION_MOVE_FRAME_COUNT, SCORPION_MOVE_FPS, true)
+		"scorpion-move-wounded-animated.png", SCORPION_MOVE_FRAME_COUNT, SCORPION_MOVE_FPS, true)
 	_add_scorpion_sheet_animation(sprite_frames, "scorpion_attack",
 		"scorpion-attack.png", SCORPION_ATTACK_FRAME_COUNT, SCORPION_ATTACK_FPS, false)
 	_add_scorpion_sheet_animation(sprite_frames, "scorpion_attack_wounded",
@@ -163,17 +203,83 @@ func _build_spider_sprite_frames() -> SpriteFrames:
 	var sprite_frames := SpriteFrames.new()
 	if sprite_frames.has_animation("default"):
 		sprite_frames.remove_animation("default")
-	_add_grid_sheet_animation(sprite_frames, "spider_idle", SPIDER_SPRITE_BASE_PATH,
-		"Idle.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_IDLE_FRAME_COUNT, SPIDER_IDLE_FPS, true)
-	_add_grid_sheet_animation(sprite_frames, "spider_walk", SPIDER_SPRITE_BASE_PATH,
-		"Walk.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_WALK_FRAME_COUNT, SPIDER_WALK_FPS, true)
-	_add_grid_sheet_animation(sprite_frames, "spider_attack", SPIDER_SPRITE_BASE_PATH,
-		"Attack1.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_ATTACK_FRAME_COUNT, SPIDER_ATTACK_FPS, false)
-	_add_grid_sheet_animation(sprite_frames, "spider_death_1", SPIDER_SPRITE_BASE_PATH,
-		"Death1.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_DEATH_FRAME_COUNT, SPIDER_DEATH_FPS, false)
-	_add_grid_sheet_animation(sprite_frames, "spider_death_2", SPIDER_SPRITE_BASE_PATH,
-		"Death2.png", SPIDER_SPRITE_FRAME_SIZE, SPIDER_DEATH_FRAME_COUNT, SPIDER_DEATH_FPS, false)
+	var image := Image.new()
+	if image.load("%s/%s" % [SPIDER_SPRITE_BASE_PATH, SPIDER_SPRITE_FILE]) != OK:
+		return sprite_frames
+	for row in SPIDER_DIRECTION_NAMES.size():
+		var direction_name := SPIDER_DIRECTION_NAMES[row]
+		_add_spider_row_animation(sprite_frames, image,
+			"spider_idle_%s" % direction_name, row, 1, SPIDER_IDLE_FPS, true)
+		_add_spider_row_animation(sprite_frames, image,
+			"spider_walk_%s" % direction_name, row, SPIDER_WALK_FRAME_COUNT, SPIDER_WALK_FPS, true)
+		_add_spider_row_animation(sprite_frames, image,
+			"spider_attack_%s" % direction_name, row, SPIDER_ATTACK_FRAME_COUNT, SPIDER_ATTACK_FPS, false)
+	_add_spider_row_animation(sprite_frames, image, "spider_death",
+		4, SPIDER_DEATH_FRAME_COUNT, SPIDER_DEATH_FPS, false)
 	_shared_spider_sprite_frames = sprite_frames
+	return sprite_frames
+
+
+func _build_octopus_sprite_frames() -> SpriteFrames:
+	if _shared_octopus_sprite_frames != null:
+		return _shared_octopus_sprite_frames
+	var sprite_frames := SpriteFrames.new()
+	if sprite_frames.has_animation("default"):
+		sprite_frames.remove_animation("default")
+	var image := Image.new()
+	if image.load("%s/%s" % [OCTOPUS_SPRITE_BASE_PATH, OCTOPUS_WALK_SPRITE_FILE]) != OK:
+		return sprite_frames
+	for direction_name in OCTOPUS_DIRECTION_NAMES:
+		var frame_indices := _get_octopus_direction_frame_indices(direction_name)
+		if frame_indices.is_empty():
+			continue
+		var flip_h := _get_octopus_direction_flip_h(direction_name)
+		_add_sheet_index_animation(sprite_frames, image,
+			"octopus_idle_%s" % direction_name, [frame_indices[0]],
+			OCTOPUS_WALK_FRAME_SIZE, OCTOPUS_WALK_SPRITE_COLUMNS, OCTOPUS_IDLE_FPS, true, flip_h)
+		_add_sheet_index_animation(sprite_frames, image,
+			"octopus_walk_%s" % direction_name, frame_indices,
+			OCTOPUS_WALK_FRAME_SIZE, OCTOPUS_WALK_SPRITE_COLUMNS, OCTOPUS_MOVE_FPS, true, flip_h)
+		_add_sheet_index_animation(sprite_frames, image,
+			"octopus_attack_%s" % direction_name, frame_indices,
+			OCTOPUS_WALK_FRAME_SIZE, OCTOPUS_WALK_SPRITE_COLUMNS, OCTOPUS_ATTACK_FPS, false, flip_h)
+	_shared_octopus_sprite_frames = sprite_frames
+	return sprite_frames
+
+
+func _build_mushroom_sprite_frames() -> SpriteFrames:
+	if _shared_mushroom_sprite_frames != null:
+		return _shared_mushroom_sprite_frames
+	var sprite_frames := SpriteFrames.new()
+	if sprite_frames.has_animation("default"):
+		sprite_frames.remove_animation("default")
+	var image := Image.new()
+	if image.load("%s/%s" % [MUSHROOM_SPRITE_BASE_PATH, MUSHROOM_SPRITE_FILE]) != OK:
+		return sprite_frames
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_idle_down",
+		[0, 1, 2, 3], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_IDLE_FPS, true)
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_idle_up",
+		[39], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_IDLE_FPS, true)
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_idle_right",
+		[23], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_IDLE_FPS, true)
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_idle_left",
+		[23], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_IDLE_FPS, true, true)
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_walk_down",
+		[10, 11, 12, 13], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_WALK_FPS, true)
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_walk_up",
+		[39, 39, 39, 39], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_WALK_FPS, true)
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_walk_right",
+		[23, 24, 25, 26, 27, 28, 29], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_WALK_FPS, true)
+	_add_sheet_index_animation(sprite_frames, image, "mushroom_walk_left",
+		[23, 24, 25, 26, 27, 28, 29], MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_WALK_FPS, true, true)
+	for direction_name in ["down", "up", "right", "left"]:
+		var attack_direction_name := String(direction_name)
+		var flip_h: bool = attack_direction_name == "left"
+		_add_sheet_index_animation(sprite_frames, image,
+			"mushroom_attack_%s" % attack_direction_name,
+			[35, 36, 37, 38, 39],
+			MUSHROOM_SPRITE_FRAME_SIZE, MUSHROOM_SPRITE_COLUMNS, MUSHROOM_ATTACK_FPS, false, flip_h)
+	_shared_mushroom_sprite_frames = sprite_frames
 	return sprite_frames
 
 
@@ -196,27 +302,90 @@ func _add_scorpion_sheet_animation(sprite_frames: SpriteFrames, animation_name: 
 			sprite_frames.add_frame(animation_name, texture)
 
 
-func _add_grid_sheet_animation(sprite_frames: SpriteFrames, animation_name: String,
-		base_path: String, file_name: String, frame_size: Vector2i,
-		frame_count: int, fps: float, loops: bool) -> void:
+func _add_texture_file_animation(sprite_frames: SpriteFrames, animation_name: String,
+		base_path: String, file_names: Array[String], fps: float, loops: bool) -> void:
 	sprite_frames.add_animation(animation_name)
 	sprite_frames.set_animation_loop(animation_name, loops)
 	sprite_frames.set_animation_speed(animation_name, fps)
-	var image := Image.new()
-	if image.load("%s/%s" % [base_path, file_name]) != OK:
-		return
-	var columns := maxi(int(image.get_width() / frame_size.x), 1)
-	for frame_index in range(frame_count):
-		var column := frame_index % columns
-		var row := int(frame_index / columns)
-		var frame_position := Vector2i(column * frame_size.x, row * frame_size.y)
-		if frame_position.x + frame_size.x > image.get_width() \
-				or frame_position.y + frame_size.y > image.get_height():
+	for file_name in file_names:
+		var image := Image.new()
+		if image.load("%s/%s" % [base_path, file_name]) != OK:
+			continue
+		var texture := ImageTexture.create_from_image(image)
+		if texture:
+			sprite_frames.add_frame(animation_name, texture)
+
+
+func _add_spider_row_animation(sprite_frames: SpriteFrames, image: Image, animation_name: String,
+		row: int, frame_count: int, fps: float, loops: bool) -> void:
+	sprite_frames.add_animation(animation_name)
+	sprite_frames.set_animation_loop(animation_name, loops)
+	sprite_frames.set_animation_speed(animation_name, fps)
+	var columns := maxi(int(image.get_width() / SPIDER_SPRITE_FRAME_SIZE.x), 1)
+	for frame_index in range(mini(frame_count, columns)):
+		var frame_position := Vector2i(
+			frame_index * SPIDER_SPRITE_FRAME_SIZE.x,
+			row * SPIDER_SPRITE_FRAME_SIZE.y
+		)
+		if frame_position.x + SPIDER_SPRITE_FRAME_SIZE.x > image.get_width() \
+				or frame_position.y + SPIDER_SPRITE_FRAME_SIZE.y > image.get_height():
 			break
-		var frame_image := image.get_region(Rect2i(frame_position, frame_size))
+		var frame_image := image.get_region(Rect2i(frame_position, SPIDER_SPRITE_FRAME_SIZE))
 		var texture := ImageTexture.create_from_image(frame_image)
 		if texture:
 			sprite_frames.add_frame(animation_name, texture)
+
+
+func _add_sheet_index_animation(sprite_frames: SpriteFrames, image: Image, animation_name: String,
+		frame_indices: Array, frame_size: Vector2i, sheet_columns: int, fps: float,
+		loops: bool, flip_h: bool = false) -> void:
+	sprite_frames.add_animation(animation_name)
+	sprite_frames.set_animation_loop(animation_name, loops)
+	sprite_frames.set_animation_speed(animation_name, fps)
+	if sheet_columns <= 0:
+		return
+	for frame_index in frame_indices:
+		var frame_index_int := int(frame_index)
+		var frame_position := Vector2i(
+			(frame_index_int % sheet_columns) * frame_size.x,
+			floori(frame_index_int / float(sheet_columns)) * frame_size.y
+		)
+		if frame_position.x + frame_size.x > image.get_width() \
+				or frame_position.y + frame_size.y > image.get_height():
+			continue
+		var frame_image := image.get_region(Rect2i(frame_position, frame_size))
+		if flip_h:
+			frame_image.flip_x()
+		var texture := ImageTexture.create_from_image(frame_image)
+		if texture:
+			sprite_frames.add_frame(animation_name, texture)
+
+
+func _get_octopus_direction_frame_indices(direction_name: String) -> Array[int]:
+	match direction_name:
+		"down":
+			return [0, 1, 2, 3, 4, 5, 6]
+		"down_right":
+			return [7, 8, 9, 10, 11, 12, 13]
+		"up_right":
+			return [14, 15, 16, 17, 18, 19, 20]
+		"right":
+			return [7, 8, 9, 10, 11, 12, 13]
+		"up":
+			return [14, 15, 16, 17, 18, 19, 20]
+		"up_left":
+			return [14, 15, 16, 17, 18, 19, 20]
+		"left":
+			return [7, 8, 9, 10, 11, 12, 13]
+		"down_left":
+			return [7, 8, 9, 10, 11, 12, 13]
+	return []
+
+
+func _get_octopus_direction_flip_h(direction_name: String) -> bool:
+	return direction_name == "left" \
+		or direction_name == "down_left" \
+		or direction_name == "up_left"
 
 
 func _uses_trapper_sprite() -> bool:
@@ -245,20 +414,22 @@ func _update_trapper_sprite(delta: float) -> void:
 	if direction.length() <= 0.1:
 		direction = Vector2.UP
 
-	var animation_name := _get_trapper_attack_animation() if _trapper_attack_timer > 0.0 \
-		else _get_trapper_move_animation(moving)
+	var animation_name := _get_trapper_attack_animation(direction) if _trapper_attack_timer > 0.0 \
+		else _get_trapper_move_animation(moving, direction)
 	_trapper_last_animation = animation_name
 	if not _uses_trapper_sprite():
 		_trapper_sprite.visible = false
 		return
 
-	_trapper_sprite.rotation = direction.angle() + TRAPPER_SPRITE_FORWARD_ROTATION_OFFSET
+	_trapper_sprite.rotation = 0.0
+	if _trapper_sprite_uses_rotation():
+		_trapper_sprite.rotation = direction.angle() + _get_trapper_sprite_rotation_offset()
 	_trapper_sprite.scale = _get_trapper_sprite_base_scale() * _get_trapper_sprite_scale_multiplier()
 	_trapper_sprite.position = _get_trapper_sprite_offset()
 	_trapper_sprite.modulate = _get_trapper_sprite_tint()
 	if _trapper_sprite.animation != animation_name:
 		_trapper_sprite.play(animation_name)
-	if moving or _trapper_attack_timer > 0.0 or animation_name == "spider_idle":
+	if moving or _trapper_attack_timer > 0.0 or animation_name.contains("_idle"):
 		if not _trapper_sprite.is_playing():
 			_trapper_sprite.play(animation_name)
 	else:
@@ -272,7 +443,7 @@ func _play_trapper_attack_sprite() -> void:
 	_trapper_attack_timer = _get_trapper_attack_duration()
 	if _trapper_sprite == null or _trapper_sprite.sprite_frames == null:
 		return
-	var attack_animation := _get_trapper_attack_animation()
+	var attack_animation := _get_trapper_attack_animation(aim_direction)
 	if not _trapper_sprite.sprite_frames.has_animation(attack_animation):
 		return
 	if _trapper_sprite.sprite_frames.get_frame_count(attack_animation) <= 0:
@@ -287,35 +458,111 @@ func _get_trapper_sprite_asset_name() -> String:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
 			return "Spider"
+		Enums.TrapperCharacter.HONGO:
+			return "Mushroom"
 		Enums.TrapperCharacter.ESCORPION:
 			return "Scorpion"
+		Enums.TrapperCharacter.PULPO:
+			return "Octopus"
 	return "Trapper"
 
 
-func _get_trapper_move_animation(moving: bool) -> String:
+func _trapper_sprite_uses_rotation() -> bool:
+	return trapper_character == Enums.TrapperCharacter.ESCORPION
+
+
+func _get_trapper_sprite_rotation_offset() -> float:
+	match trapper_character:
+		Enums.TrapperCharacter.ESCORPION:
+			return TRAPPER_SPRITE_FORWARD_ROTATION_OFFSET
+	return 0.0
+
+
+func _get_trapper_move_animation(moving: bool, direction: Vector2) -> String:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
-			return "spider_walk" if moving else "spider_idle"
+			var suffix := _get_spider_direction_suffix(direction)
+			if moving:
+				return "spider_walk_%s" % suffix
+			return "spider_idle_%s" % suffix
+		Enums.TrapperCharacter.HONGO:
+			var suffix := _get_cardinal_direction_suffix(direction)
+			if moving:
+				return "mushroom_walk_%s" % suffix
+			return "mushroom_idle_%s" % suffix
 		Enums.TrapperCharacter.ESCORPION:
 			return "scorpion_move"
+		Enums.TrapperCharacter.PULPO:
+			var suffix := _get_octopus_direction_suffix(direction)
+			if moving:
+				return "octopus_walk_%s" % suffix
+			return "octopus_idle_%s" % suffix
 	return ""
 
 
-func _get_trapper_attack_animation() -> String:
+func _get_trapper_attack_animation(direction: Vector2) -> String:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
-			return "spider_attack"
+			return "spider_attack_%s" % _get_spider_direction_suffix(direction)
+		Enums.TrapperCharacter.HONGO:
+			return "mushroom_attack_%s" % _get_cardinal_direction_suffix(direction)
 		Enums.TrapperCharacter.ESCORPION:
 			return "scorpion_attack"
+		Enums.TrapperCharacter.PULPO:
+			return "octopus_attack_%s" % _get_octopus_direction_suffix(direction)
 	return ""
+
+
+func _get_spider_direction_suffix(direction: Vector2) -> String:
+	return _get_cardinal_direction_suffix(direction)
+
+
+func _get_cardinal_direction_suffix(direction: Vector2) -> String:
+	if direction.length_squared() <= 0.01:
+		return "down"
+	var octant := int(round(4.0 * direction.angle() / TAU)) & 3
+	match octant:
+		0:
+			return "right"
+		1:
+			return "down"
+		2:
+			return "left"
+	return "up"
+
+
+func _get_octopus_direction_suffix(direction: Vector2) -> String:
+	if direction.length_squared() <= 0.01:
+		return "down"
+	var octant := int(round(8.0 * direction.angle() / TAU)) & 7
+	match octant:
+		0:
+			return "right"
+		1:
+			return "down_right"
+		2:
+			return "down"
+		3:
+			return "down_left"
+		4:
+			return "left"
+		5:
+			return "up_left"
+		6:
+			return "up"
+	return "up_right"
 
 
 func _get_trapper_attack_duration() -> float:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
 			return SPIDER_ATTACK_DURATION
+		Enums.TrapperCharacter.HONGO:
+			return MUSHROOM_ATTACK_DURATION
 		Enums.TrapperCharacter.ESCORPION:
 			return SCORPION_ATTACK_DURATION
+		Enums.TrapperCharacter.PULPO:
+			return OCTOPUS_ATTACK_DURATION
 	return 0.0
 
 
@@ -323,8 +570,12 @@ func _get_trapper_sprite_base_scale() -> Vector2:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
 			return SPIDER_SPRITE_SCALE
+		Enums.TrapperCharacter.HONGO:
+			return MUSHROOM_SPRITE_SCALE
 		Enums.TrapperCharacter.ESCORPION:
 			return SCORPION_SPRITE_SCALE
+		Enums.TrapperCharacter.PULPO:
+			return OCTOPUS_SPRITE_SCALE
 	return Vector2.ONE
 
 
@@ -332,8 +583,12 @@ func _get_trapper_sprite_offset() -> Vector2:
 	match trapper_character:
 		Enums.TrapperCharacter.ARANA:
 			return SPIDER_SPRITE_BASE_OFFSET
+		Enums.TrapperCharacter.HONGO:
+			return MUSHROOM_SPRITE_BASE_OFFSET
 		Enums.TrapperCharacter.ESCORPION:
 			return SCORPION_SPRITE_BASE_OFFSET
+		Enums.TrapperCharacter.PULPO:
+			return OCTOPUS_SPRITE_BASE_OFFSET
 	return Vector2.ZERO
 
 
@@ -349,6 +604,8 @@ func _get_trapper_sprite_scale_multiplier() -> Vector2:
 
 func _get_trapper_sprite_tint() -> Color:
 	var tint := Color.WHITE
+	if trapper_character == Enums.TrapperCharacter.PULPO:
+		tint = OCTOPUS_SPRITE_TINT
 	if _survival_ability_state == SURVIVAL_ABILITY_USED:
 		tint = tint.lerp(Color(0.74, 0.74, 0.74), 0.22)
 	if _ability_ready_flash_timer > 0.0:
