@@ -129,6 +129,15 @@ func register_player_character(player_index: int, character: Node2D) -> void:
 	player_characters[player_index] = character
 
 
+func get_valid_player_node(player_index: int) -> Node2D:
+	var character: Variant = player_characters.get(player_index, null)
+	if character is Object and is_instance_valid(character) and character is Node2D:
+		return character as Node2D
+	if player_characters.has(player_index):
+		player_characters.erase(player_index)
+	return null
+
+
 func get_player_team(player_index: int) -> Enums.Team:
 	return team_assignments.get(player_index, Enums.Team.NONE) as Enums.Team
 
@@ -277,7 +286,7 @@ func register_trap_contact(player_index: int, trapper_player_index: int = -1) ->
 		var stats: Dictionary = _round_stats[player_index]
 		stats["trap_contacts"] = (stats.get("trap_contacts", 0) as int) + 1
 	trap_contact_registered.emit(player_index, trapper_player_index)
-	var character: Node = player_characters.get(player_index, null) as Node
+	var character := get_valid_player_node(player_index)
 	if character and is_instance_valid(character) and character.has_method("notify_trap_contact"):
 		character.call("notify_trap_contact")
 
@@ -336,10 +345,13 @@ func register_respawn_penalty(player_index: int, reason: StringName) -> void:
 
 
 func _recharge_after_escapist_death(_dead_player_index: int) -> void:
+	var player_indices: Array[int] = []
 	for pi: int in player_characters:
+		player_indices.append(pi)
+	for pi: int in player_indices:
 		if get_player_role(pi) != Enums.Role.TRAPPER:
 			continue
-		var character: Node = player_characters.get(pi, null) as Node
+		var character := get_valid_player_node(pi)
 		if is_instance_valid(character) and character.has_method("refill_all_abilities"):
 			character.call("refill_all_abilities", true)
 

@@ -252,10 +252,13 @@ func _draw_role_panel(font: Font, rect: Rect2, role: Enums.Role) -> void:
 func _get_hud_entries_for_role(role: Enums.Role) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var player_indices: Array[int] = []
+	var registered_indices: Array[int] = []
 	for player_index: int in GameManager.player_characters:
+		registered_indices.append(player_index)
+	for player_index: int in registered_indices:
 		if player_index >= 100:
 			continue
-		var node := GameManager.player_characters[player_index] as Node
+		var node := GameManager.get_valid_player_node(player_index)
 		if node == null or not is_instance_valid(node):
 			continue
 		if GameManager.get_player_role(player_index) != role:
@@ -264,7 +267,9 @@ func _get_hud_entries_for_role(role: Enums.Role) -> Array[Dictionary]:
 	player_indices.sort()
 
 	for player_index in player_indices:
-		var node: Node = GameManager.player_characters[player_index] as Node
+		var node := GameManager.get_valid_player_node(player_index)
+		if node == null or not is_instance_valid(node):
+			continue
 		if role == Enums.Role.ESCAPIST and node is Escapist:
 			var esc := node as Escapist
 			var animal_data := EscapistAnimals.get_by_id(esc.escapist_animal)

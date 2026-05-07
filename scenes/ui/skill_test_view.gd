@@ -58,11 +58,16 @@ func set_view_rect(rect: Rect2) -> void:
 
 func _exit_tree() -> void:
 	GameManager.end_skill_test_context()
-	if _player_index >= 0:
-		if _had_previous_player_character:
-			GameManager.player_characters[_player_index] = _previous_player_character
-		else:
-			GameManager.player_characters.erase(_player_index)
+	if _player_index < 0:
+		return
+	var current_character: Variant = GameManager.player_characters.get(_player_index, null)
+	if current_character is Object and is_instance_valid(current_character):
+		if not _is_own_skill_test_character(current_character):
+			return
+	if _had_previous_player_character and is_instance_valid(_previous_player_character):
+		GameManager.player_characters[_player_index] = _previous_player_character
+	else:
+		GameManager.player_characters.erase(_player_index)
 
 
 func _prepare(player_index: int, skill_test_id: String) -> void:
@@ -71,12 +76,34 @@ func _prepare(player_index: int, skill_test_id: String) -> void:
 	stretch = true
 	_player_index = player_index
 	_skill_test_id = skill_test_id
-	_had_previous_player_character = GameManager.player_characters.has(player_index)
-	_previous_player_character = GameManager.player_characters.get(player_index, null) as Node2D
+	_capture_previous_player_character(player_index)
 	GameManager.begin_skill_test_context()
 	_ensure_viewport()
 	_clear_root()
 	_build_arena()
+
+
+func _capture_previous_player_character(player_index: int) -> void:
+	_had_previous_player_character = false
+	_previous_player_character = null
+	var previous_character: Variant = GameManager.player_characters.get(player_index, null)
+	if previous_character is Object and is_instance_valid(previous_character):
+		if previous_character is Node2D:
+			var previous_node := previous_character as Node2D
+			if not previous_node.has_meta("skill_test_id"):
+				_had_previous_player_character = true
+				_previous_player_character = previous_node
+				return
+	GameManager.player_characters.erase(player_index)
+
+
+func _is_own_skill_test_character(character: Variant) -> bool:
+	if not (character is Object) or not is_instance_valid(character):
+		return false
+	if not (character is Node):
+		return false
+	var node := character as Node
+	return node.has_meta("skill_test_id") and str(node.get_meta("skill_test_id")) == _skill_test_id
 
 
 func _ensure_viewport() -> void:

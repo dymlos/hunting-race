@@ -416,7 +416,7 @@ func _exit_demo() -> void:
 
 
 func _exit_skill_test(player_index: int) -> void:
-	var view := _skill_test_views.get(player_index, null) as Node
+	var view := _get_valid_skill_test_view(player_index)
 	if view != null and is_instance_valid(view):
 		view.queue_free()
 	_skill_test_views.erase(player_index)
@@ -427,7 +427,7 @@ func _exit_skill_test(player_index: int) -> void:
 
 func _clear_skill_tests() -> void:
 	for pi: int in _skill_test_views:
-		var view := _skill_test_views[pi] as Node
+		var view := _get_valid_skill_test_view(pi)
 		if view != null and is_instance_valid(view):
 			view.queue_free()
 	_skill_test_views.clear()
@@ -451,7 +451,7 @@ func _prune_skill_tests() -> void:
 		if not _skill_test_views.has(pi):
 			stale.append(pi)
 			continue
-		var view := _skill_test_views[pi] as Node
+		var view := _get_valid_skill_test_view(pi)
 		if view == null or not is_instance_valid(view) or not view.is_inside_tree():
 			stale.append(pi)
 	for pi in stale:
@@ -474,7 +474,7 @@ func _update_skill_test_layout() -> void:
 	var cards_x := cx - total_w / 2.0
 	var cards_y := CARDS_Y
 	for pi: int in _skill_test_views:
-		var view := _skill_test_views[pi] as Node
+		var view := _get_valid_skill_test_view(pi)
 		if view == null or not is_instance_valid(view):
 			continue
 		var slot_index := _get_slot_index_for_player(pi)
@@ -487,6 +487,13 @@ func _update_skill_test_layout() -> void:
 		var art_h := clampf(card_h * 0.50, 140.0, 215.0)
 		var art_rect := Rect2(card_x + CARD_MARGIN, card_y + 62.0, card_w - CARD_MARGIN * 2.0, art_h)
 		view.call("set_view_rect", art_rect)
+
+
+func _get_valid_skill_test_view(player_index: int) -> Node:
+	var view: Variant = _skill_test_views.get(player_index, null)
+	if view is Object and is_instance_valid(view) and view is Node:
+		return view as Node
+	return null
 
 
 func _process_demo(delta: float) -> void:

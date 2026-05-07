@@ -2049,7 +2049,7 @@ func _on_trap_contact_registered(escapist_player_index: int, trapper_player_inde
 	var track: Dictionary = _round_replay_tracks[trapper_player_index] as Dictionary
 	track["impact_count"] = _round_trapper_impacts[trapper_player_index]
 	var events: Array = track.get("events", []) as Array
-	var victim := GameManager.player_characters.get(escapist_player_index, null) as Node2D
+	var victim := GameManager.get_valid_player_node(escapist_player_index)
 	var event_position := Vector2.ZERO
 	if victim and is_instance_valid(victim):
 		event_position = victim.global_position
@@ -2778,7 +2778,7 @@ func _spawn_practice_bot(player_index: int) -> void:
 
 func _remove_practice_bots() -> void:
 	for bot_index: int in PRACTICE_BOT_INDICES:
-		var character := GameManager.player_characters.get(bot_index, null) as Node2D
+		var character := GameManager.get_valid_player_node(bot_index)
 		if character and is_instance_valid(character):
 			characters.erase(character)
 			character.queue_free()

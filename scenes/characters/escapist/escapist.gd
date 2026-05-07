@@ -15,7 +15,7 @@ const ESCAPIST_ANIMATION_DIRECTIONS: Array[String] = [
 	"left",
 	"up_left",
 ]
-const ESCAPIST_DEFAULT_ANIMATION_FPS: float = 8.0
+const ESCAPIST_DEFAULT_ANIMATION_FPS: float = 60.0
 const RABBIT_SPRITE_BASE_OFFSET := Vector2(0.0, -5.0)
 const ABILITY_READY_FLASH_DURATION: float = 0.85
 const ABILITY_READY_IDLE_PULSE_MS: float = 190.0
@@ -290,9 +290,9 @@ func _get_animal_animation_frame_count(animal: Enums.EscapistAnimal) -> int:
 func _get_animal_animation_fps(animal: Enums.EscapistAnimal) -> float:
 	match animal:
 		Enums.EscapistAnimal.SQUIRREL:
-			return 9.0
+			return ESCAPIST_DEFAULT_ANIMATION_FPS
 		Enums.EscapistAnimal.FLY:
-			return 10.0
+			return ESCAPIST_DEFAULT_ANIMATION_FPS
 	return ESCAPIST_DEFAULT_ANIMATION_FPS
 
 

@@ -50,6 +50,7 @@ const SURVIVAL_LOCKED_EXIT_HINT_COOLDOWN: float = 0.65
 const SURVIVAL_INTERACTION_DURATION: float = 3.0
 const SURVIVAL_KEY_COLLISION_RADIUS: float = 13.0
 const SURVIVAL_KEY_DETECTION_RADIUS: float = 34.0
+const SURVIVAL_ARENA_REDRAW_INTERVAL: float = 1.0 / 45.0
 
 signal goal_entered(escapist: Escapist)
 signal goal_body_entered(body: Node2D)
@@ -58,10 +59,12 @@ signal survival_objective_changed(status: Dictionary)
 signal survival_jail_release_completed(rescuer: Escapist)
 
 var _locked_exit_hint_timer: float = 0.0
+var _survival_redraw_accumulator: float = 0.0
 
 
 func load_map(map_data: Dictionary) -> void:
 	_map_data = map_data
+	_survival_redraw_accumulator = 0.0
 	_clear()
 	_base_hazards = _duplicate_hazards(_map_data.get("hazards", []))
 	_active_hazards = _duplicate_hazards(_base_hazards)
@@ -1517,16 +1520,17 @@ func _draw() -> void:
 
 	var map_size := get_map_size()
 	var now := Time.get_ticks_msec() / 1000.0
+	var static_time := 0.0 if _use_lightweight_survival_visuals() else now
 
 	# Background
-	_draw_arena_floor(map_size, now)
+	_draw_arena_floor(map_size, static_time)
 
 	# Static walls
 	var walls: Array = _map_data.get("walls", [])
 	for wall_def in walls:
 		var pos: Vector2 = wall_def["pos"]
 		var size: Vector2 = wall_def["size"]
-		_draw_stone_wall(Rect2(pos, size), now)
+		_draw_stone_wall(Rect2(pos, size), static_time)
 
 	# Goal zone
 	var goal_rect: Rect2 = _map_data.get("goal", Rect2())
@@ -1540,6 +1544,21 @@ func _draw() -> void:
 
 	# Hazards
 	_draw_hazards()
+
+
+func _use_lightweight_survival_visuals() -> bool:
+	return _map_data.has("survival_map_index")
+
+
+func _request_animated_redraw(delta: float) -> void:
+	if not _use_lightweight_survival_visuals():
+		queue_redraw()
+		return
+	_survival_redraw_accumulator += delta
+	if _survival_redraw_accumulator < SURVIVAL_ARENA_REDRAW_INTERVAL:
+		return
+	_survival_redraw_accumulator = fmod(_survival_redraw_accumulator, SURVIVAL_ARENA_REDRAW_INTERVAL)
+	queue_redraw()
 
 
 func _draw_rounded_rect(rect: Rect2, color: Color, radius: float) -> void:
@@ -1596,7 +1615,8 @@ func _draw_arena_floor(map_size: Vector2, time: float) -> void:
 	draw_rect(Rect2(Vector2.ZERO, Vector2(map_size.x, map_size.y * 0.34)), upper_haze)
 	draw_rect(Rect2(Vector2(0.0, map_size.y * 0.34), Vector2(map_size.x, map_size.y * 0.66)), lower_haze)
 
-	for i in range(9):
+	var haze_count := 5 if _use_lightweight_survival_visuals() else 9
+	for i in range(haze_count):
 		var seed := float(i)
 		var center := Vector2(
 			fmod(seed * 313.0 + sin(time * 0.08 + seed) * 45.0, map_size.x),
@@ -1607,7 +1627,8 @@ func _draw_arena_floor(map_size: Vector2, time: float) -> void:
 		draw_circle(center + Vector2(24.0, 18.0), radius * 0.58, Color(0.0, 0.0, 0.0, 0.035))
 
 	var dust_color: Color = _map_data.get("floor_dust_color", Color(0.62, 0.92, 0.86, 0.08)) as Color
-	for i in range(42):
+	var dust_count := 18 if _use_lightweight_survival_visuals() else 42
+	for i in range(dust_count):
 		var seed := float(i)
 		var px := fmod(seed * 271.0 + sin(time * 0.3 + seed) * 34.0, map_size.x)
 		var py := fmod(seed * 157.0 + cos(time * 0.22 + seed * 0.7) * 26.0, map_size.y)
@@ -1625,7 +1646,9 @@ func _draw_stone_wall(rect: Rect2, time: float) -> void:
 	_draw_rounded_rect(Rect2(rect.position + Vector2(0.0, rect.size.y - minf(7.0, rect.size.y)), Vector2(rect.size.x, minf(7.0, rect.size.y))), Color(0.07, 0.09, 0.1, 0.42), radius)
 
 	var long_axis := maxf(rect.size.x, rect.size.y)
-	var cracks := int(clampf(long_axis / 90.0, 1.0, 6.0))
+	var crack_divisor := 180.0 if _use_lightweight_survival_visuals() else 90.0
+	var crack_limit := 3.0 if _use_lightweight_survival_visuals() else 6.0
+	var cracks := int(clampf(long_axis / crack_divisor, 1.0, crack_limit))
 	for i in range(cracks):
 		var t := (float(i) + 0.35 + 0.08 * sin(time + float(i))) / float(cracks)
 		var anchor := rect.position + Vector2(rect.size.x * t, rect.size.y * (0.25 + 0.5 * fmod(float(i) * 0.37, 1.0)))
@@ -1918,9 +1941,10 @@ func _draw_slippery_zone_visual(rect: Rect2, time: float) -> void:
 	_draw_rounded_rect(Rect2(rect.position + Vector2(0.0, rect.size.y - minf(10.0, rect.size.y)), Vector2(rect.size.x, minf(10.0, rect.size.y))), Color(0.03, 0.18, 0.24, 0.22), 8.0)
 	_draw_rounded_rect_outline(rect, Color(0.78, 1.0, 1.0, 0.68), 8.0, 2.2)
 	_draw_rounded_rect_outline(rect.grow(-8.0), Color(0.9, 1.0, 1.0, 0.18), 6.0, 1.0)
-	_draw_ice_crystal_facets(rect, time, 12, 0.54)
-	_draw_ice_surface_texture(rect, time, 72, 1.0)
-	_draw_ice_reflection_glints(rect, time, 8, 0.58)
+	var light_visuals := _use_lightweight_survival_visuals()
+	_draw_ice_crystal_facets(rect, time, 6 if light_visuals else 12, 0.46 if light_visuals else 0.54)
+	_draw_ice_surface_texture(rect, time, 24 if light_visuals else 72, 0.72 if light_visuals else 1.0)
+	_draw_ice_reflection_glints(rect, time, 4 if light_visuals else 8, 0.48 if light_visuals else 0.58)
 
 
 func _draw_one_way_gate_visual(rect: Rect2, direction: Vector2, time: float) -> void:
@@ -1935,7 +1959,8 @@ func _draw_one_way_gate_visual(rect: Rect2, direction: Vector2, time: float) -> 
 	_draw_rounded_rect(Rect2(rect.position, Vector2(minf(6.0, rect.size.x), rect.size.y)), Color(0.72, 0.95, 1.0, 0.12), radius)
 
 	var center := rect.position + rect.size / 2.0
-	var lane_count := 5
+	var light_visuals := _use_lightweight_survival_visuals()
+	var lane_count := 3 if light_visuals else 5
 	var perp := Vector2(-dir.y, dir.x)
 	var gate_len := absf(rect.size.x * dir.x) + absf(rect.size.y * dir.y)
 	var gate_cross := absf(rect.size.x * perp.x) + absf(rect.size.y * perp.y)
@@ -1952,7 +1977,7 @@ func _draw_one_way_gate_visual(rect: Rect2, direction: Vector2, time: float) -> 
 		draw_line(tip, tip - dir * 11.0 + perp * 5.5, color, 1.9)
 		draw_line(tip, tip - dir * 11.0 - perp * 5.5, color, 1.9)
 
-	var reverse_count := 6
+	var reverse_count := 3 if light_visuals else 6
 	var reverse_color := Color(1.0, 0.12, 0.08, 0.7 + pulse * 0.18)
 	var reverse_half_len := clampf(gate_len * 0.16, 4.5, 7.0)
 	var reverse_head_len := clampf(gate_len * 0.13, 3.8, 5.5)
@@ -1989,7 +2014,9 @@ func _draw_sticky_wall_visual(rect: Rect2, time: float) -> void:
 	var cross := Vector2.DOWN if horizontal else Vector2.RIGHT
 	var length := rect.size.x if horizontal else rect.size.y
 	var thickness := rect.size.y if horizontal else rect.size.x
-	var strand_count := int(clampf(length / 28.0, 2.0, 8.0))
+	var light_visuals := _use_lightweight_survival_visuals()
+	var strand_limit := 4.0 if light_visuals else 8.0
+	var strand_count := int(clampf(length / 28.0, 2.0, strand_limit))
 	for i in range(strand_count):
 		var ratio := (float(i) + 0.5) / float(strand_count)
 		var along := -length / 2.0 + ratio * length
@@ -1998,7 +2025,8 @@ func _draw_sticky_wall_visual(rect: Rect2, time: float) -> void:
 		var end := center + axis * (along + sin(float(i)) * 8.0) + cross * (thickness * 0.42)
 		draw_line(start, (start + end) / 2.0 + cross * wobble, Color(1.0, 0.52, 0.86, 0.5), 1.6)
 		draw_line((start + end) / 2.0 + cross * wobble, end, Color(1.0, 0.78, 0.95, 0.32), 1.2)
-	for i in range(3):
+	var bubble_count := 2 if light_visuals else 3
+	for i in range(bubble_count):
 		var bubble_pos := rect.position + Vector2(
 			fmod(float(i) * 37.0 + time * 18.0, maxf(rect.size.x, 1.0)),
 			fmod(float(i) * 19.0 + time * 9.0, maxf(rect.size.y, 1.0))
@@ -2196,12 +2224,18 @@ func _draw_frost_waves(rect: Rect2, direction: Vector2, alpha: float, time: floa
 	if visible_len <= 2.0 or alpha <= 0.01:
 		return
 
+	var light_visuals := _use_lightweight_survival_visuals()
+	var band_count := 2 if light_visuals else 4
+	var band_steps := 12 if light_visuals else 20
+	var ribbon_count := 4 if light_visuals else 8
+	var steps := 14 if light_visuals else 28
+
 	# Faint base mist, built from soft bands instead of a hard rectangle.
-	for band in range(4):
-		var lane := (float(band) + 0.5) / 4.0 - 0.5
+	for band in range(band_count):
+		var lane := (float(band) + 0.5) / float(band_count) - 0.5
 		var points := PackedVector2Array()
-		for i in range(20):
-			var ratio := float(i) / 19.0
+		for i in range(band_steps):
+			var ratio := float(i) / float(maxi(band_steps - 1, 1))
 			var full_ratio := ratio * reveal
 			var local_width := _get_wind_width(full_ratio, nozzle_width, plume_width)
 			var center_shift := sin(time * 0.7 + ratio * 3.0 + float(band)) * 4.0 * sin(ratio * PI)
@@ -2209,13 +2243,11 @@ func _draw_frost_waves(rect: Rect2, direction: Vector2, alpha: float, time: floa
 			points.append(origin + travel_axis * (visible_len * ratio) + cross_axis * cross)
 		draw_polyline(points, Color(0.28, 0.86, 1.0, alpha * 0.035), 6.0 + float(band) * 1.1)
 
-	var ribbon_count := 8
 	for wave_index in range(ribbon_count):
 		var lane := (float(wave_index) + 0.5) / float(ribbon_count)
 		var wave_offset := lane - 0.5
 		var amplitude := cross_len * (0.012 + 0.01 * fmod(float(wave_index) * 1.7, 1.0))
 		var phase := time * (1.25 + float(wave_index) * 0.08) + float(wave_index) * 1.47
-		var steps := 28
 		var previous := Vector2.ZERO
 		for i in range(steps + 1):
 			var ratio := float(i) / float(steps)
@@ -2280,7 +2312,7 @@ func _process(_delta: float) -> void:
 			area.set_meta("pulse_timer", 0.0)
 		vent_data["was_active"] = active
 	if not _moving_wall_data.is_empty() or not _frost_vent_data.is_empty() or not _moving_slippery_zone_data.is_empty() or not _sticky_blob_data.is_empty() or not _moving_sticky_wall_data.is_empty() or not _survival_lock_data.is_empty():
-		queue_redraw()
+		_request_animated_redraw(_delta)
 
 
 func _check_moving_wall_crushes() -> void:
