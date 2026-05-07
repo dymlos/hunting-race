@@ -299,9 +299,9 @@ func _get_animal_animation_fps(animal: Enums.EscapistAnimal) -> float:
 func _get_animal_sprite_scale(animal: Enums.EscapistAnimal) -> Vector2:
 	match animal:
 		Enums.EscapistAnimal.RAT:
-			return Vector2(2.25, 2.25)
+			return Vector2(2.45, 2.45)
 		Enums.EscapistAnimal.SQUIRREL:
-			return Vector2(1.85, 1.85)
+			return Vector2(2.05, 2.05)
 		Enums.EscapistAnimal.FLY:
 			return Vector2(1.25, 1.25)
 	return Vector2(1.70, 1.70)
@@ -985,6 +985,80 @@ func get_hud_ability_entry() -> Dictionary:
 	}
 
 
+func get_survival_ability_hud_entry() -> Dictionary:
+	if not _is_survival_ability_tuning_active():
+		return {}
+	var animal_data := EscapistAnimals.get_survival_by_id(escapist_animal)
+	if animal_data.is_empty():
+		animal_data = EscapistAnimals.get_by_id(escapist_animal)
+	var status := "Habilidad bloqueada"
+	var status_color := Color(0.64, 0.70, 0.78)
+	var disabled := _survival_ability_is_locked()
+	var ready := false
+	if get_meta("survival_jailed", false) as bool:
+		status = "Atrapado en carcel"
+		status_color = Color(0.80, 0.68, 1.0)
+		disabled = true
+	elif is_dead or has_scored:
+		status = "Fuera de la mision"
+		status_color = Color(0.75, 0.75, 0.75)
+		disabled = true
+	elif _survival_ability_state == SURVIVAL_ABILITY_LOST_FOR_MAP:
+		status = "Habilidad perdida"
+		status_color = Color(1.0, 0.25, 0.20)
+		disabled = true
+	elif not disabled:
+		if _rabbit_charging:
+			status = "Cargando habilidad"
+			status_color = Color(1.0, 0.92, 0.38)
+		elif _fly_counter_timer > 0.0:
+			status = "Ventana activa"
+			status_color = Color(0.38, 1.0, 0.92)
+		elif _fly_boost_timer > 0.0:
+			status = "Boost activo"
+			status_color = Color(0.38, 1.0, 0.72)
+		elif _ability_cooldown_remaining > 0.0:
+			status = "Recargando %ds" % ceili(_ability_cooldown_remaining)
+			status_color = Color(1.0, 0.72, 0.24)
+		elif not _ability_available:
+			status = "Habilidad usada"
+			status_color = Color(1.0, 0.34, 0.22)
+			disabled = true
+		else:
+			status = "Habilidad lista para usar"
+			status_color = Color(0.36, 1.0, 0.56)
+			ready = true
+	return {
+		"role": Enums.Role.ESCAPIST,
+		"player_index": player_index,
+		"player_label": "P%d" % (player_index + 1) if player_index < 100 else "BOT",
+		"name": animal_data.get("name", Enums.escapist_animal_name(escapist_animal)),
+		"status": status,
+		"status_color": status_color,
+		"color": animal_data.get("color", Enums.escapist_animal_color(escapist_animal)),
+		"disabled": disabled,
+		"ready": ready,
+		"sprite_texture": _get_hud_sprite_texture(),
+		"sprite_modulate": Color.WHITE,
+	}
+
+
+func _get_hud_sprite_texture() -> Texture2D:
+	if _animal_sprite == null or _animal_sprite.sprite_frames == null:
+		return null
+	var frames := _animal_sprite.sprite_frames
+	var animation_name := _animal_sprite.animation
+	if not frames.has_animation(animation_name):
+		animation_name = _get_animal_animation_name(escapist_animal, Vector2.DOWN)
+	if not frames.has_animation(animation_name):
+		return null
+	var frame_count := frames.get_frame_count(animation_name)
+	if frame_count <= 0:
+		return null
+	var frame_index := clampi(_animal_sprite.frame, 0, frame_count - 1)
+	return frames.get_frame_texture(animation_name, frame_index)
+
+
 func get_ability_cooldown_remaining() -> float:
 	return maxf(_ability_cooldown_remaining, 0.0)
 
@@ -1226,20 +1300,42 @@ func _draw_squirrel_mark(mark_color: Color) -> void:
 	draw_line(Vector2(3.0, 9.5), Vector2(9.0, 9.5), mark_color, 2.8)
 
 
-func _draw_ability_ready_sparkles(animal_color: Color) -> void:
+func _draw_ability_ready_sparkles(ready_color: Color, center: Vector2 = Vector2.ZERO) -> void:
 	var pulse := _get_ability_ready_idle_pulse()
 	var time := float(Time.get_ticks_msec()) / 1000.0
 	for i in range(4):
 		var angle := time * 1.45 + float(i) * TAU / 4.0
 		var radius := Constants.CHARACTER_RADIUS + 14.0 + 2.5 * sin(time * 3.0 + float(i))
-		var pos := Vector2.from_angle(angle) * radius
-		var sparkle_alpha := 0.18 + 0.30 * pulse
+		var pos := center + Vector2.from_angle(angle) * radius
+		var sparkle_alpha := 0.26 + 0.38 * pulse
 		var sparkle_size := maxf(1.0, 1.8 + 1.4 * sin(time * 4.0 + float(i) * 1.7))
-		draw_circle(pos, sparkle_size + 1.5, Color(animal_color, 0.10 * sparkle_alpha))
+		draw_circle(pos, sparkle_size + 1.2, Color(1.0, 1.0, 1.0, 0.18 * sparkle_alpha))
 		draw_line(pos + Vector2(-sparkle_size, 0.0), pos + Vector2(sparkle_size, 0.0),
-			Color(1.0, 1.0, 0.55, sparkle_alpha), 1.4)
+			Color(ready_color, sparkle_alpha), 1.4)
 		draw_line(pos + Vector2(0.0, -sparkle_size), pos + Vector2(0.0, sparkle_size),
-			Color(1.0, 1.0, 0.55, sparkle_alpha), 1.4)
+			Color(ready_color, sparkle_alpha), 1.4)
+
+
+func _draw_ability_ready_glow(ready_color: Color, center: Vector2 = Vector2.ZERO) -> void:
+	var pulse := _get_ability_ready_idle_pulse()
+	var time := float(Time.get_ticks_msec()) / 1000.0
+	for i in range(6):
+		var angle := time * 1.1 + float(i) * TAU / 6.0
+		var radius := Constants.CHARACTER_RADIUS + 11.0 + 4.0 * sin(time * 1.7 + float(i))
+		var pos := center + Vector2.from_angle(angle) * radius
+		var size := 1.1 + 0.9 * sin(time * 3.6 + float(i) * 1.3)
+		var alpha := 0.24 + 0.32 * pulse
+		draw_circle(pos, maxf(0.9, size), Color(1.0, 1.0, 1.0, alpha * 0.42))
+		draw_line(pos + Vector2(-size * 1.8, 0.0), pos + Vector2(size * 1.8, 0.0),
+			Color(ready_color, alpha), 1.2)
+		draw_line(pos + Vector2(0.0, -size * 1.8), pos + Vector2(0.0, size * 1.8),
+			Color(ready_color, alpha), 1.2)
+
+
+func _get_ability_ready_visual_center(use_animal_sprite: bool) -> Vector2:
+	if use_animal_sprite:
+		return _get_animal_sprite_offset(escapist_animal)
+	return Vector2.ZERO
 
 
 func _draw_survival_key_badges() -> void:
@@ -1256,30 +1352,6 @@ func _draw_survival_key_badges() -> void:
 		draw_line(center + Vector2(1.0, -0.7), center + Vector2(7.0, -0.7), Color(0.04, 0.04, 0.03, 0.78), 2.3)
 		draw_line(center + Vector2(5.0, -0.7), center + Vector2(5.0, 3.0), Color(0.04, 0.04, 0.03, 0.78), 1.8)
 		draw_line(center + Vector2(7.0, -0.7), center + Vector2(7.0, 2.3), Color(0.04, 0.04, 0.03, 0.78), 1.8)
-
-
-func _draw_survival_ability_state_indicator() -> void:
-	if not _is_survival_ability_tuning_active() or is_dead or has_scored:
-		return
-	var state_label := _get_survival_ability_state_label()
-	if state_label.is_empty():
-		return
-	var text := "HAB %s" % state_label
-	var font_size := 10
-	var text_width := ThemeDB.fallback_font.get_string_size(
-		text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var text_pos := Vector2(-text_width * 0.5, Constants.CHARACTER_RADIUS + 24.0)
-	var state_color := _get_survival_ability_state_color()
-	for offset in [
-		Vector2(-1.0, 0.0),
-		Vector2(1.0, 0.0),
-		Vector2(0.0, -1.0),
-		Vector2(0.0, 1.0),
-	]:
-		draw_string(ThemeDB.fallback_font, text_pos + offset,
-			text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.0, 0.0, 0.0, 0.82))
-	draw_string(ThemeDB.fallback_font, text_pos,
-		text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, state_color)
 
 
 func _draw_rat_tail_visual(base_color: Color) -> void:
@@ -1358,6 +1430,7 @@ func _draw() -> void:
 	var draw_color := animal_color
 	var jump_lift := _get_rabbit_jump_lift()
 	var use_animal_sprite := _uses_animal_sprite()
+	var ability_ready_center := _get_ability_ready_visual_center(use_animal_sprite)
 
 	# Poison tint
 	if poison and poison.is_poisoned:
@@ -1384,6 +1457,8 @@ func _draw() -> void:
 		_draw_animal_mark(draw_color)
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 5.5, 0, TAU, 24,
 			Color(team_color, 0.78), 2.2)
+	if _should_show_ability_ready_indicator():
+		_draw_ability_ready_glow(team_color, ability_ready_center)
 
 	# Label
 	var label := "P%d" % (player_index + 1)
@@ -1391,7 +1466,6 @@ func _draw() -> void:
 		label = "BOT"
 	_draw_player_label(label, Vector2(-10, -Constants.CHARACTER_RADIUS - 8), 14, team_color)
 	_draw_survival_key_badges()
-	_draw_survival_ability_state_indicator()
 	if _floating_text_timer > 0.0 and not _floating_text.is_empty():
 		var text_alpha := clampf(_floating_text_timer / maxf(_floating_text_duration, 0.01), 0.0, 1.0)
 		var text_size := _floating_text_size
@@ -1408,8 +1482,8 @@ func _draw() -> void:
 	if not use_animal_sprite:
 		var ability_color := Color(0.2, 1.0, 0.4, 0.45) if _ability_available else Color(0.45, 0.45, 0.45, 0.32)
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 8.5, 0, TAU, 24, ability_color, 1.2)
-	elif _should_show_ability_ready_indicator():
-		_draw_ability_ready_sparkles(animal_color)
+	if _should_show_ability_ready_indicator():
+		_draw_ability_ready_sparkles(team_color, ability_ready_center)
 	if _ability_cooldown_remaining > 0.0:
 		var cooldown_ratio := clampf(_ability_cooldown_remaining / _get_ability_cooldown_duration(), 0.0, 1.0)
 		var arc_radius := Constants.CHARACTER_RADIUS + 10.5

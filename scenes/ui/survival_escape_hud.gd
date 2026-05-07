@@ -1,6 +1,13 @@
 class_name SurvivalEscapeHud
 extends Control
 
+const ABILITY_STATUS_MAX_WIDTH: float = 310.0
+const ABILITY_STATUS_MIN_WIDTH: float = 110.0
+const ABILITY_STATUS_TOP: float = 12.0
+const ABILITY_STATUS_HEIGHT: float = 84.0
+const ABILITY_STATUS_MAX_ROW_HEIGHT: float = 22.0
+const ABILITY_STATUS_MIN_ROW_HEIGHT: float = 16.0
+
 var input_blocked: bool = false
 
 var _escapist_total: int = 0
@@ -31,6 +38,10 @@ var _transition_text: String = ""
 var _transition_subtext: String = ""
 var _transition_timer: float = 0.0
 var _transition_duration: float = 0.0
+
+
+func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 
 func open(escapist_total: int, trapper_total: int, duration: float = Constants.SURVIVAL_ESCAPE_DURATION) -> void:
@@ -150,6 +161,7 @@ func _draw() -> void:
 		Rect2(timer_rect.position.x, timer_rect.position.y + 10.0, timer_rect.size.x, 18.0), 12, Color(0.70, 0.70, 0.64))
 	_draw_centered_text_in_rect(font, _format_time(_time_remaining),
 		Rect2(timer_rect.position.x, timer_rect.position.y + 30.0, timer_rect.size.x, 40.0), 34, timer_color)
+	_draw_survival_ability_statuses(font, screen, timer_rect)
 
 	var objective_rect := Rect2(cx - 380.0, 100.0, 760.0, 32.0)
 	_draw_panel(objective_rect, Color(0.025, 0.027, 0.028, 0.78), Color(0.42, 0.46, 0.44, 0.48), 1.5)
@@ -230,6 +242,161 @@ func _draw_centered_text_in_rect(font: Font, text: String, rect: Rect2, font_siz
 	var shadow := Color(0.0, 0.0, 0.0, 0.72 * color.a)
 	draw_string(font, pos + Vector2(2.0, 2.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, shadow)
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+
+
+func _draw_survival_ability_statuses(font: Font, screen: Vector2, timer_rect: Rect2) -> void:
+	var escapist_entries := _get_survival_ability_entries(Enums.Role.ESCAPIST)
+	var trapper_entries := _get_survival_ability_entries(Enums.Role.TRAPPER)
+
+	var left_end := timer_rect.position.x - 10.0
+	var left_start := maxf(286.0, left_end - ABILITY_STATUS_MAX_WIDTH)
+	var left_width := left_end - left_start
+	if left_width >= ABILITY_STATUS_MIN_WIDTH:
+		_draw_ability_status_column(font, escapist_entries,
+			Rect2(left_start, ABILITY_STATUS_TOP, left_width, ABILITY_STATUS_HEIGHT))
+
+	var right_start := timer_rect.end.x + 10.0
+	var right_limit := screen.x - 278.0
+	var right_width := minf(ABILITY_STATUS_MAX_WIDTH, right_limit - right_start)
+	if right_width >= ABILITY_STATUS_MIN_WIDTH:
+		_draw_ability_status_column(font, trapper_entries,
+			Rect2(right_start, ABILITY_STATUS_TOP, right_width, ABILITY_STATUS_HEIGHT))
+
+
+func _get_survival_ability_entries(role_filter: Enums.Role) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	var tree := get_tree()
+	if tree == null:
+		return entries
+	for node: Node in tree.get_nodes_in_group("characters"):
+		if not is_instance_valid(node) or not node.has_method("get_survival_ability_hud_entry"):
+			continue
+		var entry := node.call("get_survival_ability_hud_entry") as Dictionary
+		if entry.is_empty():
+			continue
+		if int(entry.get("role", Enums.Role.NONE)) != int(role_filter):
+			continue
+		entries.append(entry)
+	entries.sort_custom(Callable(self, "_sort_ability_status_entries"))
+	return entries
+
+
+func _sort_ability_status_entries(a: Dictionary, b: Dictionary) -> bool:
+	return int(a.get("player_index", 0)) < int(b.get("player_index", 0))
+
+
+func _draw_ability_status_column(font: Font, entries: Array[Dictionary], rect: Rect2) -> void:
+	if entries.is_empty():
+		return
+	var row_height := clampf(
+		rect.size.y / float(maxi(entries.size(), 1)),
+		ABILITY_STATUS_MIN_ROW_HEIGHT,
+		ABILITY_STATUS_MAX_ROW_HEIGHT
+	)
+	for i in entries.size():
+		var panel := Rect2(
+			rect.position.x,
+			rect.position.y + float(i) * row_height,
+			rect.size.x,
+			maxf(row_height - 2.0, 14.0)
+		)
+		if panel.end.y > rect.end.y + 1.0:
+			break
+		_draw_ability_status_entry(font, entries[i], panel)
+
+
+func _draw_ability_status_entry(font: Font, entry: Dictionary, panel: Rect2) -> void:
+	var status_color := Color.WHITE
+	var color_variant: Variant = entry.get("status_color", Color.WHITE)
+	if color_variant is Color:
+		status_color = color_variant as Color
+	var base_color := Color.WHITE
+	var base_variant: Variant = entry.get("color", Color.WHITE)
+	if base_variant is Color:
+		base_color = base_variant as Color
+	var disabled := entry.get("disabled", false) as bool
+	var ready := entry.get("ready", false) as bool
+	var blink := 1.0
+	if ready:
+		blink = 0.35 + 0.65 * absf(sin(float(Time.get_ticks_msec()) / 145.0))
+	var fill := Color(0.018, 0.022, 0.024, 0.84)
+	if disabled:
+		fill = Color(0.018, 0.018, 0.020, 0.72)
+	draw_rect(panel, fill)
+	var outline_alpha := 0.62 if not disabled else 0.38
+	draw_rect(panel, Color(status_color, outline_alpha), false, 1.2)
+
+	var icon_size := minf(panel.size.y - 3.0, 20.0)
+	var icon_rect := Rect2(
+		panel.position + Vector2(3.0, (panel.size.y - icon_size) * 0.5),
+		Vector2(icon_size, icon_size)
+	)
+	_draw_ability_status_sprite(entry, icon_rect, base_color, disabled)
+
+	var prefix := "%s " % str(entry.get("player_label", "P?"))
+	var status_text := str(entry.get("status", ""))
+	var text := "%s%s" % [prefix, status_text]
+	var text_rect := Rect2(
+		icon_rect.end.x + 5.0,
+		panel.position.y,
+		maxf(8.0, panel.end.x - icon_rect.end.x - 8.0),
+		panel.size.y
+	)
+	var font_size := _fit_text_size(font, text, text_rect.size.x, 10, 7)
+	var baseline_y := text_rect.position.y + (text_rect.size.y - font.get_height(font_size)) * 0.5 + font.get_ascent(font_size)
+	var pos := Vector2(text_rect.position.x, baseline_y)
+	var prefix_width := font.get_string_size(prefix, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var prefix_color := Color(0.74, 0.80, 0.78) if not disabled else Color(0.58, 0.60, 0.62)
+	var text_color := status_color if not disabled else Color(status_color, 0.72)
+	if ready:
+		text_color = Color(status_color, 0.32 + 0.68 * blink)
+	draw_string(font, pos + Vector2(1.0, 1.0), prefix, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.0, 0.0, 0.0, 0.74))
+	draw_string(font, pos, prefix, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, prefix_color)
+	var status_pos := pos + Vector2(prefix_width, 0.0)
+	draw_string(font, status_pos + Vector2(1.0, 1.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.0, 0.0, 0.0, 0.74))
+	draw_string(font, status_pos, status_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, text_color)
+
+
+func _draw_ability_status_sprite(entry: Dictionary, rect: Rect2, base_color: Color, disabled: bool) -> void:
+	var center := rect.get_center()
+	draw_circle(center + Vector2(1.2, 1.4), rect.size.x * 0.50, Color(0.0, 0.0, 0.0, 0.48))
+	draw_circle(center, rect.size.x * 0.48, Color(base_color, 0.22 if not disabled else 0.12))
+	var texture_variant: Variant = entry.get("sprite_texture", null)
+	if texture_variant is Texture2D:
+		var texture := texture_variant as Texture2D
+		var texture_size := texture.get_size()
+		if texture_size.x > 0.0 and texture_size.y > 0.0:
+			var scale := minf(rect.size.x / texture_size.x, rect.size.y / texture_size.y)
+			var draw_size := texture_size * scale
+			var draw_rect := Rect2(center - draw_size * 0.5, draw_size)
+			var modulate := Color.WHITE
+			var modulate_variant: Variant = entry.get("sprite_modulate", Color.WHITE)
+			if modulate_variant is Color:
+				modulate = modulate_variant as Color
+			if disabled:
+				modulate = modulate.lerp(Color(0.58, 0.58, 0.58), 0.52)
+				modulate.a *= 0.60
+			draw_texture_rect(texture, draw_rect, false, modulate)
+			return
+	var initial := _get_status_entry_initial(entry)
+	var font_size := 9
+	var text_width := ThemeDB.fallback_font.get_string_size(initial, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	draw_string(ThemeDB.fallback_font, center + Vector2(-text_width * 0.5, 3.5),
+		initial, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(base_color, 0.92))
+
+
+func _get_status_entry_initial(entry: Dictionary) -> String:
+	var name := str(entry.get("name", "?"))
+	if name.is_empty():
+		return "?"
+	return name.substr(0, 1)
+
+
+func _fit_text_size(font: Font, text: String, width: float, preferred_size: int, min_size: int) -> int:
+	var size := preferred_size
+	while size > min_size and font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x > width:
+		size -= 1
+	return size
 
 
 func _draw_centered_multiline_in_rect(font: Font, text: String, rect: Rect2, font_size: int, color: Color,

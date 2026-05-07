@@ -49,7 +49,7 @@ const MUSHROOM_IDLE_FPS := 5.0
 const MUSHROOM_WALK_FPS := 8.0
 const MUSHROOM_ATTACK_FPS := 11.0
 const MUSHROOM_ATTACK_DURATION := 0.58
-const MUSHROOM_SPRITE_SCALE := Vector2(1.96, 1.96)
+const MUSHROOM_SPRITE_SCALE := Vector2(2.14, 2.14)
 const MUSHROOM_SPRITE_BASE_OFFSET := Vector2(0.0, -2.0)
 const OCTOPUS_SPRITE_BASE_PATH := "res://assets/characters/octopus"
 const OCTOPUS_WALK_SPRITE_FILE := "kraken_walk_sheet.png"
@@ -594,8 +594,8 @@ func _get_trapper_sprite_offset() -> Vector2:
 
 func _get_trapper_sprite_scale_multiplier() -> Vector2:
 	var scale_multiplier := 1.0
-	if _survival_ability_state == SURVIVAL_ABILITY_READY:
-		scale_multiplier += 0.02 * (0.5 + 0.5 * sin(Time.get_ticks_msec() / 170.0))
+	if _should_show_survival_ready_indicator():
+		scale_multiplier += 0.035 * _get_survival_ready_pulse()
 	if _ability_ready_flash_timer > 0.0:
 		var flash := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
 		scale_multiplier += 0.05 * flash
@@ -608,6 +608,9 @@ func _get_trapper_sprite_tint() -> Color:
 		tint = OCTOPUS_SPRITE_TINT
 	if _survival_ability_state == SURVIVAL_ABILITY_USED:
 		tint = tint.lerp(Color(0.74, 0.74, 0.74), 0.22)
+	if _should_show_survival_ready_indicator():
+		var pulse := _get_survival_ready_pulse()
+		tint = tint.lerp(Color(1.0, 0.96, 0.55), 0.10 + 0.13 * pulse)
 	if _ability_ready_flash_timer > 0.0:
 		var flash := clampf(_ability_ready_flash_timer / 0.55, 0.0, 1.0)
 		tint = tint.lerp(Color(1.35, 1.18, 0.58), 0.42 * flash)
@@ -872,6 +875,59 @@ func _notify_survival_ability_denied(text: String) -> void:
 	queue_redraw()
 
 
+func get_survival_ability_hud_entry() -> Dictionary:
+	var character_data := TrapperCharacters.get_survival_by_id(trapper_character)
+	if character_data.is_empty():
+		character_data = TrapperCharacters.get_by_id(trapper_character)
+	var character_color := Enums.trapper_character_color(trapper_character)
+	var status := "Habilidad lista para usar"
+	var status_color := Color(0.36, 1.0, 0.56)
+	var disabled := false
+	var ready := true
+	if not _survival_placement_points.is_empty():
+		status = "Marcando punto %d" % _survival_placement_points.size()
+		status_color = character_color
+		ready = false
+	elif _is_holding_ability_button():
+		status = "Manteniendo A"
+		status_color = Color(1.0, 0.94, 0.32)
+		ready = false
+	elif _survival_ability_state == SURVIVAL_ABILITY_USED:
+		status = "Habilidad usada"
+		status_color = Color(1.0, 0.34, 0.22)
+		disabled = true
+		ready = false
+	return {
+		"role": Enums.Role.TRAPPER,
+		"player_index": player_index,
+		"player_label": "P%d" % (player_index + 1) if player_index < 100 else "BOT",
+		"name": character_data.get("name", Enums.trapper_character_name(trapper_character)),
+		"status": status,
+		"status_color": status_color,
+		"color": character_data.get("color", character_color),
+		"disabled": disabled,
+		"ready": ready,
+		"sprite_texture": _get_hud_sprite_texture(),
+		"sprite_modulate": _get_trapper_sprite_tint(),
+	}
+
+
+func _get_hud_sprite_texture() -> Texture2D:
+	if _trapper_sprite == null or _trapper_sprite.sprite_frames == null:
+		return null
+	var frames := _trapper_sprite.sprite_frames
+	var animation_name := _trapper_sprite.animation
+	if not frames.has_animation(animation_name):
+		animation_name = _trapper_last_animation
+	if not frames.has_animation(animation_name):
+		return null
+	var frame_count := frames.get_frame_count(animation_name)
+	if frame_count <= 0:
+		return null
+	var frame_index := clampi(_trapper_sprite.frame, 0, frame_count - 1)
+	return frames.get_frame_texture(animation_name, frame_index)
+
+
 func _show_survival_ability_status(text: String, color: Color, duration: float) -> void:
 	_floating_text = text
 	_floating_text_color = color
@@ -886,6 +942,8 @@ func _update_survival_ability_feedback(delta: float) -> void:
 			_floating_text = ""
 	if _ability_ready_flash_timer > 0.0:
 		_ability_ready_flash_timer = maxf(_ability_ready_flash_timer - delta, 0.0)
+	if _should_show_survival_ready_indicator():
+		queue_redraw()
 
 
 func _get_points_centroid(points: Array[Vector2]) -> Vector2:
@@ -950,21 +1008,9 @@ func _draw_survival_ability_preview(character_color: Color) -> void:
 		draw_arc(previous, max_distance, 0.0, TAU, 40, Color(character_color, 0.12), 1.0)
 
 
-func _draw_survival_ability_indicator(character_color: Color) -> void:
-	var label := "A LISTA" if _survival_ability_state == SURVIVAL_ABILITY_READY else "A USADA"
-	var label_color := Color(0.36, 1.0, 0.56) if _survival_ability_state == SURVIVAL_ABILITY_READY else Color(0.95, 0.30, 0.22)
-	if not _survival_placement_points.is_empty():
-		label = "P%d" % _survival_placement_points.size()
-		label_color = character_color
-	var font_size := 10
-	var width := ThemeDB.fallback_font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var pos := Vector2(-width * 0.5, Constants.CHARACTER_RADIUS + 24.0)
-	for offset in [Vector2(-1.0, 0.0), Vector2(1.0, 0.0), Vector2(0.0, -1.0), Vector2(0.0, 1.0)]:
-		draw_string(ThemeDB.fallback_font, pos + offset,
-			label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0.0, 0.0, 0.0, 0.82))
-	draw_string(ThemeDB.fallback_font, pos,
-		label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, label_color)
-
+func _draw_survival_ability_indicator(character_color: Color, team_color: Color) -> void:
+	if _should_show_survival_ready_indicator():
+		_draw_survival_ready_glow(team_color, _get_survival_ready_visual_center())
 	if _is_holding_ability_button():
 		var ratio := clampf(_ability_button_hold_time / SURVIVAL_ABILITY_HOLD_THRESHOLD, 0.0, 1.0)
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 12.0,
@@ -973,6 +1019,38 @@ func _draw_survival_ability_indicator(character_color: Color) -> void:
 		var ratio := clampf(_ability_ready_flash_timer / 0.62, 0.0, 1.0)
 		draw_arc(Vector2.ZERO, Constants.CHARACTER_RADIUS + 12.0,
 			0.0, TAU, 26, Color(character_color, 0.82 * ratio), 2.6)
+
+
+func _should_show_survival_ready_indicator() -> bool:
+	return _survival_ability_state == SURVIVAL_ABILITY_READY \
+		and _survival_placement_points.is_empty() \
+		and not _is_holding_ability_button()
+
+
+func _get_survival_ready_pulse() -> float:
+	return 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) / 170.0)
+
+
+func _get_survival_ready_visual_center() -> Vector2:
+	if _uses_trapper_sprite():
+		return _get_trapper_sprite_offset()
+	return Vector2.ZERO
+
+
+func _draw_survival_ready_glow(ready_color: Color, center: Vector2 = Vector2.ZERO) -> void:
+	var pulse := _get_survival_ready_pulse()
+	var time := float(Time.get_ticks_msec()) / 1000.0
+	for i in range(6):
+		var angle := time * 1.1 + float(i) * TAU / 6.0
+		var radius := Constants.CHARACTER_RADIUS + 11.0 + 4.0 * sin(time * 1.7 + float(i))
+		var pos := center + Vector2.from_angle(angle) * radius
+		var size := 1.1 + 0.9 * sin(time * 3.6 + float(i) * 1.3)
+		var alpha := 0.24 + 0.32 * pulse
+		draw_circle(pos, maxf(0.9, size), Color(1.0, 1.0, 1.0, alpha * 0.42))
+		draw_line(pos + Vector2(-size, 0.0), pos + Vector2(size, 0.0),
+			Color(ready_color, alpha), 1.2)
+		draw_line(pos + Vector2(0.0, -size), pos + Vector2(0.0, size),
+			Color(ready_color, alpha), 1.2)
 
 
 func _is_holding_ability_button() -> bool:
@@ -1022,10 +1100,10 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(-marker_width / 2.0, 5.0),
 			marker, HORIZONTAL_ALIGNMENT_LEFT, -1, marker_size, Color.WHITE)
 
+	_draw_survival_ability_indicator(character_color, team_color)
 	var label := "P%d" % (player_index + 1)
 	_draw_player_label(label, Vector2(-10.0, -radius - 8.0), 14, team_color)
 	_draw_survival_ability_preview(character_color)
-	_draw_survival_ability_indicator(character_color)
 	_draw_survival_floating_text()
 
 

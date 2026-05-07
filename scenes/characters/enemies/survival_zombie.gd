@@ -23,6 +23,9 @@ const ZOMBIE_WALK_FPS := 9.0
 const ZOMBIE_ATTACK_FPS := 8.0
 const ZOMBIE_SPRITE_SCALE := Vector2(0.78, 0.78)
 const ZOMBIE_SPRITE_BASE_OFFSET := Vector2(-1.0, -20.0)
+const ZOMBIE_DARK_GREEN_TINT := Color(0.30, 0.58, 0.24)
+const ZOMBIE_DARK_GREEN_ATTACHED_TINT := Color(0.42, 0.70, 0.24)
+const ZOMBIE_DARK_GREEN_LABEL := Color(0.52, 0.86, 0.34)
 
 var zombie_index: int = 0
 var move_speed: float = Constants.SURVIVAL_ZOMBIE_SPEED
@@ -410,12 +413,12 @@ func _get_zombie_animation_name(state: String, direction: Vector2) -> String:
 
 
 func _get_zombie_sprite_tint() -> Color:
-	var tint := Color(0.86, 1.0, 0.78)
+	var tint := ZOMBIE_DARK_GREEN_TINT
 	if _attached_escapist != null:
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 95.0 + float(zombie_index))
-		tint = tint.lerp(Color(1.0, 0.70, 0.52), 0.28 + 0.16 * pulse)
+		tint = tint.lerp(ZOMBIE_DARK_GREEN_ATTACHED_TINT, 0.26 + 0.12 * pulse)
 	elif _release_cooldown > 0.0:
-		tint = tint.lerp(Color(1.0, 0.34, 0.28), 0.22)
+		tint = tint.lerp(Color(0.70, 0.28, 0.20), 0.18)
 	return tint
 
 
@@ -423,16 +426,16 @@ func _draw() -> void:
 	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 145.0 + float(zombie_index))
 	var attached := _attached_escapist != null
 	var use_sprite := _uses_zombie_sprite()
-	var body_color := Color(0.42, 0.78, 0.36)
+	var body_color := ZOMBIE_DARK_GREEN_TINT
 	if attached:
-		body_color = Color(0.84, 0.92, 0.32)
+		body_color = ZOMBIE_DARK_GREEN_ATTACHED_TINT
 	var glow_color := Color(body_color, 0.16 + pulse * 0.08)
 	var eye_color := Color(0.08, 0.02, 0.02)
 	var radius := Constants.CHARACTER_RADIUS * 0.86
 
-	draw_circle(Vector2.ZERO, radius + 8.0, glow_color)
-	draw_circle(Vector2(0.0, 5.0), radius * 0.95, Color(0.0, 0.0, 0.0, 0.30))
 	if not use_sprite:
+		draw_circle(Vector2.ZERO, radius + 8.0, glow_color)
+		draw_circle(Vector2(0.0, 5.0), radius * 0.95, Color(0.0, 0.0, 0.0, 0.30))
 		draw_circle(Vector2.ZERO, radius, Color(body_color, 0.92))
 		draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 22, Color(0.10, 0.16, 0.10, 0.92), 2.0)
 		draw_circle(Vector2(-4.5, -3.0), 2.4, eye_color)
@@ -446,8 +449,9 @@ func _draw() -> void:
 			Constants.SURVIVAL_ZOMBIE_GRAB_DURATION - float(maxi(attached_count - 1, 0))
 		)
 		var ratio := clampf(_grab_elapsed / kill_time, 0.0, 1.0)
-		draw_arc(Vector2.ZERO, radius + 8.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 28,
-			Color(1.0, 0.18, 0.10, 0.92), 3.2)
+		if not use_sprite:
+			draw_arc(Vector2.ZERO, radius + 8.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 28,
+				Color(1.0, 0.18, 0.10, 0.92), 3.2)
 		var left := maxf(kill_time - _grab_elapsed, 0.0)
 		var text := "%.0f" % ceilf(left)
 		var text_size := 13
@@ -458,10 +462,10 @@ func _draw() -> void:
 			text, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size, Color(1.0, 0.28, 0.16))
 		return
 
-	var label := "Z"
-	var label_size := 13
+	var label := "Z-Ant"
+	var label_size := 10
 	var label_width := ThemeDB.fallback_font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size).x
 	draw_string(ThemeDB.fallback_font, Vector2(-label_width / 2.0 + 1.0, -radius - 8.0 + 1.0),
 		label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color.BLACK)
 	draw_string(ThemeDB.fallback_font, Vector2(-label_width / 2.0, -radius - 8.0),
-		label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, Color(0.64, 1.0, 0.54))
+		label, HORIZONTAL_ALIGNMENT_LEFT, -1, label_size, ZOMBIE_DARK_GREEN_LABEL)
