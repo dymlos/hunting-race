@@ -28,9 +28,10 @@ const PAGES := [
 		"accent": Color(0.30, 0.82, 1.0),
 		"lines": [
 			"Vista previa: la ronda empieza con una mirada breve al mapa y a los roles.",
-			"Cazería planificada: los cazadores preparan trampas durante la cuenta y luego no actúan en Escape.",
+			"Cacería planificada: los cazadores preparan trampas durante la cuenta y luego no actúan en Escape.",
 			"Escape: los escapistas corren hacia la meta mientras las trampas siguen activas.",
 			"El modo práctica evita la presión del puntaje y sirve para probar movimiento, habilidades y trampas.",
+			"Desde la pausa de práctica se pueden activar obstáculos, bots y cambio de personajes.",
 		],
 	},
 	{
@@ -48,14 +49,26 @@ const PAGES := [
 		"title": "HABILIDADES",
 		"accent": Color(1.0, 0.36, 0.24),
 		"lines": [
-			"Los escapistas usan A. Con cazería planificada, tienen un solo uso por vida.",
+			"Los escapistas usan A. Con cacería planificada, tienen un solo uso por vida.",
 			"Ese uso solo vuelve si ese escapista muere y reaparece.",
-			"Sin cazería planificada o en práctica, las habilidades escapistas recargan por tiempo.",
+			"Sin cacería planificada o en práctica, las habilidades escapistas recargan por tiempo.",
 			"Los cazadores usan A, X e Y.",
-			"En cazería planificada, cada habilidad de cazador tiene un uso gratis y no se repite.",
+			"En cacería planificada, cada habilidad de cazador tiene un uso en preparación.",
 			"Sin esa fase y en práctica, cada habilidad de cazador tiene sus propias cargas y recargas.",
 			"Cuando vuelve una carga, el cursor del cazador parpadea y el control vibra.",
 			"La rata rescata a un solo aliado: si varios tocan el lazo, engancha al primero.",
+		],
+	},
+	{
+		"title": "RECARGAS",
+		"accent": Color(0.90, 0.62, 1.0),
+		"lines": [
+			"Escapista con cacería planificada: 1 uso por vida; morir o reaparecer lo recupera.",
+			"Escapista con recarga por tiempo: conejo 8s, rata 10s, ardilla 9s y mosca 11s.",
+			"Cazador en preparación: 1 uso por habilidad; en Escape queda cerrado.",
+			"Cazador con recargas: cada habilidad tiene cargas, temporizador y límite activo propios.",
+			"Muerte o reaparición escapista: rellena todas las habilidades de todos los cazadores.",
+			"HUD y aros muestran lista, usada, bloqueada, colocando o tiempo restante.",
 		],
 	},
 ]
@@ -82,6 +95,29 @@ const SURVIVAL_PAGES := [
 		],
 	},
 	{
+		"title": "HABILIDADES SURVIVAL",
+		"accent": Color(0.90, 0.62, 1.0),
+		"lines": [
+			"Las habilidades escapistas empiezan dormidas: tomar una llave las despierta.",
+			"Abrir una compuerta asegura la habilidad para ese mapa.",
+			"Si mueren después de asegurarla, la pierden hasta el mapa siguiente.",
+			"Si las recargas están activas, vuelven en 20s mientras sigan habilitadas.",
+			"La rata tiene alcance de medio mapa, libera aliados de zombies y gana velocidad por cada rescate real.",
+			"La ardilla elimina zombies con la bellota; la mosca tiene una ventana de contraataque de 1s.",
+		],
+	},
+	{
+		"title": "CAZADORES SURVIVAL",
+		"accent": Color(0.70, 0.34, 1.0),
+		"lines": [
+			"Los cazadores survival son personajes físicos y usan solo A.",
+			"Un toque corto coloca puntos; mantener A usa o cierra la habilidad.",
+			"Cada cazador tiene una sola carga: después de usarla queda en estado USADA.",
+			"Cualquier muerte o reaparición escapista recarga la habilidad de todos los cazadores.",
+			"El HUD superior muestra si cada habilidad está lista, manteniéndose, usada, perdida o bloqueada.",
+		],
+	},
+	{
 		"title": "BOTONES Y SALIDA",
 		"accent": Color(0.95, 0.84, 0.18),
 		"lines": [
@@ -99,6 +135,7 @@ const SURVIVAL_PAGES := [
 			"Otro escapista puede liberarlos quedandose pegado a la carcel durante 3 segundos.",
 			"Dentro de la carcel no los persiguen zombies ni bots cazadores.",
 			"Las oleadas llegan mas espaciadas, pero los zombies ganan velocidad poco a poco.",
+			"Cada muerte baja el tiempo a la siguiente oleada y sube la velocidad zombie.",
 			"Los bots estaticos dejan quietos a los bots de jugador; no afectan a los zombies.",
 		],
 	},
@@ -273,17 +310,17 @@ func _draw_skills_page(font: Font, panel_rect: Rect2, accent: Color) -> void:
 
 	var left_lines: Array[String] = [
 		"Usan A en partida.",
-		"Con cazería planificada, cada escapista tiene un solo uso por vida.",
-		"Ese uso solo vuelve si ese escapista muere y reaparece.",
-		"Sin esa fase o en práctica, recargan por tiempo.",
+		"Con cacería planificada, cada escapista tiene un solo uso por vida.",
+		"Ese uso solo vuelve si ese mismo escapista muere o reaparece.",
+		"Sin esa fase, y en práctica, recargan por tiempo.",
 		"La rata rescata a un solo aliado; si varios tocan el lazo, engancha al primero.",
 	]
 	var right_lines: Array[String] = [
 		"Los cazadores usan A, X e Y.",
-		"En cazería planificada, cada habilidad tiene un uso gratis y no se repite.",
+		"En cacería planificada, cada habilidad tiene un uso durante la preparación.",
 		"Al terminar la cuenta regresiva, ya no pueden actuar durante Escape.",
-		"Sin esa fase o en práctica, juegan con recargas normales.",
-		"Cualquier muerte escapista recarga las habilidades de todos los cazadores.",
+		"Sin esa fase o en práctica, juegan con cargas y recargas normales.",
+		"Cualquier muerte escapista les rellena todas las habilidades.",
 	]
 
 	_draw_skills_column(font, left_rect, accent, left_lines, 14, 16.0, 8.0)
